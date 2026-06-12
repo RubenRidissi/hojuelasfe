@@ -1,0 +1,1650 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hojuelas con Miel — ERP</title>
+<style>
+  :root {
+    --honey: #D4860A;
+    --honey-light: #FEF3DC;
+    --honey-dark: #9A5F00;
+    --bg: #FAF8F4;
+    --surface: #FFFFFF;
+    --border: #E8E2D8;
+    --text: #1C1917;
+    --muted: #78716C;
+    --danger: #DC2626;
+    --success: #16A34A;
+    --warning: #D97706;
+    --info: #1D4ED8;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; }
+
+  /* LAYOUT */
+  .app { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 0; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 10; }
+  .main { margin-left: 220px; flex: 1; padding: 24px; max-width: 1100px; }
+
+  /* SIDEBAR */
+  .brand { padding: 20px 16px 16px; border-bottom: 1px solid var(--border); }
+  .brand-name { font-size: 15px; font-weight: 600; color: var(--honey-dark); line-height: 1.2; }
+  .brand-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .nav { padding: 8px 0; flex: 1; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; color: var(--muted); font-size: 13px; border-left: 3px solid transparent; transition: all 0.15s; }
+  .nav-item:hover { background: var(--honey-light); color: var(--honey-dark); }
+  .nav-item.active { background: var(--honey-light); color: var(--honey-dark); border-left-color: var(--honey); font-weight: 500; }
+  .nav-icon { font-size: 16px; width: 18px; text-align: center; }
+
+  /* HEADER */
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .page-title { font-size: 20px; font-weight: 600; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius); border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+  .btn-primary { background: var(--honey); color: white; }
+  .btn-primary:hover { background: var(--honey-dark); }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--bg); }
+  .btn-danger { background: #FEE2E2; color: var(--danger); }
+  .btn-danger:hover { background: #FECACA; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-success { background: #DCFCE7; color: var(--success); }
+
+  /* CARDS */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow); }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .stat-value { font-size: 22px; font-weight: 600; color: var(--text); }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  td { padding: 11px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg); }
+
+  /* BADGES */
+  .badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .badge-green { background: #DCFCE7; color: #15803D; }
+  .badge-yellow { background: #FEF9C3; color: #A16207; }
+  .badge-red { background: #FEE2E2; color: #B91C1C; }
+  .badge-blue { background: #DBEAFE; color: #1D4ED8; }
+  .badge-gray { background: #F3F4F6; color: #6B7280; }
+
+  /* MODAL */
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius); padding: 24px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+  /* FORM */
+  .form-group { margin-bottom: 14px; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 5px; }
+  input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; background: var(--surface); color: var(--text); outline: none; transition: border 0.15s; }
+  input:focus, select:focus, textarea:focus { border-color: var(--honey); box-shadow: 0 0 0 3px rgba(212,134,10,0.1); }
+  textarea { resize: vertical; min-height: 70px; }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: white; padding: 12px 18px; border-radius: var(--radius); font-size: 13px; z-index: 200; transform: translateY(80px); opacity: 0; transition: all 0.3s; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { background: var(--success); }
+  .toast.error { background: var(--danger); }
+
+  /* SEARCH */
+  .search-bar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
+  .search-input { flex: 1; max-width: 300px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; background: var(--surface); }
+  .search-input:focus { outline: none; border-color: var(--honey); }
+
+  /* EMPTY */
+  .empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+  .empty-icon { font-size: 36px; margin-bottom: 12px; }
+  .empty p { font-size: 14px; }
+
+  /* CONFIG */
+  .config-banner { background: #FEF3DC; border: 1px solid #F6C456; border-radius: var(--radius); padding: 16px; margin-bottom: 20px; display: flex; align-items: flex-start; gap: 12px; }
+  .config-banner.hidden { display: none; }
+
+  /* ITEMS LIST */
+  .items-list { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-top: 12px; }
+  .item-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .item-row:last-child { border-bottom: none; }
+
+  /* TABS */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* LOGIN */
+  .login-screen { display:none; position:fixed; inset:0; background:var(--bg); z-index:1000; align-items:center; justify-content:center; }
+  .login-screen.show { display:flex; }
+  .login-box { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:36px 32px; width:100%; max-width:380px; box-shadow:0 8px 32px rgba(0,0,0,0.1); }
+  .login-logo { text-align:center; margin-bottom:24px; }
+  .login-logo img { height:56px; object-fit:contain; }
+  .login-logo h2 { font-size:18px; font-weight:700; color:var(--honey-dark); margin:10px 0 2px; }
+  .login-logo p { font-size:12px; color:var(--muted); }
+  .login-error { background:#FEE2E2; color:var(--danger); font-size:12px; padding:8px 12px; border-radius:7px; margin-bottom:12px; display:none; }
+
+  /* USER BADGE */
+  .user-badge { padding:10px 16px; border-top:1px solid var(--border); font-size:12px; color:var(--muted); display:flex; align-items:center; gap:8px; }
+  .user-badge strong { color:var(--text); font-size:13px; display:block; }
+  .user-badge .rol-badge { font-size:10px; padding:2px 7px; border-radius:10px; }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    .sidebar { width: 56px; }
+    .nav-item span { display: none; }
+    .brand-name, .brand-sub { display: none; }
+    .main { margin-left: 56px; padding: 16px; }
+    .form-row { grid-template-columns: 1fr; }
+  }
+
+  /* MOBILE */
+  .mobile-nav { display:none; position:fixed; bottom:0; left:0; right:0; background:var(--surface); border-top:1px solid var(--border); z-index:50; padding:0 4px; }
+  .mobile-nav-items { display:flex; justify-content:space-around; align-items:stretch; }
+  .mobile-nav-item { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:8px 4px 10px; cursor:pointer; flex:1; border:none; background:none; color:var(--muted); font-size:10px; gap:3px; min-width:0; transition:color 0.15s; }
+  .mobile-nav-item.active { color:var(--honey); }
+  .mobile-nav-item .mn-icon { font-size:20px; line-height:1; }
+  .mobile-nav-item .mn-label { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:56px; }
+  .more-drawer { display:none; position:fixed; bottom:64px; left:0; right:0; background:var(--surface); border-top:1px solid var(--border); z-index:49; padding:8px 0; box-shadow:0 -4px 20px rgba(0,0,0,0.1); }
+  .more-drawer.open { display:block; }
+  .more-drawer-item { display:flex; align-items:center; gap:12px; padding:12px 20px; cursor:pointer; font-size:14px; color:var(--text); }
+  .more-drawer-item:hover { background:var(--bg); }
+  .more-drawer-item .mn-icon { font-size:20px; width:28px; text-align:center; }
+  .more-overlay { display:none; position:fixed; inset:0; z-index:48; }
+  .more-overlay.open { display:block; }
+  @media (max-width: 768px) {
+    .sidebar { display:none !important; }
+    .mobile-nav { display:block; }
+    .main { margin-left:0 !important; padding:12px 12px 80px !important; }
+    .page-header { flex-wrap:wrap; gap:8px; }
+    .page-header .btn { font-size:12px; padding:7px 10px; }
+    .page-header { justify-content:space-between; align-items:center; }
+    .page-title { font-size:16px !important; }
+    /* En móvil el botón principal va full width debajo del título */
+    .page-header-actions { width:100%; }
+    .page-header-actions .btn { width:100%; justify-content:center; }
+    .page-header-btn-wrap { width:100%; }
+    .page-header > .btn { width:100%; justify-content:center; margin-top:4px; }
+    /* Múltiples botones en header también se adaptan */
+    .page-header > div { width:100%; display:flex; flex-wrap:wrap; gap:6px; }
+    .page-header > div .btn { flex:1; justify-content:center; min-width:120px; }
+    .stats-grid { grid-template-columns:repeat(2, 1fr) !important; gap:8px; }
+    .stat-value { font-size:18px !important; }
+    .card { padding:14px; }
+    table { font-size:12px; }
+    th, td { padding:8px 6px; }
+    .modal { padding:16px; max-width:calc(100vw - 16px) !important; }
+    .modal-backdrop { padding:0 !important; align-items:flex-end !important; }
+    .modal { border-radius:16px 16px 0 0 !important; max-height:92vh; }
+    .form-row { grid-template-columns:1fr !important; }
+    .login-box { margin:16px; padding:24px 20px; }
+    .hide-mobile { display:none !important; }
+  }
+
+/* PRINT / COMPROBANTE */
+@media print {
+  .sidebar, .page-header, .search-bar, .btn, .modal-backdrop, .toast { display: none !important; }
+  .main { margin-left: 0 !important; padding: 0 !important; }
+  body { background: white !important; }
+}
+.comp-wrap { font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto; padding: 32px; background: white; color: #1C1917; }
+.comp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #D4860A; }
+.comp-logo { height: 64px; object-fit: contain; }
+.comp-empresa { text-align: right; }
+.comp-empresa h2 { font-size: 18px; font-weight: 700; color: #9A5F00; margin: 0 0 4px; }
+.comp-empresa p { font-size: 12px; color: #78716C; margin: 2px 0; }
+.comp-tipo { text-align: center; margin: 16px 0; }
+.comp-tipo h3 { font-size: 20px; font-weight: 700; color: #1C1917; margin: 0; letter-spacing: 0.05em; text-transform: uppercase; }
+.comp-tipo .comp-num { font-size: 14px; color: #78716C; margin: 4px 0 0; }
+.comp-datos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; padding: 14px; background: #FAF8F4; border-radius: 8px; font-size: 13px; }
+.comp-datos div span { color: #78716C; }
+.comp-datos div strong { display: block; margin-top: 2px; }
+.comp-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+.comp-table th { background: #D4860A; color: white; padding: 8px 10px; text-align: left; font-size: 12px; }
+.comp-table td { padding: 8px 10px; border-bottom: 1px solid #E8E2D8; }
+.comp-table tr:last-child td { border-bottom: none; }
+.comp-table tfoot td { font-weight: 700; background: #FEF3DC; border-top: 2px solid #D4860A; }
+.comp-footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid #E8E2D8; display: flex; justify-content: space-between; font-size: 11px; color: #78716C; }
+.comp-firma { margin-top: 48px; text-align: center; }
+.comp-firma .linea { border-top: 1px solid #1C1917; width: 200px; margin: 0 auto 6px; }
+.comp-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.comp-badge.remito { background: #DBEAFE; color: #1D4ED8; }
+.comp-badge.venta { background: #DCFCE7; color: #15803D; }
+</style>
+</head>
+<body>
+
+<script>
+// Early stub so nav onclick works before full script loads
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const sec = document.getElementById('sec-' + name);
+  if (sec) sec.classList.add('active');
+  if (event && event.currentTarget) event.currentTarget.classList.add('active');
+}
+</script>
+<!-- LOGIN SCREEN -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">
+      <img src="https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp" alt="Hojuelas con Miel" onerror="this.style.display='none'">
+      <h2>Distri LST</h2>
+      <p>Panel de gestión · Hojuelas con Miel</p>
+    </div>
+
+    <!-- SETUP (primera vez) -->
+    <div id="loginSetup" style="display:none">
+      <div style="background:#FEF3DC;border:1px solid #F6C456;border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:#92400E">
+        <strong>Primera configuración</strong><br>Ingresá los datos de conexión a Supabase.
+      </div>
+      <div class="form-group"><label>Project URL</label><input id="setupUrl" type="text" placeholder="https://xxxx.supabase.co"></div>
+      <div class="form-group"><label>API Key (anon public)</label><input id="setupKey" type="text" placeholder="sb_publishable_..."></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:10px" onclick="doSetup()">Guardar y continuar</button>
+      <p id="setupStatus" style="text-align:center;font-size:12px;color:var(--muted);margin-top:8px"></p>
+    </div>
+
+    <!-- LOGIN (normal) -->
+    <div id="loginForm">
+      <div class="login-error" id="loginError"></div>
+      <div class="form-group"><label>Email</label><input id="loginEmail" type="email" placeholder="tu@email.com" autocomplete="email"></div>
+      <div class="form-group"><label>Contraseña</label><input id="loginPass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:10px" onclick="doLogin()" id="loginBtn">Ingresar</button>
+      <p id="loginLoading" style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px;display:none">Verificando...</p>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-name">🍯 Hojuelas con Miel</div>
+      <div class="brand-sub">Panel de gestión</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-item active" onclick="showSection('dashboard')">
+        <span class="nav-icon">📊</span><span>Dashboard</span>
+      </div>
+      <div class="nav-item" onclick="showSection('clientes')">
+        <span class="nav-icon">👥</span><span>Clientes</span>
+      </div>
+      <div class="nav-item" onclick="showSection('productos')">
+        <span class="nav-icon">📦</span><span>Productos</span>
+      </div>
+      <div class="nav-item" onclick="showSection('pedidos')">
+        <span class="nav-icon">📋</span><span>Pedidos</span>
+      </div>
+      <div class="nav-item" onclick="showSection('ventas')">
+        <span class="nav-icon">🧾</span><span>Ventas</span>
+      </div>
+      <div class="nav-item" onclick="showSection('pagos')">
+        <span class="nav-icon">💰</span><span>Pagos</span>
+      </div>
+      <div class="nav-item" onclick="showSection('stock')">
+        <span class="nav-icon">📦</span><span>Stock</span>
+      </div>
+      <div class="nav-item" onclick="showSection('reportes')">
+        <span class="nav-icon">📊</span><span>Reportes</span>
+      </div>
+      <div class="nav-item" onclick="showSection('ctacte')">
+        <span class="nav-icon">💳</span><span>Cta. Corriente</span>
+      </div>
+      <div class="nav-item" onclick="showSection('config')">
+        <span class="nav-icon">⚙️</span><span>Configuración</span>
+      </div>
+    </nav>
+    <div class="user-badge" id="userBadge" style="display:none">
+      <div>
+        <strong id="userNombre">—</strong>
+        <span class="rol-badge" id="userRolBadge">—</span>
+      </div>
+      <button class="btn btn-sm btn-secondary" style="margin-left:auto;padding:4px 8px;font-size:11px" onclick="doLogout()">Salir</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- CONFIG BANNER -->
+    <div class="config-banner" id="configBanner">
+      <span style="font-size:20px">⚙️</span>
+      <div>
+        <strong style="font-size:13px">Configurá tu conexión a Supabase</strong>
+        <p style="font-size:12px; color:#92400E; margin-top:4px">Ingresá tu URL y API Key en la sección <strong>Configuración</strong> para empezar a guardar datos.</p>
+        <button class="btn btn-sm" style="margin-top:8px; background:#D97706; color:white; border:none;" onclick="showSection('config')">Ir a Configuración</button>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="sec-dashboard" class="section active">
+      <div class="page-header">
+        <h1 class="page-title">Dashboard</h1>
+        <span id="dashDate" style="color:var(--muted);font-size:13px"></span>
+      </div>
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="stat-label">Clientes</div><div class="stat-value" id="statClientes">—</div></div>
+        <div class="stat-card"><div class="stat-label">Productos</div><div class="stat-value" id="statProductos">—</div></div>
+        <div class="stat-card"><div class="stat-label">Pedidos pendientes</div><div class="stat-value" id="statPedidos">—</div></div>
+        <div class="stat-card"><div class="stat-label">Cobrado hoy</div><div class="stat-value" id="statCobrado">—</div><div class="stat-sub">ARS</div></div>
+        <div class="stat-card"><div class="stat-label">Ganancia hoy</div><div class="stat-value" id="statGanancia">—</div><div class="stat-sub">ARS estimado</div></div>
+        <div class="stat-card"><div class="stat-label">Saldo pendiente</div><div class="stat-value" id="statDeuda">—</div><div class="stat-sub">ARS</div></div>
+      </div>
+      <div class="card">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Últimos pedidos</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Total</th></tr></thead>
+            <tbody id="dashPedidos"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CLIENTES -->
+    <div id="sec-clientes" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Clientes</h1>
+        <div class="page-header-actions" style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="imprimirClientes()">📄 Imprimir listado</button>
+          <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
+        </div>
+      </div>
+      <div class="search-bar">
+        <input class="search-input" id="searchClientes" type="text" placeholder="Buscar cliente..." oninput="filterClientes()">
+      <select id="filtroEstadoCliente" onchange="filterClientes()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+        <option value="">Todos los estados</option>
+        <option value="Pendiente">⏳ Pendiente</option>
+        <option value="Activo">✅ Activo</option>
+        <option value="Inactivo">❌ Inactivo</option>
+      </select>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Nombre</th><th>Estado</th><th>Tipo</th><th>Descuento</th><th>Saldo</th><th>Teléfono</th><th>Localidad</th><th class="hide-mobile">Provincia</th><th class="hide-mobile">Dirección</th><th></th></tr></thead>
+            <tbody id="tablaClientes"><tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRODUCTOS -->
+    <div id="sec-productos" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Productos</h1>
+        <span id="btnNuevoProducto"></span>
+        <button class="btn btn-secondary" id="btnImprimirProductos" onclick="imprimirProductos()">📄 Imprimir listado</button>
+        <button class="btn btn-secondary" onclick="openModal('modalListaPrecios')">📄 Lista de precios</button>
+      </div>
+      <div class="search-bar">
+        <input class="search-input" type="text" placeholder="Buscar producto..." oninput="filterTable('tablaProductos',this.value)">
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Código</th><th>Nombre</th><th>Familia</th><th>Precio s/IVA</th><th>Precio c/IVA</th><th>Costo</th><th>Margen</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="tablaProductos"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PEDIDOS -->
+    <div id="sec-pedidos" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Pedidos</h1>
+        <div class="page-header-actions"><button class="btn btn-primary" onclick="openModal('modalPedido')">+ Nuevo pedido</button></div>
+      </div>
+      <div class="search-bar">
+        <select style="width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPedidos(this.value)">
+          <option value="">Todos los estados</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="confirmado">Confirmado</option>
+          <option value="entregado">Entregado</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>N°</th><th>Cliente</th><th>Fecha entrega</th><th>Estado</th><th>Total</th><th></th></tr></thead>
+            <tbody id="tablaPedidos"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- VENTAS -->
+    <div id="sec-ventas" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Ventas</h1>
+        <div class="page-header-actions"><button class="btn btn-primary" onclick="openModal('modalVenta')">+ Nueva venta</button></div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>N°</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Pago</th><th>Acciones</th></tr></thead>
+            <tbody id="tablaVentas"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAGOS -->
+    <div id="sec-pagos" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Pagos</h1>
+        <div class="page-header-actions"><button class="btn btn-primary" onclick="openModal('modalPago')">+ Registrar cobro</button></div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Cliente</th><th>Monto</th><th>Medio</th><th>Notas</th></tr></thead>
+            <tbody id="tablaPagos"><tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- STOCK -->
+    <div id="sec-stock" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Stock</h1>
+        <div style="display:flex;gap:8px" id="stockBtns"></div>
+      </div>
+
+      <!-- Alertas stock bajo -->
+      <div id="stockAlertas" style="margin-bottom:16px"></div>
+
+      <!-- Stock actual -->
+      <div class="card" style="margin-bottom:16px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Stock actual por producto</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Código</th><th>Producto</th><th>Familia</th><th>Stock</th><th>Mínimo</th><th>Estado</th></tr></thead>
+            <tbody id="tablaStockActual"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Historial movimientos -->
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <h3 style="font-size:14px;font-weight:600">Historial de movimientos</h3>
+          <div style="display:flex;gap:8px">
+            <select id="filtroOrigenMov" style="font-size:12px;padding:6px 10px;border:1px solid var(--border);border-radius:8px" onchange="loadMovimientos()">
+              <option value="">Todos los orígenes</option>
+              <option value="reposicion">Reposición</option>
+              <option value="venta">Venta</option>
+              <option value="muestra">Muestra</option>
+              <option value="devolucion">Devolución</option>
+              <option value="ajuste_manual">Ajuste manual</option>
+            </select>
+            <select id="filtroProductoMov" style="font-size:12px;padding:6px 10px;border:1px solid var(--border);border-radius:8px" onchange="loadMovimientos()">
+              <option value="">Todos los productos</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Origen</th><th>Cantidad</th><th>Cliente</th><th>Notas</th><th></th></tr></thead>
+            <tbody id="tablaMovimientos"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTES -->
+    <div id="sec-reportes" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Reportes</h1>
+        <div style="display:flex;gap:8px;align-items:center">
+          <label style="font-size:13px;color:var(--muted)">Período:</label>
+          <input type="date" id="repDesde" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <span style="color:var(--muted)">→</span>
+          <input type="date" id="repHasta" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <button class="btn btn-primary" onclick="loadReportes()">Actualizar</button>
+        </div>
+      </div>
+
+      <!-- Resumen período -->
+      <div class="stats-grid" id="repStats" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">Ventas del período</div><div class="stat-value" id="repTotalVentas">—</div><div class="stat-sub">ARS</div></div>
+        <div class="stat-card"><div class="stat-label">Cantidad de ventas</div><div class="stat-value" id="repCantVentas">—</div></div>
+        <div class="stat-card"><div class="stat-label">Ganancia bruta</div><div class="stat-value" id="repGanancia">—</div><div class="stat-sub">ARS</div></div>
+        <div class="stat-card"><div class="stat-label">Margen promedio</div><div class="stat-value" id="repMargen">—</div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <!-- Ventas por semana -->
+        <div class="card">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Ventas por semana</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Semana</th><th>Ventas</th><th>Total</th><th>Ganancia</th></tr></thead>
+              <tbody id="repVentasSemana"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Ventas por tipo de cliente -->
+        <div class="card">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Ventas por tipo de cliente</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Tipo</th><th>Ventas</th><th>Total</th><th>%</th></tr></thead>
+              <tbody id="repVentasTipo"></tbody>
+            </table>
+          </div>
+          <div id="repTipoBarras" style="margin-top:16px"></div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <!-- Margen bruto por semana -->
+        <div class="card">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Margen bruto por semana</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Semana</th><th>Ingresos</th><th>Costos</th><th>Margen</th><th>%</th></tr></thead>
+              <tbody id="repMargenSemana"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Ganancia por producto -->
+        <div class="card">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Ganancia por producto</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Producto</th><th>Unidades</th><th>Ingresos</th><th>Ganancia</th><th>%</span></th></tr></thead>
+              <tbody id="repGananciaProd"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CUENTA CORRIENTE -->
+    <div id="sec-ctacte" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Cuenta Corriente</h1>
+      </div>
+
+      <!-- Selector de cliente -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <label style="font-size:12px;font-weight:500;color:var(--muted);margin-bottom:5px;display:block">Seleccioná un cliente</label>
+            <select id="ctacteCliente" onchange="loadCtaCte()" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+              <option value="">— Elegí un cliente —</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" style="margin-top:18px" onclick="openModal('modalPago');populateClienteSelect('pagoCliente')">+ Registrar cobro</button>
+        </div>
+      </div>
+
+      <!-- Resumen saldo -->
+      <div id="ctacteResumen" style="display:none">
+        <div class="stats-grid" style="margin-bottom:16px">
+          <div class="stat-card"><div class="stat-label">Total facturado</div><div class="stat-value" id="ctaFacturado">—</div><div class="stat-sub">ARS</div></div>
+          <div class="stat-card"><div class="stat-label">Total cobrado</div><div class="stat-value" id="ctaCobrado">—</div><div class="stat-sub">ARS</div></div>
+          <div class="stat-card" id="ctaSaldoCard"><div class="stat-label">Saldo pendiente</div><div class="stat-value" id="ctaSaldo">—</div><div class="stat-sub">ARS</div></div>
+          <div class="stat-card"><div class="stat-label">Última operación</div><div class="stat-value" id="ctaUltima" style="font-size:16px">—</div></div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="card">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Historial de movimientos</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th style="text-align:right">Debe</th><th style="text-align:right">Haber</th><th style="text-align:right">Saldo</th></tr></thead>
+              <tbody id="ctacteTabla"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div id="ctacteEmpty" class="card" style="text-align:center;padding:48px">
+        <div style="font-size:36px;margin-bottom:12px">💳</div>
+        <p style="color:var(--muted)">Seleccioná un cliente para ver su cuenta corriente</p>
+      </div>
+    </div>
+
+    <!-- CONFIGURACION -->
+    <div id="sec-config" class="section">
+      <div class="page-header"><h1 class="page-title">Configuración</h1></div>
+      <div class="card" style="max-width:500px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">Conexión a Supabase</h3>
+        <div class="form-group">
+          <label>Project URL</label>
+          <input type="text" id="cfgUrl" placeholder="https://xxxx.supabase.co" />
+        </div>
+        <div class="form-group">
+          <label>API Key (anon public)</label>
+          <input type="text" id="cfgKey" placeholder="sb_publishable_..." />
+        </div>
+        <button class="btn btn-primary" onclick="saveConfig()">Guardar y conectar</button>
+        <p id="cfgStatus" style="margin-top:12px;font-size:12px;color:var(--muted)"></p>
+      </div>
+      <div class="card" style="max-width:500px;margin-top:16px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Backup de datos</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Exportá todos tus datos en formato JSON para respaldo local.</p>
+        <button class="btn btn-secondary" onclick="exportBackup()">⬇ Descargar backup JSON</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ===== MODALES ===== -->
+
+<!-- MODAL CLIENTE -->
+<div class="modal-backdrop" id="modalCliente">
+  <div class="modal">
+    <h3 class="modal-title" id="modalClienteTitle">Nuevo cliente</h3>
+    <input type="hidden" id="clienteId">
+    <div class="form-group"><label>Razón Social *</label><input id="clienteNombre" placeholder="Ej: García Juan Manuel"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Nombre de fantasía</label><input id="clienteFantasia" placeholder="Ej: Almacén Don Juan"></div>
+      <div class="form-group"><label>Teléfono</label><input id="clienteTel" placeholder="Ej: 341-555-1234"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Email</label><input id="clienteEmail" type="email" placeholder="correo@ejemplo.com"></div>
+      <div class="form-group"><label>Localidad</label><input id="clienteLocalidad" placeholder="Ej: Santa Fe"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Provincia</label>
+        <select id="clienteProvincia">
+          <option value="Santa Fe">Santa Fe</option>
+          <option value="Entre Ríos">Entre Ríos</option>
+          <option value="Córdoba">Córdoba</option>
+          <option value="Buenos Aires">Buenos Aires</option>
+          <option value="Otra">Otra</option>
+        </select>
+      </div>
+  
+    </div>
+    <div class="form-group"><label>Dirección</label><input id="clienteDir" placeholder="Calle y número"></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Tipo de cliente</label>
+        <select id="clienteTipo">
+          <option value="Minorista">Minorista</option>
+          <option value="Distribuidor">Distribuidor</option>
+          <option value="Mayorista">Mayorista</option>
+          <option value="Institucional">Institucional (escuela/iglesia)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Descuento %</label>
+        <input id="clienteDescuento" type="number" min="0" max="99" step="0.5" placeholder="0" value="0">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Estado</label>
+        <select id="clienteEstado">
+          <option value="Pendiente">⏳ Pendiente</option>
+          <option value="Activo">✅ Activo</option>
+          <option value="Inactivo">❌ Inactivo</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Notas</label><textarea id="clienteNotas" placeholder="Observaciones opcionales..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalCliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCliente()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRODUCTO -->
+<div class="modal-backdrop" id="modalProducto">
+  <div class="modal">
+    <h3 class="modal-title" id="modalProductoTitle">Nuevo producto</h3>
+    <input type="hidden" id="productoId">
+    <div class="form-row">
+      <div class="form-group"><label>Código nuevo *</label><input id="productoCodigo" placeholder="Ej: LA-BL-18" style="font-family:monospace;text-transform:uppercase"></div>
+      <div class="form-group"><label>Código anterior</label><input id="productoCodigoViejo" placeholder="Ej: 140"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Familia</label><input id="productoFamilia" placeholder="Ej: Lactal"></div>
+      <div class="form-group"><label>Variante</label><input id="productoVariante" placeholder="Ej: Blanco, Salvado..."></div>
+    </div>
+    <div class="form-group"><label>Nombre *</label><input id="productoNombre" placeholder="Ej: Lactal Blanco mediano 18 fetas"></div>
+    <div class="form-group"><label>Descripción</label><input id="productoDesc" placeholder="Ej: 455 grs."></div>
+    <div class="form-row">
+      <div class="form-group"><label>Precio de venta *</label><input id="productoPrecio" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcMargenProducto()"></div>
+      <div class="form-group"><label>Costo</label><input id="productoCosto" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcMargenProducto()"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Unidad</label><input id="productoUnidad" placeholder="unidad, kg, paquete..."></div>
+      <div class="form-group"><label style="margin-bottom:5px">Margen estimado</label><div id="productoMargenPreview" style="padding:8px 10px;background:var(--bg);border-radius:7px;font-size:13px;color:var(--muted)">—</div></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Stock actual</label><input id="productoStock" type="number" min="0" placeholder="0"></div>
+      <div class="form-group"><label>Stock mínimo</label><input id="productoStockMin" type="number" min="0" placeholder="0"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalProducto')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveProducto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PEDIDO -->
+<div class="modal-backdrop" id="modalPedido">
+  <div class="modal" style="max-width:580px">
+    <h3 class="modal-title">Nuevo pedido</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Cliente *</label><select id="pedidoCliente" onchange="renderPedidoItems()"><option value="">Seleccioná un cliente</option></select></div>
+      <div class="form-group"><label>Fecha de entrega</label><input id="pedidoFechaEntrega" type="date"></div>
+    </div>
+    <div class="form-group"><label>Notas</label><textarea id="pedidoNotas" placeholder="Indicaciones especiales..."></textarea></div>
+    <div style="margin-top:8px">
+      <label style="margin-bottom:8px">Productos</label>
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <select id="pedidoProductoSel" style="flex:2;min-width:180px"><option value="">Elegí un producto</option></select>
+        <input id="pedidoCantidad" type="number" min="1" value="1" style="flex:1;max-width:80px" placeholder="Cant.">
+        <button class="btn btn-secondary btn-sm" onclick="addItemPedido()">+ Agregar</button>
+      </div>
+      <div id="pedidoPromoInfo" style="display:none;margin-bottom:8px;padding:8px 10px;background:#FEF9C3;border-radius:8px;font-size:12px;color:#92400E">
+        <span id="pedidoPromoTexto"></span>
+        <label style="margin-left:12px;display:inline-flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="pedidoPromoCheck"> Aplicar promo
+        </label>
+      </div>
+      <div id="pedidoItemsList" class="items-list" style="display:none"></div>
+      <div style="text-align:right;margin-top:8px" id="pedidoResumen"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalPedido')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePedido()">Guardar pedido</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL VENTA -->
+<div class="modal-backdrop" id="modalVenta">
+  <div class="modal" style="max-width:580px">
+    <h3 class="modal-title">Nueva venta</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Cliente *</label><select id="ventaCliente" onchange="renderVentaItems()"><option value="">Seleccioná un cliente</option></select></div>
+      <div class="form-group"><label>Fecha</label><input id="ventaFecha" type="date"></div>
+    </div>
+    <div class="form-group"><label>Notas</label><textarea id="ventaNotas" placeholder="Observaciones..."></textarea></div>
+    <div style="margin-top:8px">
+      <label style="margin-bottom:8px">Productos</label>
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+        <select id="ventaProductoSel" style="flex:2;min-width:180px"><option value="">Elegí un producto</option></select>
+        <input id="ventaCantidad" type="number" min="1" value="1" style="flex:1;max-width:80px" placeholder="Cant.">
+        <button class="btn btn-secondary btn-sm" onclick="addItemVenta()">+ Agregar</button>
+      </div>
+      <div id="ventaPromoInfo" style="display:none;margin-bottom:8px;padding:8px 10px;background:#FEF9C3;border-radius:8px;font-size:12px;color:#92400E">
+        <span id="ventaPromoTexto"></span>
+        <label style="margin-left:12px;display:inline-flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="ventaPromoCheck"> Aplicar promo
+        </label>
+      </div>
+      <div id="ventaItemsList" class="items-list" style="display:none"></div>
+      <div style="text-align:right;margin-top:8px" id="ventaResumen"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalVenta')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveVenta()">Guardar venta</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PAGO -->
+<div class="modal-backdrop" id="modalPago">
+  <div class="modal">
+    <h3 class="modal-title">Registrar cobro</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Cliente *</label><select id="pagoCliente"><option value="">Seleccioná un cliente</option></select></div>
+      <div class="form-group"><label>Fecha *</label><input id="pagoFecha" type="date"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Monto *</label><input id="pagoMonto" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label>Medio de pago</label>
+        <select id="pagoMedio">
+          <option value="efectivo">Efectivo</option>
+          <option value="transferencia">Transferencia</option>
+          <option value="tarjeta">Tarjeta</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Notas</label><textarea id="pagoNotas" placeholder="Referencia de pago, comprobante..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalPago')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePago()">Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ENTRADA -->
+<div class="modal-backdrop" id="modalEntrada">
+  <div class="modal">
+    <h3 class="modal-title">Entrada de mercadería</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Producto *</label><select id="entradaProducto"><option value="">Seleccioná un producto</option></select></div>
+      <div class="form-group"><label>Cantidad *</label><input id="entradaCantidad" type="number" min="1" placeholder="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Fecha</label><input id="entradaFecha" type="date"></div>
+      <div class="form-group"><label>Origen</label>
+        <select id="entradaOrigen">
+          <option value="reposicion">Reposición / Compra</option>
+          <option value="devolucion">Devolución de cliente</option>
+          <option value="ajuste_manual">Ajuste manual</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group"><label>Notas</label><textarea id="entradaNotas" placeholder="Nro. de remito, proveedor, etc."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalEntrada')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEntrada()">Registrar entrada</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MUESTRA -->
+<div class="modal-backdrop" id="modalMuestra">
+  <div class="modal">
+    <h3 class="modal-title">Registrar muestra</h3>
+    <div class="form-row">
+      <div class="form-group"><label>Producto *</label><select id="muestraProducto"><option value="">Seleccioná un producto</option></select></div>
+      <div class="form-group"><label>Cantidad *</label><input id="muestraCantidad" type="number" min="1" placeholder="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Cliente (opcional)</label><select id="muestraCliente"><option value="">Sin cliente específico</option></select></div>
+      <div class="form-group"><label>Fecha</label><input id="muestraFecha" type="date"></div>
+    </div>
+    <div class="form-group"><label>Notas</label><textarea id="muestraNotas" placeholder="Ej: degustación feria, visita comercial..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalMuestra')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveMuestra()">Registrar muestra</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AJUSTE -->
+<div class="modal-backdrop" id="modalAjuste">
+  <div class="modal">
+    <h3 class="modal-title">Ajuste manual de stock</h3>
+    <div class="form-group"><label>Producto *</label><select id="ajusteProducto"><option value="">Seleccioná un producto</option></select></div>
+    <div style="margin-bottom:14px;padding:10px 12px;background:var(--honey-light);border-radius:8px;font-size:13px">
+      Stock actual: <strong id="ajusteStockActual">—</strong> unidades
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Ajuste (+ entrada / - salida)</label>
+        <input id="ajusteCantidad" type="number" placeholder="Ej: +10 o -3">
+      </div>
+      <div class="form-group"><label>Fecha</label><input id="ajusteFecha" type="date"></div>
+    </div>
+    <div class="form-group"><label>Motivo *</label><textarea id="ajusteNotas" placeholder="Ej: corrección de inventario, producto vencido..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalAjuste')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAjuste()">Guardar ajuste</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL LISTA DE PRECIOS -->
+<div class="modal-backdrop" id="modalListaPrecios">
+  <div class="modal" style="max-width:440px">
+    <h3 class="modal-title">Generar lista de precios</h3>
+    <div class="form-group">
+      <label>Tipo de lista</label>
+      <select id="listaTipo" onchange="toggleListaCliente()">
+        <option value="general">General — precio de lista</option>
+        <option value="cliente">Por cliente — con descuento aplicado</option>
+      </select>
+    </div>
+    <div class="form-group" id="listaClienteWrap" style="display:none">
+      <label>Cliente</label>
+      <select id="listaCliente">
+        <option value="">Seleccioná un cliente</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Familia de productos</label>
+      <select id="listaFamilia">
+        <option value="">Todas las familias</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal">
+        <input type="checkbox" id="listaMostrarPromo" checked>
+        Mostrar promociones de volumen (10+1, 15+1)
+      </label>
+    </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal">
+        <input type="checkbox" id="listaMostrarCodigo" checked>
+        Mostrar código de producto
+      </label>
+    </div>
+    <div class="form-group">
+      <label>Precios a mostrar</label>
+      <select id="listaIVA">
+        <option value="siniva">Sin IVA</option>
+        <option value="coniva">Con IVA (21%)</option>
+        <option value="ambos">Ambos (sin IVA y con IVA)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Fecha de vigencia</label>
+      <input type="text" id="listaVigencia" placeholder="Ej: desde 12/06/2026">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalListaPrecios')">Cancelar</button>
+      <button class="btn btn-primary" onclick="generarListaPrecios()">📄 Generar PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL COMPROBANTE -->
+<div class="modal-backdrop" id="modalComprobante" style="align-items:flex-start;padding:20px;overflow-y:auto">
+  <div style="background:white;border-radius:12px;width:100%;max-width:760px;box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #E8E2D8">
+      <span style="font-weight:600;font-size:14px" id="compModalTitle">Comprobante</span>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary btn-sm" onclick="printComp()">🖨 Imprimir</button>
+        <button class="btn btn-secondary btn-sm" onclick="closeModal('modalComprobante')">Cerrar</button>
+      </div>
+    </div>
+    <div id="compContenido" style="padding:0"></div>
+  </div>
+</div>
+
+<!-- MORE DRAWER OVERLAY -->
+<div class="more-overlay" id="moreOverlay" onclick="closeMoreDrawer()"></div>
+
+<!-- MORE DRAWER -->
+<div class="more-drawer" id="moreDrawer">
+  <div class="more-drawer-item" onclick="mobileNav('productos')"><span class="mn-icon">📦</span>Productos</div>
+  <div class="more-drawer-item" onclick="mobileNav('pagos')"><span class="mn-icon">💰</span>Pagos</div>
+  <div class="more-drawer-item" onclick="mobileNav('stock')"><span class="mn-icon">🏪</span>Stock</div>
+  <div class="more-drawer-item" onclick="mobileNav('ctacte')"><span class="mn-icon">💳</span>Cuenta Corriente</div>
+  <div class="more-drawer-item" id="moreReportes" onclick="mobileNav('reportes')"><span class="mn-icon">📊</span>Reportes</div>
+  <div class="more-drawer-item" id="moreConfig" onclick="mobileNav('config')"><span class="mn-icon">⚙️</span>Configuración</div>
+  <div style="border-top:1px solid var(--border);margin:8px 0"></div>
+  <div style="padding:10px 20px 4px;display:flex;align-items:center;gap:10px">
+    <div style="width:34px;height:34px;border-radius:50%;background:var(--honey-light);display:flex;align-items:center;justify-content:center;font-size:16px">👤</div>
+    <div>
+      <div style="font-size:13px;font-weight:600;color:var(--text)" id="drawerUserNombre">—</div>
+      <div style="font-size:11px;color:var(--muted)" id="drawerUserRol">—</div>
+    </div>
+  </div>
+  <div class="more-drawer-item" onclick="closeMoreDrawer();doLogout()" style="color:var(--danger)"><span class="mn-icon">🚪</span>Cerrar sesión</div>
+</div>
+
+<!-- MOBILE NAV -->
+<nav class="mobile-nav" id="mobileNav">
+  <div class="mobile-nav-items">
+    <button class="mobile-nav-item active" id="mn-dashboard" onclick="mobileNav('dashboard')">
+      <span class="mn-icon">📊</span><span class="mn-label">Inicio</span>
+    </button>
+    <button class="mobile-nav-item" id="mn-clientes" onclick="mobileNav('clientes')">
+      <span class="mn-icon">👥</span><span class="mn-label">Clientes</span>
+    </button>
+    <button class="mobile-nav-item" id="mn-pedidos" onclick="mobileNav('pedidos')">
+      <span class="mn-icon">📋</span><span class="mn-label">Pedidos</span>
+    </button>
+    <button class="mobile-nav-item" id="mn-ventas" onclick="mobileNav('ventas')">
+      <span class="mn-icon">🧾</span><span class="mn-label">Ventas</span>
+    </button>
+    <button class="mobile-nav-item" id="mn-more" onclick="toggleMoreDrawer()">
+      <span class="mn-icon">☰</span><span class="mn-label">Más</span>
+    </button>
+  </div>
+</nav>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ==================== CONFIG ====================
+let SUPABASE_URL = localStorage.getItem('sb_url') || '';
+let SUPABASE_KEY = localStorage.getItem('sb_key') || '';
+
+let cachedClientes = [];
+
+// Formato de nombre de cliente: "Razón Social (Fantasía)" o solo "Razón Social"
+function nombreCliente(c) {
+  if (!c) return '—';
+  return c.nombre_fantasia ? `${c.nombre} (${c.nombre_fantasia})` : c.nombre;
+}
+let cachedProductos = [];
+let pedidoItems = [];
+let ventaItems = [];
+let currentUser = null;
+let currentRol = null;
+let currentNombre = null;
+
+// ==================== AUTH ====================
+async function authApi(path, body) {
+  const res = await fetch(SUPABASE_URL.replace('/rest/v1','') + '/auth/v1' + path, {
+    method: 'POST',
+    headers: { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
+async function doSetup() {
+  const url = document.getElementById('setupUrl').value.trim().replace(/\/$/, '').replace('/rest/v1','');
+  const key = document.getElementById('setupKey').value.trim();
+  const status = document.getElementById('setupStatus');
+  if (!url || !key) { status.textContent = 'Completá los dos campos'; status.style.color = 'var(--danger)'; return; }
+  status.textContent = 'Verificando conexión...'; status.style.color = 'var(--muted)';
+  try {
+    const res = await fetch(url + '/rest/v1/clientes?limit=1', {
+      headers: { 'apikey': key, 'Authorization': 'Bearer ' + key }
+    });
+    if (!res.ok) throw new Error('No se pudo conectar');
+    SUPABASE_URL = url + '/rest/v1/';
+    SUPABASE_KEY = key;
+    localStorage.setItem('sb_url', SUPABASE_URL);
+    localStorage.setItem('sb_key', SUPABASE_KEY);
+    // Switch to login form
+    document.getElementById('loginSetup').style.display = 'none';
+    document.getElementById('loginForm').style.display = 'block';
+    status.textContent = '';
+    // Also update config fields
+    document.getElementById('cfgUrl').value = url;
+    document.getElementById('cfgKey').value = key;
+  } catch(e) {
+    status.textContent = 'Error de conexión. Verificá los datos.';
+    status.style.color = 'var(--danger)';
+  }
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  const loading = document.getElementById('loginLoading');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  loading.style.display = 'block';
+  // Reset previous state
+  currentUser = null; currentRol = null; currentNombre = null;
+  try {
+    const data = await authApi('/token?grant_type=password', { email, password: pass });
+    if (data.error || !data.access_token) {
+      errEl.textContent = 'Email o contraseña incorrectos';
+      errEl.style.display = 'block';
+      btn.disabled = false; loading.style.display = 'none';
+      return;
+    }
+    // Store session
+    localStorage.setItem('sb_token', data.access_token);
+    localStorage.setItem('sb_user_id', data.user.id);
+    currentUser = data.user.id;
+    // Get role
+    await loadUserRole();
+    // Hide login and show app
+    document.getElementById('loginScreen').classList.remove('show');
+    btn.disabled = false;
+    loading.style.display = 'none';
+    showApp();
+  } catch(e) {
+    errEl.textContent = 'Error de conexión. Verificá tu internet.';
+    errEl.style.display = 'block';
+    btn.disabled = false; loading.style.display = 'none';
+  }
+}
+
+async function loadUserRole() {
+  try {
+    const roles = await api('user_roles', 'GET', null, `?user_id=eq.${currentUser}`);
+    if (roles.length) {
+      currentRol = roles[0].rol;
+      currentNombre = roles[0].nombre;
+    } else {
+      currentRol = 'vendedor';
+      currentNombre = 'Usuario';
+    }
+  } catch(e) { currentRol = 'vendedor'; currentNombre = 'Usuario'; }
+}
+
+async function showApp() {
+  document.getElementById('loginScreen').classList.remove('show');
+  document.getElementById('userBadge').style.display = 'flex';
+  document.getElementById('userNombre').textContent = currentNombre || 'Usuario';
+  const drawerNombre = document.getElementById('drawerUserNombre');
+  const drawerRol = document.getElementById('drawerUserRol');
+  if (drawerNombre) drawerNombre.textContent = currentNombre || 'Usuario';
+  if (drawerRol) drawerRol.textContent = currentRol === 'admin' ? 'Administrador' : 'Vendedor';
+  const rolBadge = document.getElementById('userRolBadge');
+  rolBadge.textContent = currentRol === 'admin' ? 'Admin' : 'Vendedor';
+  rolBadge.style.background = currentRol === 'admin' ? '#FEF3DC' : '#DBEAFE';
+  rolBadge.style.color = currentRol === 'admin' ? '#9A5F00' : '#1D4ED8';
+  applyRolRestrictions();
+  // Siempre cargar clientes y productos al inicio (todos los roles los necesitan)
+  await Promise.all([loadClientes(), loadProductos()]);
+  loadDashboard();
+  setTimeout(applyTableRolRestrictions, 500);
+}
+
+function applyRolRestrictions() {
+  const isAdmin = currentRol === 'admin';
+
+  // Stock buttons - admin only
+  const stockBtns = document.getElementById('stockBtns');
+  if (stockBtns) {
+    stockBtns.innerHTML = isAdmin
+      ? `<button class="btn btn-primary" onclick="openModal('modalEntrada')">+ Entrada de mercadería</button>
+         <button class="btn btn-secondary" onclick="openModal('modalMuestra')">🎁 Registrar muestra</button>
+         <button class="btn btn-secondary" onclick="openModal('modalAjuste')">✏ Ajuste manual</button>`
+      : '<span style="font-size:13px;color:var(--muted);padding:8px 0">Solo lectura</span>';
+  }
+
+  // Nuevo producto button - admin only
+  const btnProd = document.getElementById('btnNuevoProducto');
+  if (btnProd) {
+    if (isAdmin) {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-primary';
+      btn.textContent = '+ Nuevo producto';
+      btn.onclick = function() { openModal('modalProducto'); };
+      btnProd.innerHTML = '';
+      btnProd.appendChild(btn);
+    } else {
+      btnProd.innerHTML = '';
+    }
+  }
+
+  // Imprimir listado productos - admin only
+  const btnImpProd = document.getElementById('btnImprimirProductos');
+  if (btnImpProd) btnImpProd.style.display = isAdmin ? '' : 'none';
+
+  // Apply mobile restrictions
+  applyMobileRolRestrictions();
+
+  if (isAdmin) return;
+
+  // Vendedor: hide reportes, config nav items
+  const hideNavs = ['reportes', 'config'];
+  document.querySelectorAll('.nav-item').forEach(el => {
+    if (hideNavs.some(s => el.getAttribute('onclick')?.includes(s))) {
+      el.style.display = 'none';
+    }
+  });
+}
+
+function applyTableRolRestrictions() {
+  if (currentRol === 'admin') return;
+  document.querySelectorAll('#tablaVentas .btn-danger, #tablaPedidos .btn-danger').forEach(btn => {
+    btn.style.display = 'none';
+  });
+}
+
+
+function applyMobileRolRestrictions() {
+  if (currentRol !== 'admin') {
+    const el1 = document.getElementById('moreReportes');
+    const el2 = document.getElementById('moreConfig');
+    if (el1) el1.style.display = 'none';
+    if (el2) el2.style.display = 'none';
+  }
+}
+
+// ==================== LISTA DE PRECIOS ====================
+
+function toggleListaCliente() {
+  const tipo = document.getElementById('listaTipo').value;
+  document.getElementById('listaClienteWrap').style.display = tipo === 'cliente' ? 'block' : 'none';
+}
+
+function openModalListaPrecios() {
+  // Populate cliente select
+  document.getElementById('listaCliente').innerHTML =
+    '<option value="">Seleccioná un cliente</option>' +
+    cachedClientes.map(c => `<option value="${c.id}" data-desc="${c.descuento_pct||0}">${nombreCliente(c)} ${c.descuento_pct > 0 ? '('+c.descuento_pct+'% desc.)' : ''}</option>`).join('');
+
+  // Populate familia select
+  const familias = [...new Set(cachedProductos.map(p => p.familia).filter(Boolean))].sort();
+  document.getElementById('listaFamilia').innerHTML =
+    '<option value="">Todas las familias</option>' +
+    familias.map(f => `<option value="${f}">${f}</option>`).join('');
+
+  // Set default vigencia
+  document.getElementById('listaVigencia').value = 'desde ' + new Date().toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric'});
+  openModal('modalListaPrecios');
+}
+
+async function generarListaPrecios() {
+  const tipo = document.getElementById('listaTipo').value;
+  const clienteId = document.getElementById('listaCliente').value;
+  const familia = document.getElementById('listaFamilia').value;
+  const mostrarPromo = document.getElementById('listaMostrarPromo').checked;
+  const mostrarCodigo = document.getElementById('listaMostrarCodigo').checked;
+  const vigencia = document.getElementById('listaVigencia').value;
+
+  if (tipo === 'cliente' && !clienteId) { toast('Seleccioná un cliente', 'error'); return; }
+
+  let productos = cachedProductos.filter(p => p.activo !== false);
+  if (familia) productos = productos.filter(p => p.familia === familia);
+  productos = productos.sort((a, b) => (a.familia||'').localeCompare(b.familia||'') || a.nombre.localeCompare(b.nombre));
+
+  let cliente = null;
+  let descPct = 0;
+  if (tipo === 'cliente' && clienteId) {
+    cliente = cachedClientes.find(c => c.id === clienteId);
+    descPct = parseFloat(cliente?.descuento_pct || 0);
+  }
+
+  // Group by familia
+  const grupos = {};
+  productos.forEach(p => {
+    const fam = p.familia || 'Otros';
+    if (!grupos[fam]) grupos[fam] = [];
+    grupos[fam].push(p);
+  });
+
+  // Build HTML
+  const colSpan = mostrarCodigo ? 4 : 3;
+  let tablaRows = '';
+  Object.entries(grupos).forEach(([fam, prods]) => {
+    tablaRows += `<tr><td colspan="${colSpan}" style="background:#FEF3DC;font-weight:700;font-size:13px;color:#9A5F00;padding:8px 10px">${fam}</td></tr>`;
+    prods.forEach(p => {
+      const precioLista = parseFloat(p.precio || 0);
+      const ivaOpcion = document.getElementById('listaIVA').value;
+      const precioFinal = descPct > 0 ? precioLista * (1 - descPct / 100) : precioLista;
+      const precioFinalIVA = precioFinal * 1.21;
+      const promoStr = p.promo && mostrarPromo ? `<span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:2px 6px;border-radius:10px;margin-left:6px">${p.promo}</span>` : '';
+      tablaRows += `<tr>
+        ${mostrarCodigo ? `<td style="color:#78716C;font-size:11px;font-family:monospace">${p.codigo||'—'}</td>` : ''}
+        <td>${p.nombre}${promoStr}</td>
+        <td style="text-align:center;color:#78716C;font-size:12px">${p.unidad||''}</td>
+        <td style="text-align:right;font-weight:600">
+          ${descPct > 0 ? `<span style="text-decoration:line-through;color:#A8A29E;font-size:11px;font-weight:400">$${(ivaOpcion==='coniva'?precioLista*1.21:precioLista).toLocaleString('es-AR',{maximumFractionDigits:2})}</span><br>` : ''}
+          ${ivaOpcion === 'ambos'
+            ? `$${precioFinal.toLocaleString('es-AR',{maximumFractionDigits:2})} <span style="color:#1D4ED8;font-size:11px">(c/IVA $${precioFinalIVA.toLocaleString('es-AR',{maximumFractionDigits:2})})</span>`
+            : ivaOpcion === 'coniva'
+              ? `$${precioFinalIVA.toLocaleString('es-AR',{maximumFractionDigits:2})}`
+              : `$${precioFinal.toLocaleString('es-AR',{maximumFractionDigits:2})}`
+          }
+        </td>
+      </tr>`;
+    });
+  });
+
+  const tituloLista = tipo === 'general' ? 'Lista de Precios General' : `Lista de Precios — ${cliente?.nombre}`;
+  const subtitulo = tipo === 'cliente' && descPct > 0
+    ? `<p style="color:#15803D;font-size:13px;font-weight:600;margin:4px 0 0">Descuento aplicado: ${descPct}% sobre precio de lista</p>`
+    : '';
+
+  const html = `
+    <div class="comp-wrap">
+      <div class="comp-header">
+        <img src="${EMPRESA.razon ? 'https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp' : ''}" class="comp-logo" alt="Hojuelas con Miel" onerror="this.style.display='none'">
+        <div class="comp-empresa">
+          <h2>${EMPRESA.nombre}</h2>
+          <p>${EMPRESA.razon}</p>
+          <p>${EMPRESA.direccion}</p>
+          <p>${EMPRESA.rep} · ${EMPRESA.tel}</p>
+        </div>
+      </div>
+      <div class="comp-tipo">
+        <h3 style="font-size:18px">${tituloLista}</h3>
+        <p class="comp-num">Vigencia: ${vigencia}</p>
+        ${subtitulo}
+        ${tipo === 'cliente' && cliente ? `<p style="font-size:12px;color:#78716C;margin-top:4px">Tipo: ${cliente.tipo||'Minorista'}</p>` : ''}
+      </div>
+      <table class="comp-table">
+        <thead>
+          <tr>
+            ${mostrarCodigo ? '<th>Código</th>' : ''}
+            <th>Producto</th>
+            <th style="text-align:center">Unidad</th>
+            <th style="text-align:right">
+              ${ivaOpcion === 'coniva' ? (descPct > 0 ? 'Precio c/desc. + IVA' : 'Precio c/IVA') : ivaOpcion === 'ambos' ? 'Precio s/IVA (c/IVA)' : (descPct > 0 ? 'Precio c/desc.' : 'Precio s/IVA')}
+            </th>
+          </tr>
+        </thead>
+        <tbody>${tablaRows}</tbody>
+      </table>
+      ${mostrarPromo ? `<p style="font-size:11px;color:#78716C;margin-top:8px">🎁 Promociones de volumen disponibles según indicación.</p>` : ''}
+      <p style="font-size:11px;color:#78716C;margin-top:4px">
+        ${ivaOpcion === 'siniva' ? 'Precios expresados en pesos argentinos, SIN IVA.' : ivaOpcion === 'coniva' ? 'Precios expresados en pesos argentinos, IVA 21% incluido.' : 'Precios en pesos argentinos. Se indica precio sin IVA y con IVA (21%).'}
+      </p>
+      <div class="comp-footer">
+        <div></div>
+        <div>Generado el ${new Date().toLocaleDateString('es-AR')} · ${EMPRESA.nombre}</div>
+      </div>
+    </div>`;
+
+  // Open print window
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>${tituloLista}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin:0; padding:0; color:#1C1917; }
+      ${document.querySelector('style').textContent}
+    </style></head><body>${html}</body></html>`);
+  win.document.close();
+  win.focus();
+  closeModal('modalListaPrecios');
+  setTimeout(() => { win.print(); }, 500);
+}
+
+// ==================== TOGGLE ESTADO CLIENTE ====================
+function renderClienteBtns(c) {
+  const id = c.id;
+  const est = c.estado_cliente || 'Pendiente';
+  const toggleBtn = est !== 'Activo'
+    ? "<button class='btn btn-sm btn-success' onclick='toggleEstadoCliente(\"" + id + "\",\"Activo\")'>✅ Activar</button>"
+    : "<button class='btn btn-sm btn-secondary' onclick='toggleEstadoCliente(\"" + id + "\",\"Inactivo\")'>❌ Desact.</button>";
+  const editBtn = "<button class='btn btn-sm btn-secondary' onclick='editCliente(\"" + id + "\")'>Editar</button>";
+  const delBtn = "<button class='btn btn-sm btn-danger' onclick='deleteCliente(\"" + id + "\")'>Borrar</button>";
+  return "<div style='display:flex;gap:4px;white-space:nowrap'>" + toggleBtn + editBtn + delBtn + "</div>";
+}
+async function toggleEstadoCliente(id, nuevoEstado) {
+  try {
+    await api('clientes', 'PATCH', { estado_cliente: nuevoEstado }, `?id=eq.${id}`);
+    toast(`Cliente marcado como ${nuevoEstado}`);
+    loadClientes();
+  } catch(e) { toast('Error', 'error'); }
+}
+
+// ==================== FILTER CLIENTES ====================
+function filterClientes() {
+  const queryEl = document.getElementById('searchClientes');
+  const query = queryEl ? queryEl.value.toLowerCase() : '';
+  const estado = document.getElementById('filtroEstadoCliente').value;
+  const tbody = document.getElementById('tablaClientes');
+  const rows = tbody.querySelectorAll('tr');
+  rows.forEach(row => {
+    const text = row.textContent.toLowerCase();
+    const matchQuery = !query || text.includes(query);
+    const matchEstado = !estado || text.includes(estado);
+    row.style.display = matchQuery && matchEstado ? '' : 'none';
+  });
+}
+
+// ==================== LISTADO PRODUCTOS ====================
+
+async function imprimirProductos() {
+  if (!cachedProductos.length) { toast('No hay productos para imprimir', 'error'); return; }
+
+  const conPrecio = confirm('¿Incluir precios en el listado?\n\nAceptar = Con precios\nCancelar = Sin precios');
+
+  // Get current stock from stock_actual view
+  let stockMap = {};
+  try {
+    const stockData = await api('stock_actual', 'GET', null, '?select=id,stock');
+    stockData.forEach(s => stockMap[s.id] = parseFloat(s.stock || 0));
+  } catch(e) {}
+
+  // Sort by familia then nombre
+  const productos = [...cachedProductos]
+    .filter(p => p.activo !== false)
+    .sort((a, b) => (a.familia||'').localeCompare(b.familia||'') || a.nombre.localeCompare(b.nombre));
+
+  // Group by familia
+  const grupos = {};
+  productos.forEach(p => {
+    const fam = p.familia || 'Otros';
+    if (!grupos[fam]) grupos[fam] = [];
+    grupos[fam].push(p);
+  });
+
+  const colSpan = conPrecio ? 6 : 4;
+  let filas = '';
+  Object.entries(grupos).forEach(([fam, prods]) => {
+    filas += `<tr><td colspan="${colSpan}" style="background:#FEF3DC;font-weight:700;font-size:13px;color:#9A5F00;padding:8px 10px">${fam}</td></tr>`;
+    prods.forEach(p => {
+      const stock = stockMap[p.id] !== undefined ? stockMap[p.id] : parseFloat(p.stock || 0);
+      const stockColor = stock <= 0 ? '#DC2626' : stock <= parseFloat(p.stock_minimo||0) ? '#D97706' : '#16A34A';
+      const stockLabel = stock <= 0 ? 'Sin stock' : stock <= parseFloat(p.stock_minimo||0) ? `⚠ ${stock}` : stock;
+      filas += `<tr>
+        <td style="font-family:monospace;font-size:11px;color:#78716C">${p.codigo||'—'}</td>
+        <td>${p.nombre}${p.promo ? ` <span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:1px 6px;border-radius:10px">${p.promo}</span>` : ''}</td>
+        <td style="text-align:center;color:#78716C">${p.unidad||'—'}</td>
+        <td style="text-align:center;font-weight:600;color:${stockColor}">${stockLabel}</td>
+        ${conPrecio ? `
+        <td style="text-align:right">$${parseFloat(p.precio||0).toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
+        <td style="text-align:right;color:#1D4ED8">$${(parseFloat(p.precio||0)*1.21).toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
+        ` : ''}
+      </tr>`;
+    });
+  });
+
+  // Stock summary
+  const sinStock = productos.filter(p => (stockMap[p.id]||0) <= 0).length;
+  const stockBajo = productos.filter(p => { const s = stockMap[p.id]||0; return s > 0 && s <= parseFloat(p.stock_minimo||0); }).length;
+
+  const titulo = 'Listado de Productos con Stock';
+  const html = `
+    <div class="comp-wrap">
+      <div class="comp-header">
+        <img src="https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp" class="comp-logo" alt="Hojuelas con Miel" onerror="this.style.display='none'">
+        <div class="comp-empresa">
+          <h2>${EMPRESA.nombre}</h2>
+          <p>${EMPRESA.razon}</p>
+          <p>${EMPRESA.direccion}</p>
+          <p>${EMPRESA.rep} · ${EMPRESA.tel}</p>
+        </div>
+      </div>
+      <div class="comp-tipo">
+        <h3 style="font-size:18px">${titulo}</h3>
+        <p class="comp-num">${productos.length} productos · ${new Date().toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric'})}</p>
+        ${sinStock > 0 || stockBajo > 0 ? `<p style="font-size:12px;color:#DC2626;margin-top:4px">⚠ ${sinStock} sin stock · ${stockBajo} con stock bajo</p>` : '<p style="font-size:12px;color:#16A34A;margin-top:4px">✓ Todo el stock sobre mínimo</p>'}
+      </div>
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Producto</th>
+            <th style="text-align:center">Unidad</th>
+            <th style="text-align:center">Stock</th>
+            ${conPrecio ? '<th style="text-align:right">P. s/IVA</th><th style="text-align:right">P. c/IVA</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table>
+      <div class="comp-footer">
+        <div>Uso interno · Distri LST${conPrecio ? ' · Precios en ARS sin IVA / con IVA 21%' : ''}</div>
+        <div>Generado el ${new Date().toLocaleDateString('es-AR')} · ${EMPRESA.nombre}</div>
+      </div>
+    </div>`;
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>${titulo}</title>
+    <style>body{font-family:Arial,sans-serif;margin:0;padding:0;color:#1C1917;}
+    ${document.querySelector('style').textContent}</style></head><body>${html}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 500);
+}
+
+// ==================== LISTADO CLIENTES ====================
+
+function imprimirClientes() {
+  if (!cachedClientes.length) { toast('No hay clientes para imprimir', 'error'); return; }
+
+  // Ask sort order
+  const orden = confirm('¿Ordenar por tipo de cliente?\n\nAceptar = por Tipo\nCancelar = por Nombre') ? 'tipo' : 'nombre';
+
+  let clientes = [...cachedClientes];
+  if (orden === 'tipo') {
+    const tipoOrden = { Minorista:1, Distribuidor:2, Mayorista:3, Institucional:4 };
+    clientes.sort((a, b) => (tipoOrden[a.tipo]||5) - (tipoOrden[b.tipo]||5) || a.nombre.localeCompare(b.nombre));
+  } else {
+    clientes.sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }
+
+  // Group by tipo if sorted by tipo
+  let filas = '';
+  if (orden === 'tipo') {
+    let tipoActual = null;
+    clientes.forEach((c, i) => {
+      if (c.tipo !== tipoActual) {
+        tipoActual = c.tipo || 'Sin tipo';
+        filas += `<tr><td colspan="5" style="background:#FEF3DC;font-weight:700;font-size:13px;color:#9A5F00;padding:8px 10px">${tipoActual}</td></tr>`;
+      }
+      const desc = parseFloat(c.descuento_pct || 0);
+      filas += `<tr>
+        <td>${c.nombre}</td>
+        <td>${c.telefono || '—'}</td>
+        <td>${c.direccion || '—'}</td>
+        <td style="text-align:center">${desc > 0 ? desc + '%' : '—'}</td>
+        <td style="text-align:center;color:#78716C;font-size:11px">${c.email || '—'}</td>
+      </tr>`;
+    });
+  } else {
+    clientes.forEach(c => {
+      const desc = parseFloat(c.descuento_pct || 0);
+      const tipoBadgeColor = { Minorista:'#F3F4F6', Distribuidor:'#DBEAFE', Mayorista:'#FEF9C3', Institucional:'#DCFCE7' }[c.tipo] || '#F3F4F6';
+      filas += `<tr>
+        <td>${nombreCliente(c)} <span style="background:${tipoBadgeColor};font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px">${c.tipo||'—'}</span></td>
+        <td>${c.telefono || '—'}</td>
+        <td>${c.direccion || '—'}</td>
+        <td style="text-align:center">${desc > 0 ? desc + '%' : '—'}</td>
+        <td style="text-align:center;color:#78716C;font-size:11px">${c.email || '—'}</td>
+      </tr>`;
+    });
+  }
+
+  const titulo = 'Listado de Clientes';
+  const html = `
+    <div class="comp-wrap">
+      <div class="comp-header">
+        <img src="https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp" class="comp-logo" alt="Hojuelas con Miel" onerror="this.style.display='none'">
+        <div class="comp-empresa">
+          <h2>${EMPRESA.nombre}</h2>
+          <p>${EMPRESA.razon}</p>
+          <p>${EMPRESA.direccion}</p>
+          <p>${EMPRESA.rep} · ${EMPRESA.tel}</p>
+        </div>
+      </div>
+      <div class="comp-tipo">
+        <h3 style="font-size:18px">${titulo}</h3>
+        <p class="comp-num">Ordenado por ${orden === 'tipo' ? 'tipo de cliente' : 'nombre'} · ${clientes.length} clientes · ${new Date().toLocaleDateString('es-AR')}</p>
+      </div>
+      <table class="comp-table">
+        <thead>
+          <tr>
+            <th>Nombre${orden === 'nombre' ? ' / Tipo' : ''}</th>
+            <th>Teléfono</th>
+            <th>Localidad</th>
+            <th>Dirección</th>
+            <th style="text-align:center">Descuento</th>
+            <th style="text-align:center">Email</th>
+          </tr>
+        </thead>
+        <tbody>${filas}</tbody>
+      </table>
+      <div class="comp-footer">
+        <div>Uso interno · Distri LST</div>
+        <div>Generado el ${new Date().toLocaleDateString('es-AR')} · ${EMPRESA.nombre}</div>
+      </div>
+    </div>`;
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>${titulo}</title>
+    <style>body{font-family:Arial,sans-serif;margin:0;padding:0;color:#1C1917;}
+    ${document.querySelector('style').textContent}</style></head><body>${html}</body></html>`);
+  win.document.close();
+  win.focus();
+  setTimeout(() => { win.print(); }, 500);
+}
+
+// ==================== CONFIG SAVE ====================
+async function saveConfig() {
+  const url = document.getElementById('cfgUrl').value.trim().replace(/\/$/, '').replace('/rest/v1','');
+  const key = document.getElementById('cfgKey').value.trim();
+  const status = document.getElementById('cfgStatus');
+  if (!url || !key) { toast('Ingresá URL y API Key', 'error'); return; }
+  status.textContent = 'Verificando...'; status.style.color = 'var(--muted)';
+  try {
+    const res = await fetch(url + '/rest/v1/clientes?limit=1', {
+      headers: { 'apikey': key, 'Authorization': 'Bearer ' + key }
+    });
+    if (!res.ok) throw new Error('No se pudo conectar');
+    SUPABASE_URL = url + '/rest/v1/';
+    SUPABASE_KEY = key;
+    localStorage.setItem('sb_url', SUPABASE_URL);
+    localStorage.setItem('sb_key', SUPABASE_KEY);
+    document.getElementById('cfgStatus').textContent = '✅ Conexión exitosa';
+    document.getElementById('configBanner').classList.add('hidden');
+    toast('Configuración guardada');
+    loadAll();
+  } catch(e) {
+    status.textContent = '❌ Error: ' + e.message;
+    status.style.color = 'var(--danger)';
+    toast('Error de conexión', 'error');
+  }
+}
+
+// ==================== BACKUP ====================
+async function exportBackup() {
+  if (!SUPABASE_URL) { toast('Configurá Supabase primero', 'error'); return; }
+  try {
+    const [clientes, productos, pedidos, ventas, pagos] = await Promise.all([
+      api('clientes'), api('productos'), api('pedidos'), api('ventas'), api('pagos')
+    ]);
+    const backup = { fecha: new Date().toISOString(), clientes, productos, pedidos, ventas, pagos };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `hojuelas-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    toast('Backup descargado');
+  } catch(e) { toast('Error al exportar', 'error'); }
+}
+
+// ==================== UTILS ====================
+function badgeEstado(estado) {
+  const map = { pendiente: 'badge-yellow', confirmado: 'badge-blue', entregado: 'badge-green', cancelado: 'badge-red' };
+  return `<span class="badge ${map[estado]||'badge-gray'}">${estado}</span>`;
+}
+function badgePago(estado) {
+  const map = { pendiente: 'badge-yellow', parcial: 'badge-blue', pagado: 'badge-green' };
+  return `<span class="badge ${map[estado]||'badge-gray'}">${estado}</span>`;
+}
+function filterTable(tbodyId, query) {
+  const tbody = document.getElementById(tbodyId);
+  const rows = tbody.querySelectorAll('tr');
+  rows.forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(query.toLowerCase()) ? '' : 'none';
+  });
+}
+
+// Calcular margen en tiempo real en modal producto
+function calcMargenProducto() {
+  const precio = parseFloat(document.getElementById('productoPrecio').value) || 0;
+  const costo = parseFloat(document.getElementById('productoCosto').value) || 0;
+  const preview = document.getElementById('productoMargenPreview');
+  if (!precio || !costo) { preview.textContent = '—'; preview.style.color = 'var(--muted)'; return; }
+  const margen = (precio - costo) / precio * 100;
+  const ganancia = precio - costo;
+  const color = margen >= 20 ? 'var(--success)' : margen >= 10 ? 'var(--warning)' : 'var(--danger)';
+  preview.innerHTML = `<span style="color:${color};font-weight:600">${margen.toFixed(1)}%</span> <span style="color:var(--muted)">($${ganancia.toLocaleString('es-AR', {maximumFractionDigits:2})} por unidad)</span>`;
+}
+
+// Close modal clicking backdrop
+document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+  backdrop.addEventListener('click', e => {
+    if (e.target === backdrop) backdrop.classList.remove('open');
+  });
+});
+</script>
+</body>
+</html>
