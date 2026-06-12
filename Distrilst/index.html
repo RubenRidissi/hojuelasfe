@@ -380,7 +380,7 @@ function showSection(name) {
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nombre</th><th>Estado</th><th>Tipo</th><th>Descuento</th><th>Saldo</th><th>Teléfono</th><th>Localidad</th><th class="hide-mobile">Provincia</th><th class="hide-mobile">Dirección</th><th></th></tr></thead>
+            <thead><tr><th>Nombre</th><th>Estado</th><th>Tipo</th><th>Descuento</th><th>Saldo</th><th>Dirección</th><th>Localidad</th><th></th></tr></thead>
             <tbody id="tablaClientes"><tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
@@ -1288,12 +1288,11 @@ function renderClientes(list) {
       <td><span class="badge ${tipoBadge}">${c.tipo||'Minorista'}</span></td>
       <td>${desc > 0 ? `<span class="badge badge-yellow">${desc}%</span>` : '<span style="color:var(--muted)">—</span>'}</td>
       <td id="saldo-${c.id}" style="font-weight:500;color:var(--muted)">...</td>
-      <td>${c.telefono || '—'}</td>
+      <td>${c.direccion || '—'}</td>
       <td>${c.localidad || '—'}</td>
-      <td class="hide-mobile">${c.provincia || '—'}</td>
-      <td class="hide-mobile">${c.direccion || '—'}</td>
-      <td style="min-width:180px" class="cliente-actions">
-        <button class="btn btn-sm btn-success admin-only" onclick="handleClienteAction('toggle','${c.id}')">✅</button> <button class="btn btn-sm btn-secondary admin-only" onclick="handleClienteAction('edit','${c.id}')">Editar</button> <button class="btn btn-sm btn-danger admin-only" onclick="handleClienteAction('delete','${c.id}')">Borrar</button>
+
+      <td style="white-space:nowrap;width:1%">
+        <button class="btn btn-sm btn-success admin-only" onclick="handleClienteAction('toggle','${c.id}')" title="Activar/Desactivar">✅</button><button class="btn btn-sm btn-secondary admin-only" onclick="handleClienteAction('edit','${c.id}')" title="Editar" style="padding:5px 8px">✏</button><button class="btn btn-sm btn-danger admin-only" onclick="handleClienteAction('delete','${c.id}')" title="Borrar" style="padding:5px 8px">🗑</button>
       </td>
     </tr>`}).join('');
   // Hide action buttons for vendedor
