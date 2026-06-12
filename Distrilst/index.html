@@ -1292,10 +1292,18 @@ function renderClientes(list) {
       <td>${c.localidad || '—'}</td>
       <td class="hide-mobile">${c.provincia || '—'}</td>
       <td class="hide-mobile">${c.direccion || '—'}</td>
-      <td style="white-space:nowrap">
-        ${currentRol === 'admin' ? renderClienteBtns(c) : '<span style="font-size:11px;color:var(--muted)">—</span>'}
-      </td>
+      <td style="white-space:nowrap" id="btns-${c.id}"></td>
     </tr>`}).join('');
+  // Fill action buttons based on role
+  list.forEach(c => {
+    const cell = document.getElementById('btns-' + c.id);
+    if (!cell) return;
+    if (currentRol === 'admin') {
+      cell.innerHTML = renderClienteBtns(c);
+    } else {
+      cell.innerHTML = '<span style="font-size:11px;color:var(--muted)">—</span>';
+    }
+  });
 }
 
 async function saveCliente() {
@@ -2271,6 +2279,7 @@ async function showApp() {
   rolBadge.style.color = currentRol === 'admin' ? '#9A5F00' : '#1D4ED8';
   applyRolRestrictions();
   // Siempre cargar clientes y productos al inicio (todos los roles los necesitan)
+  await loadUserRole(); // ensure role is set before rendering
   await Promise.all([loadClientes(), loadProductos()]);
   loadDashboard();
   setTimeout(applyTableRolRestrictions, 500);
