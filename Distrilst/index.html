@@ -2817,14 +2817,29 @@ function buildComprobanteVenta(v) {
   let html = buildHeader('VENTA', compNumVenta++, v.fecha);
   html += buildClienteInfo(v.clientes, 'Estado de pago', v.estado_pago === 'pagado' ? '✓ Pagado' : 'Pendiente', 'Descuento', descPct > 0 ? descPct + '%' : '—');
   html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
+  let totalBonificados = 0;
   items.forEach(item => {
+    // Detect bonificado: notas contains "bonif." for this item
+    // We detect if cantidad doesn't divide evenly by precio to find bonificados
+    const subtotalEsperado = item.cantidad * item.precio_unitario;
+    const subtotalReal = item.cantidad * item.precio_unitario;
     html += '<tr><td style="color:#78716C;font-size:12px">' + (item.productos?.codigo || '—') + '</td>' +
       '<td>' + (item.productos?.nombre || '—') + '</td>' +
       '<td style="text-align:center">' + item.cantidad + ' ' + (item.productos?.unidad || '') + '</td>' +
       '<td style="text-align:right">$' + parseFloat(item.precio_unitario).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
-      '<td style="text-align:right">$' + (item.cantidad * item.precio_unitario).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
+      '<td style="text-align:right">$' + subtotalReal.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
   });
-  html += '</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$' + parseFloat(v.total).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr></tfoot></table>';
+  // Check notas for bonificados info
+  const bonifMatch = (v.notas || '').match(/(\d+) bonif/);
+  const bonifCount = bonifMatch ? parseInt(bonifMatch[1]) : 0;
+  const totalFacturado = parseFloat(v.total);
+  const cantidadTotal = items.reduce((s, i) => s + i.cantidad, 0);
+  const cantidadFacturada = cantidadTotal - bonifCount;
+  html += '</tbody>';
+  if (bonifCount > 0) {
+    html += '<tr style="background:#F0FDF4"><td colspan="2" style="font-size:12px;color:#15803D;padding:6px 10px">🎁 Incluye ' + bonifCount + ' unidad' + (bonifCount > 1 ? 'es' : '') + ' bonificada' + (bonifCount > 1 ? 's' : '') + ' por promo de volumen (' + cantidadFacturada + ' facturadas + ' + bonifCount + ' bonificadas)</td><td style="text-align:center;font-size:12px;color:#15803D">' + cantidadTotal + '</td><td colspan="2"></td></tr>';
+  }
+  html += '<tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$' + totalFacturado.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr></tfoot></table>';
   html += buildFooter((v.notas || '').replace(/Descuento aplicado:[^|]*/g,'').replace(/Incluye unidades[^|]*/g,'').replace(/\|\s*\|/g,'').trim());
   return html;
 }
