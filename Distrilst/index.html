@@ -380,7 +380,7 @@ function showSection(name) {
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nombre</th><th>Estado</th><th>Tipo</th><th>Descuento</th><th>Saldo</th><th>Dirección</th><th>Localidad</th><th></th></tr></thead>
+            <thead><tr><th>Nombre</th><th>Estado</th><th>Tipo</th><th>Saldo</th><th>Dirección</th><th>Localidad</th><th></th></tr></thead>
             <tbody id="tablaClientes"><tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
@@ -1280,13 +1280,12 @@ function renderClientes(list) {
     const tipoBadge = { Minorista:'badge-gray', Distribuidor:'badge-blue', Mayorista:'badge-yellow', Institucional:'badge-green' }[c.tipo] || 'badge-gray';
     const estadoBadge = { Activo:'badge-green', Pendiente:'badge-yellow', Inactivo:'badge-red' }[c.estado_cliente] || 'badge-yellow';
     const estadoIcon = { Activo:'✅', Pendiente:'⏳', Inactivo:'❌' }[c.estado_cliente] || '⏳';
-    const desc = parseFloat(c.descuento_pct||0);
     return `
     <tr>
       <td><strong>${nombreCliente(c)}</strong>${c.email ? `<br><span style="font-size:12px;color:var(--muted)">${c.email}</span>` : ''}</td>
       <td><span class="badge ${estadoBadge}">${estadoIcon} ${c.estado_cliente||'Pendiente'}</span></td>
       <td><span class="badge ${tipoBadge}">${c.tipo||'Minorista'}</span></td>
-      <td>${desc > 0 ? `<span class="badge badge-yellow">${desc}%</span>` : '<span style="color:var(--muted)">—</span>'}</td>
+
       <td id="saldo-${c.id}" style="font-weight:500;color:var(--muted)">...</td>
       <td>${c.direccion || '—'}</td>
       <td>${c.localidad || '—'}</td>
@@ -2658,7 +2657,6 @@ function imprimirClientes() {
         <td>${c.nombre}</td>
         <td>${c.telefono || '—'}</td>
         <td>${c.direccion || '—'}</td>
-        <td style="text-align:center">${desc > 0 ? desc + '%' : '—'}</td>
         <td style="text-align:center;color:#78716C;font-size:11px">${c.email || '—'}</td>
       </tr>`;
     });
@@ -2670,7 +2668,6 @@ function imprimirClientes() {
         <td>${nombreCliente(c)} <span style="background:${tipoBadgeColor};font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px">${c.tipo||'—'}</span></td>
         <td>${c.telefono || '—'}</td>
         <td>${c.direccion || '—'}</td>
-        <td style="text-align:center">${desc > 0 ? desc + '%' : '—'}</td>
         <td style="text-align:center;color:#78716C;font-size:11px">${c.email || '—'}</td>
       </tr>`;
     });
