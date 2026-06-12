@@ -1017,6 +1017,1066 @@ function showSection(name) {
 <div class="toast" id="toast"></div>
 
 <script>
+
+// ==================== API ====================
+async function api(table, method='GET', body=null, query='') {
+  const url = `${SUPABASE_URL}${table}${query}`;
+  const token = localStorage.getItem('sb_token');
+  const headers = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${token || SUPABASE_KEY}`,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=representation'
+  };
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err);
+  }
+  if (res.status === 204) return [];
+  return res.json();
+}
+
+// ==================== NAV ====================
+function showSection_direct(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const sec = document.getElementById('sec-' + name);
+  if (sec) sec.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick')?.includes("'" + name + "'")) n.classList.add('active');
+  });
+}
+
+// ==================== TOAST ====================
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => t.className = 'toast', 3000);
+}
+
+// ==================== MODAL ====================
+function openModal(id) {
+  const adminOnly = ['modalProducto','modalEntrada','modalMuestra','modalAjuste'];
+  if (currentRol !== 'admin' && adminOnly.includes(id)) {
+    toast('No tenés permiso para esta acción', 'error');
+    return;
+  }
+  document.getElementById(id).classList.add('open');
+  if (id === 'modalListaPrecios') { openModalListaPrecios(); return; }
+  if (id === 'modalPedido' || id === 'modalVenta') {
+    ensureCache().then(() => populateSelects());
+  }
+  if (id === 'modalPago') {
+    ensureCache().then(() => populateClienteSelect('pagoCliente'));
+  }
+  if (id === 'modalEntrada' || id === 'modalMuestra' || id === 'modalAjuste') { openStockModal(id); return; }
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+  if (id === 'modalPedido') { pedidoItems = []; renderPedidoItems(); document.getElementById('pedidoPromoInfo').style.display='none'; }
+  if (id === 'modalVenta') { ventaItems = []; renderVentaItems(); document.getElementById('ventaPromoInfo').style.display='none'; }
+}
+
+// ==================== INIT ====================
+document.addEventListener('DOMContentLoaded', async () => {
+  document.getElementById('dashDate').textContent = new Date().toLocaleDateString('es-AR', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+
+  const today = new Date().toISOString().split('T')[0];
+  ['pedidoFechaEntrega','ventaFecha','pagoFecha'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = today;
+  });
+
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    document.getElementById('loginSetup').style.display = 'block';
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('loginScreen').classList.add('show');
+    return;
+  }
+
+  document.getElementById('cfgUrl').value = SUPABASE_URL.replace('/rest/v1/','');
+  document.getElementById('cfgKey').value = SUPABASE_KEY;
+  document.getElementById('configBanner').classList.add('hidden');
+
+  const token = localStorage.getItem('sb_token');
+  const userId = localStorage.getItem('sb_user_id');
+  if (token && userId) {
+    try {
+      const res = await fetch(SUPABASE_URL.replace('/rest/v1/','') + '/auth/v1/user', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + token }
+      });
+      if (res.ok) {
+        currentUser = userId;
+        await loadUserRole();
+        showApp();
+        return;
+      }
+    } catch(e) {}
+  }
+  document.getElementById('loginScreen').classList.add('show');
+});
+
+// ==================== LOAD ALL ====================
+function loadAll() {
+  loadDashboard();
+  loadClientes();
+  loadProductos();
+}
+
+async function ensureCache() {
+  const promises = [];
+  if (!cachedClientes.length) promises.push(loadClientes());
+  if (!cachedProductos.length) promises.push(loadProductos());
+  if (promises.length) await Promise.all(promises);
+}
+
+// ==================== DASHBOARD ====================
+async function loadDashboard() {
+  if (!SUPABASE_URL) return;
+  try {
+    const [clientes, productos, pedidos, pagos, ventas] = await Promise.all([
+      api('clientes', 'GET', null, '?select=id'),
+      api('productos', 'GET', null, '?select=id'),
+      api('pedidos', 'GET', null, '?select=id&estado=eq.pendiente'),
+      api('pagos', 'GET', null, `?select=monto&fecha=eq.${new Date().toISOString().split('T')[0]}`),
+      api('ventas', 'GET', null, '?select=total,estado_pago&estado_pago=neq.pagado')
+    ]);
+    document.getElementById('statClientes').textContent = clientes.length;
+    document.getElementById('statProductos').textContent = productos.length;
+    document.getElementById('statPedidos').textContent = pedidos.length;
+    const cobrado = pagos.reduce((s, p) => s + parseFloat(p.monto || 0), 0);
+    document.getElementById('statCobrado').textContent = '$' + cobrado.toLocaleString('es-AR');
+    const deuda = ventas.reduce((s, v) => s + parseFloat(v.total || 0), 0);
+    document.getElementById('statDeuda').textContent = '$' + deuda.toLocaleString('es-AR');
+
+    try {
+      const stockBajo = await api('stock_actual', 'GET', null, '?select=nombre,codigo,stock,stock_minimo');
+      const bajos = stockBajo.filter(p => parseFloat(p.stock) <= parseFloat(p.stock_minimo));
+      if (bajos.length) { /* show alert if needed */ }
+    } catch(e) {}
+
+    const ventasHoy = await api('ventas', 'GET', null, `?select=total,venta_items(cantidad,precio_unitario,producto_id,productos(costo))&fecha=eq.${new Date().toISOString().split('T')[0]}`);
+    let gananciaHoy = 0;
+    ventasHoy.forEach(v => {
+      (v.venta_items || []).forEach(item => {
+        const costo = parseFloat(item.productos?.costo || 0);
+        gananciaHoy += (parseFloat(item.precio_unitario) - costo) * item.cantidad;
+      });
+    });
+    document.getElementById('statGanancia').textContent = '$' + gananciaHoy.toLocaleString('es-AR', {maximumFractionDigits:0});
+
+    const ultPedidos = await api('pedidos', 'GET', null, '?select=id,total,estado,fecha,clientes(nombre,nombre_fantasia)&order=created_at.desc&limit=5');
+    const tbody = document.getElementById('dashPedidos');
+    if (!ultPedidos.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Sin pedidos aún</td></tr>';
+    } else {
+      tbody.innerHTML = ultPedidos.map(p => `
+        <tr>
+          <td>${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
+          <td>${p.fecha}</td>
+          <td>${badgeEstado(p.estado)}</td>
+          <td>$${parseFloat(p.total||0).toLocaleString('es-AR')}</td>
+        </tr>`).join('');
+    }
+  } catch(e) { console.error(e); }
+}
+
+// ==================== CLIENTES ====================
+async function loadClientes() {
+  if (!SUPABASE_URL) return;
+  try {
+    cachedClientes = await api('clientes', 'GET', null, '?order=nombre.asc');
+    renderClientes(cachedClientes);
+    loadSaldosClientes();
+  } catch(e) { console.error(e); }
+}
+
+async function loadSaldosClientes() {
+  try {
+    const [ventas, pagos] = await Promise.all([
+      api('ventas', 'GET', null, '?select=cliente_id,total,estado_pago'),
+      api('pagos', 'GET', null, '?select=cliente_id,monto')
+    ]);
+    const saldos = {};
+    ventas.forEach(v => {
+      if (!saldos[v.cliente_id]) saldos[v.cliente_id] = 0;
+      if (v.estado_pago !== 'pagado') saldos[v.cliente_id] += parseFloat(v.total || 0);
+    });
+    pagos.forEach(p => {
+      if (!saldos[p.cliente_id]) saldos[p.cliente_id] = 0;
+      saldos[p.cliente_id] -= parseFloat(p.monto || 0);
+    });
+    cachedClientes.forEach(c => {
+      const el = document.getElementById('saldo-' + c.id);
+      if (!el) return;
+      const saldo = saldos[c.id] || 0;
+      if (saldo <= 0) {
+        el.innerHTML = '<span style="color:var(--success);font-size:12px">Al día</span>';
+      } else {
+        el.innerHTML = '<span style="color:var(--danger);font-weight:600;font-size:12px">$' + saldo.toLocaleString('es-AR', {maximumFractionDigits:0}) + '</span>';
+      }
+    });
+  } catch(e) { console.error(e); }
+}
+
+function renderClientes(list) {
+  const tbody = document.getElementById('tablaClientes');
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><div class="empty-icon">👥</div><p>No hay clientes todavía</p></div></td></tr>'; return; }
+  tbody.innerHTML = list.map(c => {
+    const tipoBadge = { Minorista:'badge-gray', Distribuidor:'badge-blue', Mayorista:'badge-yellow', Institucional:'badge-green' }[c.tipo] || 'badge-gray';
+    const estadoBadge = { Activo:'badge-green', Pendiente:'badge-yellow', Inactivo:'badge-red' }[c.estado_cliente] || 'badge-yellow';
+    const estadoIcon = { Activo:'✅', Pendiente:'⏳', Inactivo:'❌' }[c.estado_cliente] || '⏳';
+    const desc = parseFloat(c.descuento_pct||0);
+    return `
+    <tr>
+      <td><strong>${nombreCliente(c)}</strong>${c.email ? `<br><span style="font-size:12px;color:var(--muted)">${c.email}</span>` : ''}</td>
+      <td><span class="badge ${estadoBadge}">${estadoIcon} ${c.estado_cliente||'Pendiente'}</span></td>
+      <td><span class="badge ${tipoBadge}">${c.tipo||'Minorista'}</span></td>
+      <td>${desc > 0 ? `<span class="badge badge-yellow">${desc}%</span>` : '<span style="color:var(--muted)">—</span>'}</td>
+      <td id="saldo-${c.id}" style="font-weight:500;color:var(--muted)">...</td>
+      <td>${c.telefono || '—'}</td>
+      <td>${c.localidad || '—'}</td>
+      <td class="hide-mobile">${c.provincia || '—'}</td>
+      <td class="hide-mobile">${c.direccion || '—'}</td>
+      <td style="white-space:nowrap">
+        ${currentRol === 'admin' ? renderClienteBtns(c) : '<span style="font-size:11px;color:var(--muted)">—</span>'}
+      </td>
+    </tr>`}).join('');
+}
+
+async function saveCliente() {
+  const id = document.getElementById('clienteId').value;
+  const data = {
+    nombre: document.getElementById('clienteNombre').value.trim(),
+    nombre_fantasia: document.getElementById('clienteFantasia').value.trim() || null,
+    telefono: document.getElementById('clienteTel').value.trim(),
+    email: document.getElementById('clienteEmail').value.trim(),
+    localidad: document.getElementById('clienteLocalidad').value.trim(),
+    provincia: document.getElementById('clienteProvincia').value,
+    direccion: document.getElementById('clienteDir').value.trim(),
+    tipo: document.getElementById('clienteTipo').value,
+    descuento_pct: parseFloat(document.getElementById('clienteDescuento').value) || 0,
+    estado_cliente: document.getElementById('clienteEstado').value,
+    notas: document.getElementById('clienteNotas').value.trim()
+  };
+  if (!data.nombre) { toast('El nombre es obligatorio', 'error'); return; }
+  try {
+    if (id) {
+      await api('clientes', 'PATCH', data, `?id=eq.${id}`);
+      toast('Cliente actualizado');
+    } else {
+      data.estado_cliente = 'Pendiente';
+      await api('clientes', 'POST', data);
+      toast('Cliente creado — quedó como Pendiente para aprobación');
+    }
+    closeModal('modalCliente');
+    clearClienteForm();
+    loadClientes();
+    loadDashboard();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+function editCliente(id) {
+  const c = cachedClientes.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('modalClienteTitle').textContent = 'Editar cliente';
+  document.getElementById('clienteId').value = c.id;
+  document.getElementById('clienteNombre').value = c.nombre || '';
+  document.getElementById('clienteFantasia').value = c.nombre_fantasia || '';
+  document.getElementById('clienteTel').value = c.telefono || '';
+  document.getElementById('clienteEmail').value = c.email || '';
+  document.getElementById('clienteLocalidad').value = c.localidad || '';
+  document.getElementById('clienteProvincia').value = c.provincia || 'Santa Fe';
+  document.getElementById('clienteDir').value = c.direccion || '';
+  document.getElementById('clienteTipo').value = c.tipo || 'Minorista';
+  document.getElementById('clienteDescuento').value = c.descuento_pct || 0;
+  document.getElementById('clienteEstado').value = c.estado_cliente || 'Pendiente';
+  document.getElementById('clienteNotas').value = c.notas || '';
+  openModal('modalCliente');
+}
+
+async function deleteCliente(id) {
+  if (!confirm('¿Eliminar este cliente?')) return;
+  try {
+    await api('clientes', 'DELETE', null, `?id=eq.${id}`);
+    toast('Cliente eliminado');
+    loadClientes();
+    loadDashboard();
+  } catch(e) { toast('Error al eliminar', 'error'); }
+}
+
+function clearClienteForm() {
+  ['clienteId','clienteNombre','clienteFantasia','clienteTel','clienteEmail','clienteLocalidad','clienteDir','clienteNotas','clienteDescuento'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('clienteTipo').value = 'Minorista';
+  document.getElementById('clienteEstado').value = 'Pendiente';
+  document.getElementById('clienteProvincia').value = 'Santa Fe';
+  document.getElementById('modalClienteTitle').textContent = 'Nuevo cliente';
+}
+
+// ==================== PRODUCTOS ====================
+async function loadProductos() {
+  if (!SUPABASE_URL) return;
+  try {
+    cachedProductos = await api('productos', 'GET', null, '?order=codigo.asc');
+    renderProductos(cachedProductos);
+  } catch(e) { console.error(e); }
+}
+
+function renderProductos(list) {
+  const tbody = document.getElementById('tablaProductos');
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><div class="empty-icon">📦</div><p>No hay productos todavía</p></div></td></tr>'; return; }
+  tbody.innerHTML = list.map(p => {
+    const costo = parseFloat(p.costo || 0);
+    const precio = parseFloat(p.precio || 0);
+    const margen = precio > 0 ? ((precio - costo) / precio * 100) : 0;
+    const margenColor = margen >= 20 ? 'badge-green' : margen >= 10 ? 'badge-yellow' : 'badge-red';
+    const stockBadge = p.stock <= p.stock_minimo
+      ? `<span class="badge badge-red">⚠ ${p.stock}</span>`
+      : `<span class="badge badge-green">${p.stock}</span>`;
+    return `
+    <tr>
+      <td>
+        <code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px;font-weight:600">${p.codigo||'—'}</code>
+        ${p.codigo_viejo ? `<span style="font-size:11px;color:var(--muted);margin-left:4px">(${p.codigo_viejo})</span>` : ''}
+      </td>
+      <td><strong>${p.nombre}</strong>${p.descripcion ? `<br><span style="color:var(--muted);font-size:12px">${p.descripcion}</span>` : ''}</td>
+      <td>${p.familia ? `<span class="badge badge-blue">${p.familia}</span>` : '—'}${p.variante ? `<br><span style="font-size:11px;color:var(--muted)">${p.variante}</span>` : ''}</td>
+      <td>$${precio.toLocaleString('es-AR')}</td>
+      <td style="color:var(--info)">$${(precio * 1.21).toLocaleString('es-AR', {maximumFractionDigits:2})}</td>
+      ${currentRol === 'admin' ? `<td style="color:var(--muted)">$${costo.toLocaleString('es-AR')}</td><td><span class="badge ${margenColor}">${margen.toFixed(1)}%</span></td>` : '<td>—</td><td>—</td>'}
+      <td>${stockBadge} <span style="font-size:11px;color:var(--muted)">${p.unidad||''}</span></td>
+      <td>${p.activo ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-gray">Inactivo</span>'}</td>
+      <td style="white-space:nowrap">
+        ${currentRol === 'admin' ? `
+          <button class="btn btn-sm btn-secondary" onclick="editProducto('${p.id}')">Editar</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteProducto('${p.id}')">Borrar</button>
+        ` : '<span style="font-size:11px;color:var(--muted)">—</span>'}
+      </td>
+    </tr>`}).join('');
+}
+
+async function saveProducto() {
+  const id = document.getElementById('productoId').value;
+  const data = {
+    codigo: document.getElementById('productoCodigo').value.trim().toUpperCase(),
+    codigo_viejo: document.getElementById('productoCodigoViejo').value.trim(),
+    familia: document.getElementById('productoFamilia').value.trim(),
+    variante: document.getElementById('productoVariante').value.trim(),
+    nombre: document.getElementById('productoNombre').value.trim(),
+    descripcion: document.getElementById('productoDesc').value.trim(),
+    precio: parseFloat(document.getElementById('productoPrecio').value) || 0,
+    costo: parseFloat(document.getElementById('productoCosto').value) || 0,
+    unidad: document.getElementById('productoUnidad').value.trim() || 'unidad',
+    stock: parseInt(document.getElementById('productoStock').value) || 0,
+    stock_minimo: parseInt(document.getElementById('productoStockMin').value) || 0
+  };
+  if (!data.nombre) { toast('El nombre es obligatorio', 'error'); return; }
+  if (!data.codigo) { toast('El código es obligatorio', 'error'); return; }
+  try {
+    if (id) {
+      await api('productos', 'PATCH', data, `?id=eq.${id}`);
+      toast('Producto actualizado');
+    } else {
+      await api('productos', 'POST', data);
+      toast('Producto creado');
+    }
+    closeModal('modalProducto');
+    clearProductoForm();
+    loadProductos();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+function editProducto(id) {
+  const p = cachedProductos.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('modalProductoTitle').textContent = 'Editar producto';
+  document.getElementById('productoId').value = p.id;
+  document.getElementById('productoCodigo').value = p.codigo || '';
+  document.getElementById('productoCodigoViejo').value = p.codigo_viejo || '';
+  document.getElementById('productoFamilia').value = p.familia || '';
+  document.getElementById('productoVariante').value = p.variante || '';
+  document.getElementById('productoNombre').value = p.nombre || '';
+  document.getElementById('productoDesc').value = p.descripcion || '';
+  document.getElementById('productoPrecio').value = p.precio || 0;
+  document.getElementById('productoCosto').value = p.costo || 0;
+  document.getElementById('productoUnidad').value = p.unidad || '';
+  document.getElementById('productoStock').value = p.stock || 0;
+  document.getElementById('productoStockMin').value = p.stock_minimo || 0;
+  calcMargenProducto();
+  openModal('modalProducto');
+}
+
+async function deleteProducto(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  try {
+    await api('productos', 'DELETE', null, `?id=eq.${id}`);
+    toast('Producto eliminado');
+    loadProductos();
+  } catch(e) { toast('Error al eliminar', 'error'); }
+}
+
+function clearProductoForm() {
+  ['productoId','productoCodigo','productoCodigoViejo','productoFamilia','productoVariante','productoNombre','productoDesc','productoPrecio','productoCosto','productoUnidad','productoStock','productoStockMin'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('productoMargenPreview').textContent = '—';
+  document.getElementById('modalProductoTitle').textContent = 'Nuevo producto';
+}
+
+// ==================== PEDIDOS ====================
+async function loadPedidos(estado='') {
+  if (!SUPABASE_URL) return;
+  try {
+    const q = estado
+      ? `?select=id,fecha,fecha_entrega,estado,total,clientes(nombre,nombre_fantasia)&estado=eq.${estado}&order=created_at.desc`
+      : '?select=id,fecha,fecha_entrega,estado,total,clientes(nombre,nombre_fantasia)&order=created_at.desc';
+    const pedidos = await api('pedidos', 'GET', null, q);
+    const tbody = document.getElementById('tablaPedidos');
+    if (!pedidos.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">📋</div><p>No hay pedidos todavía</p></div></td></tr>'; return; }
+    tbody.innerHTML = pedidos.map((p, i) => `
+      <tr>
+        <td style="color:var(--muted);font-size:12px">#${String(i+1).padStart(3,'0')}</td>
+        <td>${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
+        <td class="hide-mobile">${p.fecha_entrega || '—'}</td>
+        <td>${badgeEstado(p.estado)}</td>
+        <td>$${parseFloat(p.total||0).toLocaleString('es-AR')}</td>
+        <td style="white-space:nowrap">
+          <select style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" onchange="updateEstadoPedido('${p.id}',this.value)">
+            ${['pendiente','confirmado','entregado','cancelado'].map(e => `<option value="${e}" ${p.estado===e?'selected':''}>${e.charAt(0).toUpperCase()+e.slice(1)}</option>`).join('')}
+          </select>
+          <button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="verComprobante('pedido','${p.id}')">📋</button>
+          ${currentRol === 'admin' ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
+        </td>
+      </tr>`).join('');
+    setTimeout(applyTableRolRestrictions, 100);
+  } catch(e) { console.error(e); }
+}
+
+async function updateEstadoPedido(id, estado) {
+  try {
+    await api('pedidos', 'PATCH', { estado }, `?id=eq.${id}`);
+    toast('Estado actualizado');
+  } catch(e) { toast('Error', 'error'); }
+}
+
+function populateSelects() {
+  populateClienteSelect('pedidoCliente');
+  populateClienteSelect('ventaCliente');
+  const opts = '<option value="">Elegí un producto</option>' + cachedProductos.map(p => `<option value="${p.id}" data-precio="${p.precio}" data-promo="${p.promo||''}">${p.codigo ? p.codigo+' — ' : ''}${p.nombre} — $${parseFloat(p.precio).toLocaleString('es-AR')}${p.promo ? ' 🎁'+p.promo : ''}</option>`).join('');
+  document.getElementById('pedidoProductoSel').innerHTML = opts;
+  document.getElementById('ventaProductoSel').innerHTML = opts;
+}
+
+function populateClienteSelect(selId) {
+  const sel = document.getElementById(selId);
+  sel.innerHTML = '<option value="">Seleccioná un cliente</option>' + cachedClientes.map(c => `<option value="${c.id}">${nombreCliente(c)}</option>`).join('');
+}
+
+function addItemPedido() {
+  const sel = document.getElementById('pedidoProductoSel');
+  const cant = parseInt(document.getElementById('pedidoCantidad').value) || 1;
+  const pid = sel.value;
+  const opt = sel.selectedOptions[0];
+  const precio = parseFloat(opt?.dataset.precio || 0);
+  const nombre = opt?.text.split(' — ')[0];
+  const promo = opt?.dataset.promo || '';
+  if (!pid) { toast('Elegí un producto', 'error'); return; }
+  const promoInfo = document.getElementById('pedidoPromoInfo');
+  const promoTexto = document.getElementById('pedidoPromoTexto');
+  const promoCheck = document.getElementById('pedidoPromoCheck');
+  if (promo) {
+    const [paga, lleva] = promo.split('+').map(Number);
+    promoInfo.style.display = 'block';
+    promoTexto.textContent = 'Este producto tiene promo ' + promo + ': comprando ' + paga + ' se lleva ' + (paga + lleva) + '.';
+  } else {
+    promoInfo.style.display = 'none';
+    promoCheck.checked = false;
+  }
+  let bonificado = 0;
+  if (promo && promoCheck.checked) {
+    const [paga] = promo.split('+').map(Number);
+    bonificado = Math.floor(cant / paga);
+  }
+  const existing = pedidoItems.find(i => i.producto_id === pid);
+  if (existing) {
+    existing.cantidad += cant;
+    existing.bonificado = (existing.bonificado || 0) + bonificado;
+    existing.subtotal = existing.cantidad * existing.precio_unitario;
+  } else {
+    pedidoItems.push({ producto_id: pid, nombre, cantidad: cant, bonificado, precio_unitario: precio, subtotal: cant * precio, promo });
+  }
+  renderPedidoItems();
+}
+
+function recalcPromoPedido() {
+  const check = document.getElementById('pedidoPromoCheck');
+  const lastPromo = pedidoItems.filter(i => i.promo).pop();
+  if (!lastPromo) return;
+  const [paga] = lastPromo.promo.split('+').map(Number);
+  lastPromo.bonificado = check.checked ? Math.floor(lastPromo.cantidad / paga) : 0;
+  renderPedidoItems();
+}
+
+function renderPedidoItems() {
+  const el = document.getElementById('pedidoItemsList');
+  const resumen = document.getElementById('pedidoResumen');
+  const clienteId = document.getElementById('pedidoCliente').value;
+  const cliente = cachedClientes.find(c => c.id === clienteId);
+  const descPct = parseFloat(cliente?.descuento_pct || 0);
+  if (!pedidoItems.length) { el.style.display = 'none'; resumen.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.innerHTML = pedidoItems.map((item, i) => {
+    const precioConDesc = item.precio_unitario * (1 - descPct / 100);
+    const subtotalFinal = item.cantidad * precioConDesc;
+    return `
+    <div class="item-row">
+      <span style="flex:2">${item.nombre}</span>
+      <span style="flex:1;text-align:center">${item.cantidad}${item.bonificado ? ' <span style="color:var(--success);font-size:11px">+' + item.bonificado + ' bon.</span>' : ''}</span>
+      <span style="flex:1;text-align:right">
+        ${descPct > 0 ? '<span style="text-decoration:line-through;color:var(--muted);font-size:11px">$' + (item.cantidad * item.precio_unitario).toLocaleString('es-AR') + '</span><br>' : ''}
+        $${subtotalFinal.toLocaleString('es-AR', {maximumFractionDigits:2})}
+      </span>
+      <button class="btn btn-sm btn-danger" onclick="removePedidoItem(${i})">✕</button>
+    </div>`;
+  }).join('');
+  const total = pedidoItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100), 0);
+  const totalOriginal = pedidoItems.reduce((s, item) => s + item.cantidad * item.precio_unitario, 0);
+  const totalBonificados = pedidoItems.reduce((s, item) => s + (item.bonificado || 0), 0);
+  let resumenHtml = '';
+  if (descPct > 0) resumenHtml += '<div style="font-size:12px;color:var(--muted)">Descuento ' + descPct + '%: -$' + (totalOriginal - total).toLocaleString('es-AR', {maximumFractionDigits:2}) + '</div>';
+  if (totalBonificados > 0) resumenHtml += '<div style="font-size:12px;color:var(--success)">Unidades bonificadas: ' + totalBonificados + '</div>';
+  resumenHtml += '<div style="font-size:16px;font-weight:600;margin-top:4px">Total: $' + total.toLocaleString('es-AR', {maximumFractionDigits:2}) + '</div>';
+  resumen.innerHTML = resumenHtml;
+}
+
+function removePedidoItem(idx) {
+  pedidoItems.splice(idx, 1);
+  renderPedidoItems();
+}
+
+async function savePedido() {
+  const clienteId = document.getElementById('pedidoCliente').value;
+  const fechaEntrega = document.getElementById('pedidoFechaEntrega').value;
+  const notas = document.getElementById('pedidoNotas').value;
+  if (!clienteId) { toast('Seleccioná un cliente', 'error'); return; }
+  if (!pedidoItems.length) { toast('Agregá al menos un producto', 'error'); return; }
+  const cliente = cachedClientes.find(c => c.id === clienteId);
+  const descPct = parseFloat(cliente?.descuento_pct || 0);
+  const total = pedidoItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100), 0);
+  const notaFinal = [notas, descPct > 0 ? 'Descuento aplicado: ' + descPct + '%' : '', pedidoItems.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : ''].filter(Boolean).join(' | ');
+  try {
+    const [pedido] = await api('pedidos', 'POST', { cliente_id: clienteId, fecha_entrega: fechaEntrega || null, notas: notaFinal, total });
+    await Promise.all(pedidoItems.map(item => {
+      const precioConDesc = item.precio_unitario * (1 - descPct / 100);
+      const cantTotal = item.cantidad + (item.bonificado || 0);
+      return api('pedido_items', 'POST', { pedido_id: pedido.id, producto_id: item.producto_id, cantidad: cantTotal, precio_unitario: precioConDesc });
+    }));
+    toast('Pedido creado');
+    closeModal('modalPedido');
+    loadPedidos();
+    loadDashboard();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ==================== DELETE VENTA / PEDIDO ====================
+async function deleteVenta(id, nombreCliente) {
+  if (!confirm('Borrar esta venta?\n\nCliente: ' + nombreCliente + '\n\nSe eliminarán también los ítems asociados. Esta acción no se puede deshacer.')) return;
+  try {
+    await api('stock_movimientos', 'DELETE', null, `?referencia_id=eq.${id}&origen=eq.venta`);
+    await api('venta_items', 'DELETE', null, `?venta_id=eq.${id}`);
+    await api('ventas', 'DELETE', null, `?id=eq.${id}`);
+    toast('Venta eliminada y stock revertido');
+    loadVentas();
+    loadDashboard();
+  } catch(e) { toast('Error al eliminar: ' + e.message, 'error'); }
+}
+
+async function deletePedido(id, nombreCliente) {
+  if (!confirm('Borrar este pedido?\n\nCliente: ' + nombreCliente + '\n\nSe eliminarán también los ítems asociados. Esta acción no se puede deshacer.')) return;
+  try {
+    await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
+    await api('pedidos', 'DELETE', null, `?id=eq.${id}`);
+    toast('Pedido eliminado');
+    loadPedidos();
+    loadDashboard();
+  } catch(e) { toast('Error al eliminar: ' + e.message, 'error'); }
+}
+
+// ==================== VENTAS ====================
+async function loadVentas() {
+  if (!SUPABASE_URL) return;
+  try {
+    const ventas = await api('ventas', 'GET', null, '?select=id,fecha,total,estado_pago,clientes(nombre,nombre_fantasia)&order=created_at.desc');
+    const tbody = document.getElementById('tablaVentas');
+    if (!ventas.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">🧾</div><p>No hay ventas todavía</p></div></td></tr>'; return; }
+    tbody.innerHTML = ventas.map((v, i) => `
+      <tr>
+        <td style="color:var(--muted);font-size:12px">#${String(i+1).padStart(3,'0')}</td>
+        <td>${v.clientes ? nombreCliente(v.clientes) : '—'}</td>
+        <td>${v.fecha}</td>
+        <td>$${parseFloat(v.total||0).toLocaleString('es-AR')}</td>
+        <td>${badgePago(v.estado_pago)}</td>
+        <td style="white-space:nowrap">
+          ${v.estado_pago !== 'pagado' ? `<button class="btn btn-sm btn-success" onclick="marcarPagado('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}',${v.total})">Cobrar</button>` : '<span class="badge badge-green">Pagado</span>'}
+          <button class="btn btn-sm btn-secondary" onclick="verComprobante('venta','${v.id}')">🧾</button>
+          ${currentRol === 'admin' ? `<button class="btn btn-sm btn-danger" onclick="deleteVenta('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
+        </td>
+      </tr>`).join('');
+    setTimeout(applyTableRolRestrictions, 100);
+  } catch(e) { console.error(e); }
+}
+
+function addItemVenta() {
+  const sel = document.getElementById('ventaProductoSel');
+  const cant = parseInt(document.getElementById('ventaCantidad').value) || 1;
+  const pid = sel.value;
+  const opt = sel.selectedOptions[0];
+  const precio = parseFloat(opt?.dataset.precio || 0);
+  const nombre = opt?.text.split(' — ')[0];
+  const promo = opt?.dataset.promo || '';
+  if (!pid) { toast('Elegí un producto', 'error'); return; }
+  const promoInfo = document.getElementById('ventaPromoInfo');
+  const promoTexto = document.getElementById('ventaPromoTexto');
+  const promoCheck = document.getElementById('ventaPromoCheck');
+  if (promo) {
+    const [paga, lleva] = promo.split('+').map(Number);
+    promoInfo.style.display = 'block';
+    promoTexto.textContent = `Este producto tiene promo ${promo}: comprando ${paga} se lleva ${paga + lleva}.`;
+  } else {
+    promoInfo.style.display = 'none';
+    promoCheck.checked = false;
+  }
+  let bonificado = 0;
+  if (promo && promoCheck.checked) {
+    const [paga] = promo.split('+').map(Number);
+    bonificado = Math.floor(cant / paga);
+  }
+  const existing = ventaItems.find(i => i.producto_id === pid);
+  if (existing) {
+    existing.cantidad += cant;
+    existing.bonificado = (existing.bonificado || 0) + bonificado;
+    existing.subtotal = existing.cantidad * existing.precio_unitario;
+  } else {
+    ventaItems.push({ producto_id: pid, nombre, cantidad: cant, bonificado, precio_unitario: precio, subtotal: cant * precio, promo });
+  }
+  renderVentaItems();
+}
+
+function recalcPromo() {
+  const check = document.getElementById('ventaPromoCheck');
+  const lastPromo = ventaItems.filter(i => i.promo).pop();
+  if (!lastPromo) return;
+  const [paga] = lastPromo.promo.split('+').map(Number);
+  lastPromo.bonificado = check.checked ? Math.floor(lastPromo.cantidad / paga) : 0;
+  renderVentaItems();
+}
+
+function renderVentaItems() {
+  const el = document.getElementById('ventaItemsList');
+  const resumen = document.getElementById('ventaResumen');
+  const clienteId = document.getElementById('ventaCliente').value;
+  const cliente = cachedClientes.find(c => c.id === clienteId);
+  const descPct = parseFloat(cliente?.descuento_pct || 0);
+  if (!ventaItems.length) { el.style.display = 'none'; resumen.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.innerHTML = ventaItems.map((item, i) => {
+    const precioConDesc = item.precio_unitario * (1 - descPct / 100);
+    const subtotalFinal = item.cantidad * precioConDesc;
+    return `
+    <div class="item-row">
+      <span style="flex:2">${item.nombre}</span>
+      <span style="flex:1;text-align:center">${item.cantidad}${item.bonificado ? ` <span style="color:var(--success);font-size:11px">+${item.bonificado} bon.</span>` : ''}</span>
+      <span style="flex:1;text-align:right">
+        ${descPct > 0 ? `<span style="text-decoration:line-through;color:var(--muted);font-size:11px">$${(item.cantidad * item.precio_unitario).toLocaleString('es-AR')}</span><br>` : ''}
+        $${subtotalFinal.toLocaleString('es-AR', {maximumFractionDigits:2})}
+      </span>
+      <button class="btn btn-sm btn-danger" onclick="removeVentaItem(${i})">✕</button>
+    </div>`;
+  }).join('');
+  let costoTotal = 0;
+  ventaItems.forEach(item => {
+    const prod = cachedProductos.find(p => p.id === item.producto_id);
+    const costo = parseFloat(prod?.costo || 0);
+    costoTotal += costo * (item.cantidad + (item.bonificado || 0));
+  });
+  const total = ventaItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100), 0);
+  const totalOriginal = ventaItems.reduce((s, item) => s + item.cantidad * item.precio_unitario, 0);
+  const totalBonificados = ventaItems.reduce((s, item) => s + (item.bonificado || 0), 0);
+  const ganancia = total - costoTotal;
+  const margenReal = total > 0 ? (ganancia / total * 100) : 0;
+  const margenColor = margenReal >= 20 ? 'var(--success)' : margenReal >= 10 ? 'var(--warning)' : 'var(--danger)';
+  let resumenHtml = '';
+  if (descPct > 0) resumenHtml += `<div style="font-size:12px;color:var(--muted)">Descuento ${descPct}%: -$${(totalOriginal - total).toLocaleString('es-AR', {maximumFractionDigits:2})}</div>`;
+  if (totalBonificados > 0) resumenHtml += `<div style="font-size:12px;color:var(--success)">Unidades bonificadas: ${totalBonificados}</div>`;
+  resumenHtml += `<div style="font-size:16px;font-weight:600;margin-top:4px">Total: $${total.toLocaleString('es-AR', {maximumFractionDigits:2})}</div>`;
+  resumenHtml += `<div style="font-size:12px;margin-top:4px;color:${margenColor}">Ganancia estimada: $${ganancia.toLocaleString('es-AR', {maximumFractionDigits:0})} (${margenReal.toFixed(1)}% margen)</div>`;
+  if (margenReal < 10 && margenReal > 0) resumenHtml += `<div style="font-size:12px;color:var(--danger);font-weight:500">⚠ Margen bajo — revisá el descuento aplicado</div>`;
+  resumen.innerHTML = resumenHtml;
+}
+
+function removeVentaItem(idx) {
+  ventaItems.splice(idx, 1);
+  renderVentaItems();
+}
+
+async function saveVenta() {
+  const clienteId = document.getElementById('ventaCliente').value;
+  const fecha = document.getElementById('ventaFecha').value;
+  const notas = document.getElementById('ventaNotas').value;
+  if (!clienteId) { toast('Seleccioná un cliente', 'error'); return; }
+  if (!ventaItems.length) { toast('Agregá al menos un producto', 'error'); return; }
+  const cliente = cachedClientes.find(c => c.id === clienteId);
+  const descPct = parseFloat(cliente?.descuento_pct || 0);
+  const total = ventaItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100), 0);
+  const notaFinal = [notas, descPct > 0 ? `Descuento aplicado: ${descPct}%` : '', ventaItems.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : ''].filter(Boolean).join(' | ');
+  try {
+    const [venta] = await api('ventas', 'POST', { cliente_id: clienteId, fecha: fecha || new Date().toISOString().split('T')[0], notas: notaFinal, total });
+    await Promise.all(ventaItems.map(item => {
+      const precioConDesc = item.precio_unitario * (1 - descPct / 100);
+      const cantTotal = item.cantidad + (item.bonificado || 0);
+      return Promise.all([
+        api('venta_items', 'POST', { venta_id: venta.id, producto_id: item.producto_id, cantidad: cantTotal, precio_unitario: precioConDesc }),
+        api('stock_movimientos', 'POST', { producto_id: item.producto_id, tipo: 'salida', origen: 'venta', cantidad: -cantTotal, referencia_id: venta.id, notas: `Venta #${venta.id.substring(0,8)}${item.bonificado ? ' (incl. '+item.bonificado+' bonif.)' : ''}`, fecha: fecha || new Date().toISOString().split('T')[0] })
+      ]);
+    }));
+    toast('Venta registrada');
+    closeModal('modalVenta');
+    loadVentas();
+    loadDashboard();
+    setTimeout(applyTableRolRestrictions, 100);
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function marcarPagado(id, nombreCliente, total) {
+  const confirmado = confirm('Confirmar cobro?\n\nCliente: ' + nombreCliente + '\nTotal: $' + parseFloat(total).toLocaleString('es-AR') + '\n\nEsta accion no se puede deshacer.');
+  if (!confirmado) return;
+  try {
+    await api('ventas', 'PATCH', { estado_pago: 'pagado' }, `?id=eq.${id}`);
+    toast('Venta marcada como pagada');
+    loadVentas();
+    loadDashboard();
+    setTimeout(applyTableRolRestrictions, 100);
+  } catch(e) { toast('Error', 'error'); }
+}
+
+// ==================== PAGOS ====================
+async function loadPagos() {
+  if (!SUPABASE_URL) return;
+  try {
+    const pagos = await api('pagos', 'GET', null, '?select=id,fecha,monto,medio,notas,clientes(nombre,nombre_fantasia)&order=created_at.desc');
+    const tbody = document.getElementById('tablaPagos');
+    if (!pagos.length) { tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><div class="empty-icon">💰</div><p>No hay cobros registrados</p></div></td></tr>'; return; }
+    tbody.innerHTML = pagos.map(p => `
+      <tr>
+        <td>${p.fecha}</td>
+        <td>${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
+        <td><strong>$${parseFloat(p.monto||0).toLocaleString('es-AR')}</strong></td>
+        <td><span class="badge badge-blue">${p.medio}</span></td>
+        <td class="hide-mobile" style="color:var(--muted)">${p.notas || '—'}</td>
+      </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function savePago() {
+  const clienteId = document.getElementById('pagoCliente').value;
+  const fecha = document.getElementById('pagoFecha').value;
+  const monto = parseFloat(document.getElementById('pagoMonto').value);
+  const medio = document.getElementById('pagoMedio').value;
+  const notas = document.getElementById('pagoNotas').value;
+  if (!clienteId) { toast('Seleccioná un cliente', 'error'); return; }
+  if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'error'); return; }
+  try {
+    await api('pagos', 'POST', { cliente_id: clienteId, fecha, monto, medio, notas });
+    toast('Cobro registrado');
+    closeModal('modalPago');
+    loadPagos();
+    loadDashboard();
+    loadSaldosClientes();
+    if (document.getElementById('sec-ctacte').classList.contains('active')) loadCtaCte();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+// ==================== STOCK ====================
+async function loadStock() {
+  if (!SUPABASE_URL) return;
+  await Promise.all([loadStockActual(), loadMovimientos(), poblarFiltroProductoMov()]);
+}
+
+async function loadStockActual() {
+  try {
+    const productos = await api('stock_actual', 'GET', null, '?order=familia.asc,nombre.asc');
+    const tbody = document.getElementById('tablaStockActual');
+    const alertas = document.getElementById('stockAlertas');
+    const bajos = productos.filter(p => parseFloat(p.stock) <= parseFloat(p.stock_minimo));
+    if (bajos.length) {
+      alertas.innerHTML = `<div style="background:#FEE2E2;border:1px solid #FECACA;border-radius:10px;padding:12px 16px;font-size:13px"><strong>⚠ Productos con stock bajo:</strong><ul style="margin:6px 0 0 16px">${bajos.map(p => `<li>${p.codigo ? p.codigo+' — ' : ''}${p.nombre}: <strong>${p.stock}</strong> (mín. ${p.stock_minimo})</li>`).join('')}</ul></div>`;
+    } else {
+      alertas.innerHTML = '<div style="background:#DCFCE7;border:1px solid #BBF7D0;border-radius:10px;padding:10px 16px;font-size:13px;color:#15803D">✓ Todo el stock está sobre el mínimo</div>';
+    }
+    if (!productos.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Sin datos</td></tr>'; return; }
+    tbody.innerHTML = productos.map(p => {
+      const stock = parseFloat(p.stock);
+      const min = parseFloat(p.stock_minimo);
+      const badge = stock <= 0 ? 'badge-red' : stock <= min ? 'badge-yellow' : 'badge-green';
+      const label = stock <= 0 ? 'Sin stock' : stock <= min ? 'Stock bajo' : 'OK';
+      return `<tr>
+        <td><code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px;font-weight:600">${p.codigo||'—'}</code></td>
+        <td><strong>${p.nombre}</strong></td>
+        <td>${p.familia ? `<span class="badge badge-blue">${p.familia}</span>` : '—'}</td>
+        <td><strong>${stock}</strong> <span style="font-size:11px;color:var(--muted)">${p.unidad||''}</span></td>
+        <td style="color:var(--muted)">${min}</td>
+        <td><span class="badge ${badge}">${label}</span></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function loadMovimientos() {
+  try {
+    const origen = document.getElementById('filtroOrigenMov').value;
+    const prodId = document.getElementById('filtroProductoMov').value;
+    let q = '?select=id,fecha,tipo,origen,cantidad,notas,productos(nombre,codigo),clientes(nombre,nombre_fantasia)&order=created_at.desc&limit=100';
+    if (origen) q += `&origen=eq.${origen}`;
+    if (prodId) q += `&producto_id=eq.${prodId}`;
+    const movs = await api('stock_movimientos', 'GET', null, q);
+    const tbody = document.getElementById('tablaMovimientos');
+    if (!movs.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Sin movimientos</td></tr>'; return; }
+    tbody.innerHTML = movs.map(m => {
+      const cant = parseFloat(m.cantidad);
+      const cantColor = cant > 0 ? 'var(--success)' : 'var(--danger)';
+      const cantStr = (cant > 0 ? '+' : '') + cant;
+      const origenBadge = { reposicion:'badge-green', venta:'badge-blue', muestra:'badge-yellow', devolucion:'badge-green', ajuste_manual:'badge-gray', pedido:'badge-blue' }[m.origen] || 'badge-gray';
+      return `<tr>
+        <td>${m.fecha}</td>
+        <td>${m.productos?.codigo ? `<code style="font-size:11px">${m.productos.codigo}</code> ` : ''}${m.productos?.nombre||'—'}</td>
+        <td>${m.tipo === 'entrada' ? '⬆ Entrada' : m.tipo === 'salida' ? '⬇ Salida' : '↔ Ajuste'}</td>
+        <td><span class="badge ${origenBadge}">${m.origen.replace('_',' ')}</span></td>
+        <td style="font-weight:600;color:${cantColor}">${cantStr}</td>
+        <td>${m.clientes ? nombreCliente(m.clientes) : '—'}</td>
+        <td class="hide-mobile" style="color:var(--muted);font-size:12px">${m.notas||'—'}</td>
+        <td>${currentRol === 'admin' ? `<button class="btn btn-sm btn-danger" onclick="deleteMov('${m.id}')">✕</button>` : ''}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function poblarFiltroProductoMov() {
+  const sel = document.getElementById('filtroProductoMov');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Todos los productos</option>' + cachedProductos.map(p => `<option value="${p.id}">${p.codigo ? p.codigo+' — ' : ''}${p.nombre}</option>`).join('');
+}
+
+function openStockModal(modalId) {
+  const today = new Date().toISOString().split('T')[0];
+  const prefix = modalId.replace('modal','').toLowerCase();
+  const selProd = document.getElementById(prefix + 'Producto');
+  if (selProd) {
+    selProd.innerHTML = '<option value="">Seleccioná un producto</option>' + cachedProductos.map(p => `<option value="${p.id}">${p.codigo ? p.codigo+' — ' : ''}${p.nombre}</option>`).join('');
+  }
+  const fechaEl = document.getElementById(prefix + 'Fecha');
+  if (fechaEl) fechaEl.value = today;
+  if (modalId === 'modalMuestra') {
+    document.getElementById('muestraCliente').innerHTML = '<option value="">Sin cliente específico</option>' + cachedClientes.map(c => `<option value="${c.id}">${nombreCliente(c)}</option>`).join('');
+  }
+  if (modalId === 'modalAjuste') {
+    document.getElementById('ajusteProducto').addEventListener('change', async function() {
+      if (!this.value) { document.getElementById('ajusteStockActual').textContent = '—'; return; }
+      try {
+        const [r] = await api('stock_actual', 'GET', null, `?id=eq.${this.value}`);
+        document.getElementById('ajusteStockActual').textContent = r ? r.stock : '0';
+      } catch(e) {}
+    });
+  }
+  document.getElementById(modalId).classList.add('open');
+}
+
+async function saveEntrada() {
+  const prodId = document.getElementById('entradaProducto').value;
+  const cant = parseFloat(document.getElementById('entradaCantidad').value);
+  const fecha = document.getElementById('entradaFecha').value;
+  const origen = document.getElementById('entradaOrigen').value;
+  const notas = document.getElementById('entradaNotas').value;
+  if (!prodId) { toast('Seleccioná un producto', 'error'); return; }
+  if (!cant || cant <= 0) { toast('Ingresá una cantidad válida', 'error'); return; }
+  try {
+    await api('stock_movimientos', 'POST', { producto_id: prodId, tipo: 'entrada', origen, cantidad: cant, fecha, notas });
+    toast('Entrada registrada');
+    closeModal('modalEntrada');
+    ['entradaProducto','entradaCantidad','entradaNotas'].forEach(id => document.getElementById(id).value = '');
+    loadStock();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function saveMuestra() {
+  const prodId = document.getElementById('muestraProducto').value;
+  const cant = parseFloat(document.getElementById('muestraCantidad').value);
+  const clienteId = document.getElementById('muestraCliente').value;
+  const fecha = document.getElementById('muestraFecha').value;
+  const notas = document.getElementById('muestraNotas').value;
+  if (!prodId) { toast('Seleccioná un producto', 'error'); return; }
+  if (!cant || cant <= 0) { toast('Ingresá una cantidad válida', 'error'); return; }
+  try {
+    await api('stock_movimientos', 'POST', { producto_id: prodId, tipo: 'salida', origen: 'muestra', cantidad: -cant, cliente_id: clienteId || null, fecha, notas });
+    toast('Muestra registrada');
+    closeModal('modalMuestra');
+    loadStock();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function saveAjuste() {
+  const prodId = document.getElementById('ajusteProducto').value;
+  const cant = parseFloat(document.getElementById('ajusteCantidad').value);
+  const fecha = document.getElementById('ajusteFecha').value;
+  const notas = document.getElementById('ajusteNotas').value;
+  if (!prodId) { toast('Seleccioná un producto', 'error'); return; }
+  if (isNaN(cant) || cant === 0) { toast('Ingresá una cantidad distinta de 0', 'error'); return; }
+  if (!notas.trim()) { toast('El motivo es obligatorio para un ajuste', 'error'); return; }
+  try {
+    await api('stock_movimientos', 'POST', { producto_id: prodId, tipo: 'ajuste', origen: 'ajuste_manual', cantidad: cant, fecha, notas });
+    toast('Ajuste guardado');
+    closeModal('modalAjuste');
+    loadStock();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function deleteMov(id) {
+  if (!confirm('Borrar este movimiento?\n\nEl stock se recalculará automáticamente.')) return;
+  try {
+    await api('stock_movimientos', 'DELETE', null, `?id=eq.${id}`);
+    toast('Movimiento eliminado');
+    loadStock();
+  } catch(e) { toast('Error', 'error'); }
+}
+
+// ==================== CUENTA CORRIENTE ====================
+async function initCtaCte() {
+  await ensureCache();
+  const sel = document.getElementById('ctacteCliente');
+  sel.innerHTML = '<option value="">— Elegí un cliente —</option>' + cachedClientes.map(c => `<option value="${c.id}">${nombreCliente(c)}${c.tipo ? ' — '+c.tipo : ''}</option>`).join('');
+}
+
+async function loadCtaCte() {
+  const clienteId = document.getElementById('ctacteCliente').value;
+  const resumen = document.getElementById('ctacteResumen');
+  const empty = document.getElementById('ctacteEmpty');
+  if (!clienteId) { resumen.style.display = 'none'; empty.style.display = 'block'; return; }
+  resumen.style.display = 'block';
+  empty.style.display = 'none';
+  try {
+    const [ventas, pagos] = await Promise.all([
+      api('ventas', 'GET', null, `?select=id,fecha,total,estado_pago,notas&cliente_id=eq.${clienteId}&order=fecha.asc`),
+      api('pagos', 'GET', null, `?select=id,fecha,monto,medio,notas&cliente_id=eq.${clienteId}&order=fecha.asc`)
+    ]);
+    const totalFacturado = ventas.reduce((s, v) => s + parseFloat(v.total || 0), 0);
+    const totalCobrado = pagos.reduce((s, p) => s + parseFloat(p.monto || 0), 0);
+    const totalPagadoDir = ventas.filter(v => v.estado_pago === 'pagado').reduce((s, v) => s + parseFloat(v.total || 0), 0);
+    const saldo = totalFacturado - totalCobrado - totalPagadoDir;
+    document.getElementById('ctaFacturado').textContent = '$' + totalFacturado.toLocaleString('es-AR', {maximumFractionDigits:0});
+    document.getElementById('ctaCobrado').textContent = '$' + (totalCobrado + totalPagadoDir).toLocaleString('es-AR', {maximumFractionDigits:0});
+    const saldoEl = document.getElementById('ctaSaldo');
+    const saldoCard = document.getElementById('ctaSaldoCard');
+    saldoEl.textContent = '$' + Math.abs(saldo).toLocaleString('es-AR', {maximumFractionDigits:0});
+    if (saldo <= 0) {
+      saldoEl.style.color = 'var(--success)';
+      saldoCard.style.borderTop = '3px solid var(--success)';
+      document.querySelector('#ctaSaldoCard .stat-label').textContent = saldo < 0 ? 'Saldo a favor' : 'Sin deuda';
+    } else {
+      saldoEl.style.color = 'var(--danger)';
+      saldoCard.style.borderTop = '3px solid var(--danger)';
+      document.querySelector('#ctaSaldoCard .stat-label').textContent = 'Saldo pendiente';
+    }
+    const movs = [
+      ...ventas.map(v => ({ fecha: v.fecha, tipo: 'venta', id: v.id, monto: parseFloat(v.total||0), estado: v.estado_pago, notas: v.notas })),
+      ...pagos.map(p => ({ fecha: p.fecha, tipo: 'pago', id: p.id, monto: parseFloat(p.monto||0), medio: p.medio, notas: p.notas }))
+    ].sort((a, b) => a.fecha.localeCompare(b.fecha));
+    if (movs.length) {
+      document.getElementById('ctaUltima').textContent = new Date(movs[movs.length-1].fecha + 'T00:00:00').toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'});
+    }
+    let saldoAcum = 0;
+    const tbody = document.getElementById('ctacteTabla');
+    if (!movs.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Sin movimientos</td></tr>'; return; }
+    tbody.innerHTML = movs.map(m => {
+      let debe = 0, haber = 0, tipoBadge = '', tipoLabel = '', detalle = '';
+      if (m.tipo === 'venta') {
+        if (m.estado === 'pagado') { haber = m.monto; tipoBadge = 'badge-green'; tipoLabel = 'Venta pagada'; }
+        else { debe = m.monto; tipoBadge = 'badge-yellow'; tipoLabel = 'Venta'; }
+        detalle = m.notas || '—';
+      } else {
+        haber = m.monto; tipoBadge = 'badge-blue'; tipoLabel = 'Cobro';
+        detalle = m.medio + (m.notas ? ' · ' + m.notas : '');
+      }
+      saldoAcum += debe - haber;
+      const saldoColor = saldoAcum <= 0 ? 'var(--success)' : 'var(--danger)';
+      return `<tr>
+        <td style="font-size:12px">${new Date(m.fecha+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})}</td>
+        <td><span class="badge ${tipoBadge}">${tipoLabel}</span></td>
+        <td style="font-size:12px;color:var(--muted)">${detalle}</td>
+        <td style="text-align:right;color:var(--danger)">${debe > 0 ? '$'+debe.toLocaleString('es-AR',{maximumFractionDigits:0}) : '—'}</td>
+        <td style="text-align:right;color:var(--success)">${haber > 0 ? '$'+haber.toLocaleString('es-AR',{maximumFractionDigits:0}) : '—'}</td>
+        <td style="text-align:right;font-weight:600;color:${saldoColor}">$${Math.abs(saldoAcum).toLocaleString('es-AR',{maximumFractionDigits:0})}${saldoAcum < 0 ? ' ✓' : ''}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.error(e); toast('Error cargando cuenta corriente', 'error'); }
+}
+
+// ==================== LOGOUT ====================
+function doLogout() {
+  if (!confirm('Cerrar sesión?')) return;
+  localStorage.removeItem('sb_token');
+  localStorage.removeItem('sb_user_id');
+  currentUser = null; currentRol = null; currentNombre = null;
+  document.getElementById('userBadge').style.display = 'none';
+  document.getElementById('loginEmail').value = '';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginBtn').disabled = false;
+  document.getElementById('loginLoading').style.display = 'none';
+  document.querySelectorAll('.nav-item').forEach(el => el.style.display = '');
+  document.getElementById('loginSetup').style.display = 'none';
+  document.getElementById('loginForm').style.display = 'block';
+  document.getElementById('loginScreen').classList.add('show');
+}
+
+// ==================== MOBILE NAV ====================
+function mobileNav(name) {
+  closeMoreDrawer();
+  document.querySelectorAll('.mobile-nav-item').forEach(el => el.classList.remove('active'));
+  const btn = document.getElementById('mn-' + name);
+  if (btn) btn.classList.add('active');
+  else document.getElementById('mn-more').classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => {
+    if (n.getAttribute('onclick')?.includes("'" + name + "'")) n.classList.add('active');
+  });
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  const sec = document.getElementById('sec-' + name);
+  if (sec) sec.classList.add('active');
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'clientes') loadClientes();
+  if (name === 'productos') loadProductos();
+  if (name === 'pedidos') loadPedidos();
+  if (name === 'ventas') loadVentas();
+  if (name === 'pagos') loadPagos();
+  if (name === 'stock') loadStock();
+  if (name === 'reportes') initReportes();
+  if (name === 'ctacte') initCtaCte();
+}
+
+function toggleMoreDrawer() {
+  document.getElementById('moreDrawer').classList.toggle('open');
+  document.getElementById('moreOverlay').classList.toggle('open');
+}
+
+function closeMoreDrawer() {
+  document.getElementById('moreDrawer').classList.remove('open');
+  document.getElementById('moreOverlay').classList.remove('open');
+}
+
 // ==================== CONFIG ====================
 let SUPABASE_URL = localStorage.getItem('sb_url') || '';
 let SUPABASE_KEY = localStorage.getItem('sb_key') || '';
@@ -1582,7 +2642,7 @@ async function saveConfig() {
     SUPABASE_KEY = key;
     localStorage.setItem('sb_url', SUPABASE_URL);
     localStorage.setItem('sb_key', SUPABASE_KEY);
-    status.textContent = '✅ Conexión exitosa';
+    status.textContent = '✅ Conexión exitosa — iniciá sesión';
     status.style.color = 'var(--success)';
     document.getElementById('configBanner').classList.add('hidden');
     // Show login after short delay
@@ -1591,7 +2651,6 @@ async function saveConfig() {
       document.getElementById('loginForm').style.display = 'block';
       document.getElementById('loginScreen').classList.add('show');
     }, 800);
-    loadAll();
   } catch(e) {
     status.textContent = '❌ Error: ' + e.message;
     status.style.color = 'var(--danger)';
