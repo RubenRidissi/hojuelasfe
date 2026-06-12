@@ -1292,11 +1292,10 @@ function renderClientes(list) {
       <td>${c.localidad || '—'}</td>
       <td class="hide-mobile">${c.provincia || '—'}</td>
       <td class="hide-mobile">${c.direccion || '—'}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-sm btn-success" onclick="handleClienteAction('toggle','${c.id}')" style="${c.estado_cliente !== 'Activo' ? '' : 'display:none'}">✅ Activar</button>
-        <button class="btn btn-sm btn-secondary" onclick="handleClienteAction('deact','${c.id}')" style="${c.estado_cliente === 'Activo' ? '' : 'display:none'}">❌ Desact.</button>
-        <button class="btn btn-sm btn-secondary" onclick="handleClienteAction('edit','${c.id}')">Editar</button>
-        <button class="btn btn-sm btn-danger" onclick="handleClienteAction('delete','${c.id}')">Borrar</button>
+      <td style="white-space:nowrap" class="cliente-actions">
+        <button class="btn btn-sm btn-success admin-only" onclick="handleClienteAction('toggle','${c.id}')">✅ Activar</button>
+        <button class="btn btn-sm btn-secondary admin-only" onclick="handleClienteAction('edit','${c.id}')">Editar</button>
+        <button class="btn btn-sm btn-danger admin-only" onclick="handleClienteAction('delete','${c.id}')">Borrar</button>
       </td>
     </tr>`}).join('');
   // Hide action buttons for vendedor
@@ -2313,6 +2312,12 @@ function applyRolRestrictions() {
       btnProd.innerHTML = '';
     }
   }
+
+  // Hide admin-only buttons for vendedor
+  const style = document.getElementById('adminOnlyStyle') || document.createElement('style');
+  style.id = 'adminOnlyStyle';
+  style.textContent = isAdmin ? '' : '.admin-only { display: none !important; }';
+  document.head.appendChild(style);
 
   // Imprimir listado productos - admin only
   const btnImpProd = document.getElementById('btnImprimirProductos');
