@@ -1292,20 +1292,19 @@ function renderClientes(list) {
       <td>${c.localidad || '—'}</td>
       <td class="hide-mobile">${c.provincia || '—'}</td>
       <td class="hide-mobile">${c.direccion || '—'}</td>
-      <td style="white-space:nowrap" id="btns-${c.id}"></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm btn-success" onclick="handleClienteAction('toggle','${c.id}')" style="${c.estado_cliente !== 'Activo' ? '' : 'display:none'}">✅ Activar</button>
+        <button class="btn btn-sm btn-secondary" onclick="handleClienteAction('deact','${c.id}')" style="${c.estado_cliente === 'Activo' ? '' : 'display:none'}">❌ Desact.</button>
+        <button class="btn btn-sm btn-secondary" onclick="handleClienteAction('edit','${c.id}')">Editar</button>
+        <button class="btn btn-sm btn-danger" onclick="handleClienteAction('delete','${c.id}')">Borrar</button>
+      </td>
     </tr>`}).join('');
-  // Fill action buttons based on role - use setTimeout to ensure DOM is ready
-  setTimeout(() => {
-    list.forEach(c => {
-      const cell = document.getElementById('btns-' + c.id);
-      if (!cell) return;
-      if (currentRol === 'admin') {
-        cell.innerHTML = renderClienteBtns(c);
-      } else {
-        cell.innerHTML = '<span style="font-size:11px;color:var(--muted)">—</span>';
-      }
-    });
-  }, 50);
+  // Hide action buttons for vendedor
+  if (currentRol !== 'admin') {
+    setTimeout(() => {
+      document.querySelectorAll('#tablaClientes .btn').forEach(btn => btn.style.display = 'none');
+    }, 50);
+  }
 }
 
 async function saveCliente() {
@@ -2500,6 +2499,14 @@ function renderClienteBtns(c) {
   const delBtn = "<button class='btn btn-sm btn-danger' onclick='deleteCliente(\"" + id + "\")'>Borrar</button>";
   return "<div style='display:flex;gap:4px;white-space:nowrap'>" + toggleBtn + editBtn + delBtn + "</div>";
 }
+function handleClienteAction(action, id) {
+  if (currentRol !== 'admin') { toast('No tenés permiso', 'error'); return; }
+  if (action === 'toggle') toggleEstadoCliente(id, 'Activo');
+  if (action === 'deact') toggleEstadoCliente(id, 'Inactivo');
+  if (action === 'edit') editCliente(id);
+  if (action === 'delete') deleteCliente(id);
+}
+
 async function toggleEstadoCliente(id, nuevoEstado) {
   try {
     await api('clientes', 'PATCH', { estado_cliente: nuevoEstado }, `?id=eq.${id}`);
