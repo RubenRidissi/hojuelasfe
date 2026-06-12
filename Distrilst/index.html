@@ -1084,15 +1084,23 @@ function openModal(id) {
     ensureCache().then(() => populateSelects());
   }
   if (id === 'modalPago') {
-    ensureCache().then(() => populateClienteSelect('pagoCliente'));
+    ensureCache().then(() => { populateClienteSelect('pagoCliente'); });
   }
   if (id === 'modalEntrada' || id === 'modalMuestra' || id === 'modalAjuste') { openStockModal(id); return; }
 }
 
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
-  if (id === 'modalPedido') { pedidoItems = []; renderPedidoItems(); document.getElementById('pedidoPromoInfo').style.display='none'; }
-  if (id === 'modalVenta') { ventaItems = []; renderVentaItems(); document.getElementById('ventaPromoInfo').style.display='none'; }
+  if (id === 'modalPedido') { 
+    pedidoItems = []; renderPedidoItems(); 
+    document.getElementById('pedidoPromoInfo').style.display='none';
+    const s = document.getElementById('pedidoClienteSearch'); if(s) s.value='';
+  }
+  if (id === 'modalVenta') { 
+    ventaItems = []; renderVentaItems(); 
+    document.getElementById('ventaPromoInfo').style.display='none';
+    const s = document.getElementById('ventaClienteSearch'); if(s) s.value='';
+  }
 }
 
 // ==================== INIT ====================
@@ -1487,6 +1495,32 @@ function populateSelects() {
 function populateClienteSelect(selId) {
   const sel = document.getElementById(selId);
   sel.innerHTML = '<option value="">Seleccioná un cliente</option>' + cachedClientes.map(c => `<option value="${c.id}">${nombreCliente(c)}</option>`).join('');
+  
+  // Add search input if not already present
+  const searchId = selId + 'Search';
+  if (!document.getElementById(searchId)) {
+    const searchInput = document.createElement('input');
+    searchInput.id = searchId;
+    searchInput.type = 'text';
+    searchInput.placeholder = 'Buscar cliente...';
+    searchInput.style.cssText = 'width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:7px 7px 0 0;font-size:13px;border-bottom:none;margin-bottom:0';
+    searchInput.oninput = function() {
+      const q = this.value.toLowerCase();
+      Array.from(sel.options).forEach(opt => {
+        if (opt.value === '') return;
+        opt.style.display = opt.text.toLowerCase().includes(q) ? '' : 'none';
+      });
+      // Reset selection if current doesn't match
+      if (sel.selectedOptions[0] && sel.selectedOptions[0].style.display === 'none') {
+        sel.value = '';
+      }
+    };
+    sel.style.borderRadius = '0 0 7px 7px';
+    sel.parentNode.insertBefore(searchInput, sel);
+  } else {
+    document.getElementById(searchId).value = '';
+    Array.from(sel.options).forEach(opt => opt.style.display = '');
+  }
 }
 
 function addItemPedido() {
