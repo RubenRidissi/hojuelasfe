@@ -1294,16 +1294,18 @@ function renderClientes(list) {
       <td class="hide-mobile">${c.direccion || '—'}</td>
       <td style="white-space:nowrap" id="btns-${c.id}"></td>
     </tr>`}).join('');
-  // Fill action buttons based on role
-  list.forEach(c => {
-    const cell = document.getElementById('btns-' + c.id);
-    if (!cell) return;
-    if (currentRol === 'admin') {
-      cell.innerHTML = renderClienteBtns(c);
-    } else {
-      cell.innerHTML = '<span style="font-size:11px;color:var(--muted)">—</span>';
-    }
-  });
+  // Fill action buttons based on role - use setTimeout to ensure DOM is ready
+  setTimeout(() => {
+    list.forEach(c => {
+      const cell = document.getElementById('btns-' + c.id);
+      if (!cell) return;
+      if (currentRol === 'admin') {
+        cell.innerHTML = renderClienteBtns(c);
+      } else {
+        cell.innerHTML = '<span style="font-size:11px;color:var(--muted)">—</span>';
+      }
+    });
+  }, 50);
 }
 
 async function saveCliente() {
