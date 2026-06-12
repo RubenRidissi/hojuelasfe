@@ -2340,6 +2340,7 @@ async function generarListaPrecios() {
   const tipo = document.getElementById('listaTipo').value;
   const clienteId = document.getElementById('listaCliente').value;
   const familia = document.getElementById('listaFamilia').value;
+  const ivaOpcion = document.getElementById('listaIVA').value;
   const mostrarPromo = document.getElementById('listaMostrarPromo').checked;
   const mostrarCodigo = document.getElementById('listaMostrarCodigo').checked;
   const vigencia = document.getElementById('listaVigencia').value;
@@ -2372,7 +2373,6 @@ async function generarListaPrecios() {
     tablaRows += `<tr><td colspan="${colSpan}" style="background:#FEF3DC;font-weight:700;font-size:13px;color:#9A5F00;padding:8px 10px">${fam}</td></tr>`;
     prods.forEach(p => {
       const precioLista = parseFloat(p.precio || 0);
-      const ivaOpcion = document.getElementById('listaIVA').value;
       const precioFinal = descPct > 0 ? precioLista * (1 - descPct / 100) : precioLista;
       const precioFinalIVA = precioFinal * 1.21;
       const promoStr = p.promo && mostrarPromo ? `<span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:2px 6px;border-radius:10px;margin-left:6px">${p.promo}</span>` : '';
@@ -2817,30 +2817,22 @@ function buildComprobanteVenta(v) {
   let html = buildHeader('VENTA', compNumVenta++, v.fecha);
   html += buildClienteInfo(v.clientes, 'Estado de pago', v.estado_pago === 'pagado' ? '✓ Pagado' : 'Pendiente', 'Descuento', descPct > 0 ? descPct + '%' : '—');
   html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
-  let totalBonificados = 0;
   items.forEach(item => {
-    // Detect bonificado: notas contains "bonif." for this item
-    // We detect if cantidad doesn't divide evenly by precio to find bonificados
-    const subtotalEsperado = item.cantidad * item.precio_unitario;
-    const subtotalReal = item.cantidad * item.precio_unitario;
     html += '<tr><td style="color:#78716C;font-size:12px">' + (item.productos?.codigo || '—') + '</td>' +
       '<td>' + (item.productos?.nombre || '—') + '</td>' +
       '<td style="text-align:center">' + item.cantidad + ' ' + (item.productos?.unidad || '') + '</td>' +
       '<td style="text-align:right">$' + parseFloat(item.precio_unitario).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
-      '<td style="text-align:right">$' + subtotalReal.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
+      '<td style="text-align:right">$' + (item.cantidad * item.precio_unitario).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
   });
-  // Check notas for bonificados info
-  const bonifMatch = (v.notas || '').match(/(\d+) bonif/);
-  const bonifCount = bonifMatch ? parseInt(bonifMatch[1]) : 0;
   const totalFacturado = parseFloat(v.total);
-  const cantidadTotal = items.reduce((s, i) => s + i.cantidad, 0);
-  const cantidadFacturada = cantidadTotal - bonifCount;
+  const hasBonif = (v.notas || '').includes('bonificadas por promo');
   html += '</tbody>';
-  if (bonifCount > 0) {
-    html += '<tr style="background:#F0FDF4"><td colspan="2" style="font-size:12px;color:#15803D;padding:6px 10px">🎁 Incluye ' + bonifCount + ' unidad' + (bonifCount > 1 ? 'es' : '') + ' bonificada' + (bonifCount > 1 ? 's' : '') + ' por promo de volumen (' + cantidadFacturada + ' facturadas + ' + bonifCount + ' bonificadas)</td><td style="text-align:center;font-size:12px;color:#15803D">' + cantidadTotal + '</td><td colspan="2"></td></tr>';
+  if (hasBonif) {
+    html += '<tr style="background:#F0FDF4"><td colspan="5" style="font-size:12px;color:#15803D;padding:6px 10px">🎁 Esta venta incluye unidades bonificadas por promo de volumen. El total refleja solo las unidades facturadas.</td></tr>';
   }
   html += '<tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$' + totalFacturado.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr></tfoot></table>';
-  html += buildFooter((v.notas || '').replace(/Descuento aplicado:[^|]*/g,'').replace(/Incluye unidades[^|]*/g,'').replace(/\|\s*\|/g,'').trim());
+  const notaLimpia = (v.notas || '').split('|').map(s => s.trim()).filter(s => s && !s.includes('Descuento aplicado') && !s.includes('bonificadas')).join(' | ');
+  html += buildFooter(notaLimpia);
   return html;
 }
 
