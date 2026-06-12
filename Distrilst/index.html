@@ -1281,7 +1281,7 @@ function renderClientes(list) {
     const estadoBadge = { Activo:'badge-green', Pendiente:'badge-yellow', Inactivo:'badge-red' }[c.estado_cliente] || 'badge-yellow';
     const estadoIcon = { Activo:'✅', Pendiente:'⏳', Inactivo:'❌' }[c.estado_cliente] || '⏳';
     return `
-    <tr>
+    <tr data-estado="${c.estado_cliente||'Pendiente'}">
       <td><strong>${nombreCliente(c)}</strong>${c.email ? `<br><span style="font-size:12px;color:var(--muted)">${c.email}</span>` : ''}</td>
       <td><span class="badge ${estadoBadge}">${estadoIcon} ${c.estado_cliente||'Pendiente'}</span></td>
       <td><span class="badge ${tipoBadge}">${c.tipo||'Minorista'}</span></td>
@@ -2525,8 +2525,11 @@ function filterClientes() {
   const rows = tbody.querySelectorAll('tr');
   rows.forEach(row => {
     const text = row.textContent.toLowerCase();
-    const matchQuery = !query || text.includes(query);
-    const matchEstado = !estado || text.includes(estado);
+    const matchQuery = !query || text.includes(query.toLowerCase());
+    let matchEstado = true;
+    if (estado) {
+      matchEstado = row.dataset.estado === estado;
+    }
     row.style.display = matchQuery && matchEstado ? '' : 'none';
   });
 }
@@ -2652,12 +2655,12 @@ function imprimirClientes() {
         tipoActual = c.tipo || 'Sin tipo';
         filas += `<tr><td colspan="5" style="background:#FEF3DC;font-weight:700;font-size:13px;color:#9A5F00;padding:8px 10px">${tipoActual}</td></tr>`;
       }
-      const desc = parseFloat(c.descuento_pct || 0);
       filas += `<tr>
         <td>${c.nombre}</td>
+        <td>${c.localidad || '—'}</td>
+        <td>${c.direccion || '—'}</td>
         <td>${c.telefono || '—'}</td>
         <td>${c.direccion || '—'}</td>
-        <td style="text-align:center;color:#78716C;font-size:11px">${c.email || '—'}</td>
       </tr>`;
     });
   } else {
@@ -2666,9 +2669,10 @@ function imprimirClientes() {
       const tipoBadgeColor = { Minorista:'#F3F4F6', Distribuidor:'#DBEAFE', Mayorista:'#FEF9C3', Institucional:'#DCFCE7' }[c.tipo] || '#F3F4F6';
       filas += `<tr>
         <td>${nombreCliente(c)} <span style="background:${tipoBadgeColor};font-size:10px;padding:1px 6px;border-radius:10px;margin-left:4px">${c.tipo||'—'}</span></td>
+        <td>${c.localidad || '—'}</td>
+        <td>${c.direccion || '—'}</td>
         <td>${c.telefono || '—'}</td>
         <td>${c.direccion || '—'}</td>
-        <td style="text-align:center;color:#78716C;font-size:11px">${c.email || '—'}</td>
       </tr>`;
     });
   }
