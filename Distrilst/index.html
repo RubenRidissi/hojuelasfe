@@ -2727,3 +2727,72 @@ function imprimirClientes() {
 }
 
 
+
+
+// ==================== CONFIG SAVE ====================
+async function saveConfig() {
+  const url = document.getElementById('cfgUrl').value.trim().replace(/[/]+$/, '').replace('/rest/v1','');
+  const key = document.getElementById('cfgKey').value.trim();
+  const status = document.getElementById('cfgStatus');
+  if (!url || !key) { status.textContent = 'Ingresa URL y API Key'; status.style.color = 'var(--danger)'; return; }
+  status.textContent = 'Verificando...'; status.style.color = 'var(--muted)';
+  try {
+    const res = await fetch(url + '/rest/v1/clientes?limit=1', {
+      headers: { 'apikey': key, 'Authorization': 'Bearer ' + key }
+    });
+    if (!res.ok) throw new Error('Respuesta ' + res.status);
+    SUPABASE_URL = url + '/rest/v1/';
+    SUPABASE_KEY = key;
+    localStorage.setItem('sb_url', SUPABASE_URL);
+    localStorage.setItem('sb_key', SUPABASE_KEY);
+    status.textContent = 'Conexion exitosa - inicia sesion';
+    status.style.color = 'var(--success)';
+    document.getElementById('configBanner').classList.add('hidden');
+    setTimeout(() => {
+      document.getElementById('loginSetup').style.display = 'none';
+      document.getElementById('loginForm').style.display = 'block';
+      document.getElementById('loginScreen').classList.add('show');
+    }, 800);
+  } catch(e) {
+    status.textContent = 'Error: ' + e.message;
+    status.style.color = 'var(--danger)';
+  }
+}
+
+async function exportBackup() {
+  if (!SUPABASE_URL) { toast('Configura Supabase primero', 'error'); return; }
+  try {
+    const [clientes, productos, pedidos, ventas, pagos] = await Promise.all([
+      api('clientes'), api('productos'), api('pedidos'), api('ventas'), api('pagos')
+    ]);
+    const backup = { fecha: new Date().toISOString(), clientes, productos, pedidos, ventas, pagos };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'hojuelas-backup-' + new Date().toISOString().split('T')[0] + '.json';
+    a.click();
+    toast('Backup descargado');
+  } catch(e) { toast('Error al exportar', 'error'); }
+}
+
+document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+  backdrop.addEventListener('click', e => {
+    if (e.target === backdrop) backdrop.classList.remove('open');
+  });
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('ventaPromoCheck')?.addEventListener('change', recalcPromo);
+  document.getElementById('ventaProductoSel')?.addEventListener('change', function() {
+    document.getElementById('ventaPromoInfo').style.display = 'none';
+    document.getElementById('ventaPromoCheck').checked = false;
+  });
+  document.getElementById('pedidoPromoCheck')?.addEventListener('change', recalcPromoPedido);
+  document.getElementById('pedidoProductoSel')?.addEventListener('change', function() {
+    document.getElementById('pedidoPromoInfo').style.display = 'none';
+    document.getElementById('pedidoPromoCheck').checked = false;
+  });
+});
+</script>
+</body>
+</html>
