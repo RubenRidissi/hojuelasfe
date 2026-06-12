@@ -629,6 +629,33 @@ function showSection(name) {
         <div style="font-size:36px;margin-bottom:12px">💳</div>
         <p style="color:var(--muted)">Seleccioná un cliente para ver su cuenta corriente</p>
       </div>
+      <!-- Panel muestras -->
+      <div class="card" style="margin-top:16px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Muestras entregadas en el período</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <!-- Por producto -->
+          <div>
+            <h4 style="font-size:13px;font-weight:500;color:var(--muted);margin-bottom:10px">Por producto</h4>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Producto</th><th style="text-align:center">Unidades</th><th style="text-align:right">Costo estimado</th></tr></thead>
+                <tbody id="repMuestrasProducto"></tbody>
+              </table>
+            </div>
+          </div>
+          <!-- Por cliente -->
+          <div>
+            <h4 style="font-size:13px;font-weight:500;color:var(--muted);margin-bottom:10px">Por cliente</h4>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Cliente</th><th style="text-align:center">Unidades</th></tr></thead>
+                <tbody id="repMuestrasCliente"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div id="repMuestrasTotal" style="margin-top:12px;padding:10px 14px;background:var(--honey-light);border-radius:8px;font-size:13px"></div>
+      </div>
     </div>
 
     <!-- CONFIGURACION -->
