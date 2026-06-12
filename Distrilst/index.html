@@ -369,8 +369,8 @@ function showSection(name) {
         </div>
       </div>
       <div class="search-bar">
-        <input class="search-input" id="searchClientes" type="text" placeholder="Buscar cliente..." oninput="filterClientes()">
-      <select id="filtroEstadoCliente" onchange="filterClientes()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+        <input class="search-input" id="searchClientes" type="text" placeholder="Buscar cliente..." oninput="filterClientes()" style="flex:2;min-width:200px">
+      <select id="filtroEstadoCliente" onchange="filterClientes()" style="flex:1;min-width:140px;max-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
         <option value="">Todos los estados</option>
         <option value="Pendiente">⏳ Pendiente</option>
         <option value="Activo">✅ Activo</option>
