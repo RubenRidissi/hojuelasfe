@@ -221,13 +221,25 @@
 <body>
 
 <script>
-// Early stub so nav onclick works before full script loads
+// showSection - handles nav and data loading
 function showSection(name) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const sec = document.getElementById('sec-' + name);
   if (sec) sec.classList.add('active');
   if (event && event.currentTarget) event.currentTarget.classList.add('active');
+  // Load data for section (functions may not be defined yet on first load)
+  try {
+    if (typeof loadDashboard === 'function' && name === 'dashboard') loadDashboard();
+    if (typeof loadClientes === 'function' && name === 'clientes') loadClientes();
+    if (typeof loadProductos === 'function' && name === 'productos') loadProductos();
+    if (typeof loadPedidos === 'function' && name === 'pedidos') loadPedidos();
+    if (typeof loadVentas === 'function' && name === 'ventas') loadVentas();
+    if (typeof loadPagos === 'function' && name === 'pagos') loadPagos();
+    if (typeof loadStock === 'function' && name === 'stock') loadStock();
+    if (typeof initReportes === 'function' && name === 'reportes') initReportes();
+    if (typeof initCtaCte === 'function' && name === 'ctacte') initCtaCte();
+  } catch(e) { console.error('showSection error:', e); }
 }
 </script>
 <!-- LOGIN SCREEN -->
