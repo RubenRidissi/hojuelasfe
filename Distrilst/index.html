@@ -1292,10 +1292,8 @@ function renderClientes(list) {
       <td>${c.localidad || '—'}</td>
       <td class="hide-mobile">${c.provincia || '—'}</td>
       <td class="hide-mobile">${c.direccion || '—'}</td>
-      <td style="white-space:nowrap" class="cliente-actions">
-        <button class="btn btn-sm btn-success admin-only" onclick="handleClienteAction('toggle','${c.id}')">✅ Activar</button>
-        <button class="btn btn-sm btn-secondary admin-only" onclick="handleClienteAction('edit','${c.id}')">Editar</button>
-        <button class="btn btn-sm btn-danger admin-only" onclick="handleClienteAction('delete','${c.id}')">Borrar</button>
+      <td style="min-width:180px" class="cliente-actions">
+        <button class="btn btn-sm btn-success admin-only" onclick="handleClienteAction('toggle','${c.id}')">✅</button> <button class="btn btn-sm btn-secondary admin-only" onclick="handleClienteAction('edit','${c.id}')">Editar</button> <button class="btn btn-sm btn-danger admin-only" onclick="handleClienteAction('delete','${c.id}')">Borrar</button>
       </td>
     </tr>`}).join('');
   // Hide action buttons for vendedor
