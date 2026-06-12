@@ -1568,28 +1568,33 @@ function imprimirClientes() {
 
 // ==================== CONFIG SAVE ====================
 async function saveConfig() {
-  const url = document.getElementById('cfgUrl').value.trim().replace(/\/$/, '').replace('/rest/v1','');
+  const url = document.getElementById('cfgUrl').value.trim().replace(/[/]+$/, '').replace('/rest/v1','');
   const key = document.getElementById('cfgKey').value.trim();
   const status = document.getElementById('cfgStatus');
-  if (!url || !key) { toast('Ingresá URL y API Key', 'error'); return; }
+  if (!url || !key) { status.textContent = '❌ Ingresá URL y API Key'; status.style.color = 'var(--danger)'; return; }
   status.textContent = 'Verificando...'; status.style.color = 'var(--muted)';
   try {
     const res = await fetch(url + '/rest/v1/clientes?limit=1', {
       headers: { 'apikey': key, 'Authorization': 'Bearer ' + key }
     });
-    if (!res.ok) throw new Error('No se pudo conectar');
+    if (!res.ok) throw new Error('Respuesta ' + res.status);
     SUPABASE_URL = url + '/rest/v1/';
     SUPABASE_KEY = key;
     localStorage.setItem('sb_url', SUPABASE_URL);
     localStorage.setItem('sb_key', SUPABASE_KEY);
-    document.getElementById('cfgStatus').textContent = '✅ Conexión exitosa';
+    status.textContent = '✅ Conexión exitosa';
+    status.style.color = 'var(--success)';
     document.getElementById('configBanner').classList.add('hidden');
-    toast('Configuración guardada');
+    // Show login after short delay
+    setTimeout(() => {
+      document.getElementById('loginSetup').style.display = 'none';
+      document.getElementById('loginForm').style.display = 'block';
+      document.getElementById('loginScreen').classList.add('show');
+    }, 800);
     loadAll();
   } catch(e) {
     status.textContent = '❌ Error: ' + e.message;
     status.style.color = 'var(--danger)';
-    toast('Error de conexión', 'error');
   }
 }
 
