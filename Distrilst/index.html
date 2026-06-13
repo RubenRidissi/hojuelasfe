@@ -2094,8 +2094,10 @@ function renderVentaItems() {
   if (descPct > 0) resumenHtml += `<div style="font-size:12px;color:var(--muted)">Descuento ${descPct}%: -$${(totalOriginal - total).toLocaleString('es-AR', {maximumFractionDigits:2})}</div>`;
   if (totalBonificados > 0) resumenHtml += `<div style="font-size:12px;color:var(--success)">Unidades bonificadas: ${totalBonificados}</div>`;
   resumenHtml += `<div style="font-size:16px;font-weight:600;margin-top:4px">Total: $${total.toLocaleString('es-AR', {maximumFractionDigits:2})}</div>`;
-  resumenHtml += `<div style="font-size:12px;margin-top:4px;color:${margenColor}">Ganancia estimada: $${ganancia.toLocaleString('es-AR', {maximumFractionDigits:0})} (${margenReal.toFixed(1)}% margen)</div>`;
-  if (margenReal < 10 && margenReal > 0) resumenHtml += `<div style="font-size:12px;color:var(--danger);font-weight:500">⚠ Margen bajo — revisá el descuento aplicado</div>`;
+  if (currentRol === 'admin') {
+    resumenHtml += `<div style="font-size:12px;margin-top:4px;color:${margenColor}">Ganancia estimada: $${ganancia.toLocaleString('es-AR', {maximumFractionDigits:0})} (${margenReal.toFixed(1)}% margen)</div>`;
+    if (margenReal < 10 && margenReal > 0) resumenHtml += `<div style="font-size:12px;color:var(--danger);font-weight:500">⚠ Margen bajo — revisá el descuento aplicado</div>`;
+  }
   resumen.innerHTML = resumenHtml;
 }
 
@@ -3518,7 +3520,11 @@ async function exportarExcel(seccion) {
     const hoy = new Date().toLocaleDateString('es-AR').replace(/\//g, '-');
 
     if (seccion === 'clientes') {
-      const data = await api('clientes', 'GET', null, '?order=nombre.asc');
+      // Vendedor solo exporta sus propios clientes
+      const filtro = currentRol === 'admin'
+        ? '?order=nombre.asc'
+        : `?order=nombre.asc&vendedor_id=eq.${currentUser}`;
+      const data = await api('clientes', 'GET', null, filtro);
       filas = data.map(c => ({
         'Nombre': c.nombre || '',
         'Nombre fantasía': c.nombre_fantasia || '',
@@ -3536,25 +3542,33 @@ async function exportarExcel(seccion) {
 
     else if (seccion === 'productos') {
       const data = await api('productos', 'GET', null, '?order=nombre.asc');
-      filas = data.map(p => ({
-        'Código': p.codigo || '',
-        'Código viejo': p.codigo_viejo || '',
-        'Nombre': p.nombre || '',
-        'Familia': p.familia || '',
-        'Variante': p.variante || '',
-        'Precio s/IVA': p.precio || 0,
-        'Precio c/IVA': p.precio_iva || 0,
-        'Costo': p.costo || 0,
-        'Margen %': p.precio && p.costo ? +(((p.precio - p.costo) / p.precio) * 100).toFixed(1) : 0,
-        'Stock': p.stock || 0,
-        'Stock mínimo': p.stock_minimo || 0,
-        'Unidad': p.unidad || '',
-        'Estado': p.activo === false ? 'Inactivo' : 'Activo'
-      }));
+      filas = data.map(p => {
+        const fila = {
+          'Código': p.codigo || '',
+          'Código viejo': p.codigo_viejo || '',
+          'Nombre': p.nombre || '',
+          'Familia': p.familia || '',
+          'Variante': p.variante || '',
+          'Precio s/IVA': p.precio || 0,
+          'Precio c/IVA': p.precio_iva || 0,
+        };
+        if (currentRol === 'admin') {
+          fila['Costo'] = p.costo || 0;
+          fila['Margen %'] = p.precio && p.costo ? +(((p.precio - p.costo) / p.precio) * 100).toFixed(1) : 0;
+        }
+        fila['Stock'] = p.stock || 0;
+        fila['Stock mínimo'] = p.stock_minimo || 0;
+        fila['Unidad'] = p.unidad || '';
+        fila['Estado'] = p.activo === false ? 'Inactivo' : 'Activo';
+        return fila;
+      });
     }
 
     else if (seccion === 'pedidos') {
-      const data = await api('pedidos', 'GET', null, '?order=created_at.desc');
+      const filtro = currentRol === 'admin'
+        ? '?order=created_at.desc'
+        : `?order=created_at.desc&vendedor_id=eq.${currentUser}`;
+      const data = await api('pedidos', 'GET', null, filtro);
       filas = data.map(p => {
         const cliente = cachedClientes.find(c => c.id === p.cliente_id);
         return {
@@ -3570,7 +3584,10 @@ async function exportarExcel(seccion) {
     }
 
     else if (seccion === 'ventas') {
-      const data = await api('ventas', 'GET', null, '?order=created_at.desc');
+      const filtro = currentRol === 'admin'
+        ? '?order=created_at.desc'
+        : `?order=created_at.desc&vendedor_id=eq.${currentUser}`;
+      const data = await api('ventas', 'GET', null, filtro);
       filas = data.map(v => {
         const cliente = cachedClientes.find(c => c.id === v.cliente_id);
         return {
@@ -3585,7 +3602,10 @@ async function exportarExcel(seccion) {
     }
 
     else if (seccion === 'pagos') {
-      const data = await api('pagos', 'GET', null, '?order=fecha.desc');
+      const filtro = currentRol === 'admin'
+        ? '?order=fecha.desc'
+        : `?order=fecha.desc&vendedor_id=eq.${currentUser}`;
+      const data = await api('pagos', 'GET', null, filtro);
       filas = data.map(p => {
         const cliente = cachedClientes.find(c => c.id === p.cliente_id);
         return {
@@ -3600,15 +3620,19 @@ async function exportarExcel(seccion) {
     }
 
     else if (seccion === 'stock') {
-      const data = await api('productos', 'GET', null, '?order=nombre.asc&select=codigo,nombre,familia,stock,stock_minimo,activo');
-      filas = data.map(p => ({
-        'Código': p.codigo || '',
-        'Producto': p.nombre || '',
-        'Familia': p.familia || '',
-        'Stock actual': p.stock || 0,
-        'Stock mínimo': p.stock_minimo || 0,
-        'Estado': (p.stock || 0) <= 0 ? 'Sin stock' : (p.stock || 0) <= (p.stock_minimo || 0) ? 'Stock bajo' : 'OK'
-      }));
+      const data = await api('productos', 'GET', null, '?order=nombre.asc&select=codigo,nombre,familia,stock,stock_minimo,costo,activo');
+      filas = data.map(p => {
+        const fila = {
+          'Código': p.codigo || '',
+          'Producto': p.nombre || '',
+          'Familia': p.familia || '',
+          'Stock actual': p.stock || 0,
+          'Stock mínimo': p.stock_minimo || 0,
+        };
+        if (currentRol === 'admin') fila['Costo unitario'] = p.costo || 0;
+        fila['Estado'] = (p.stock || 0) <= 0 ? 'Sin stock' : (p.stock || 0) <= (p.stock_minimo || 0) ? 'Stock bajo' : 'OK';
+        return fila;
+      });
     }
 
     if (!filas.length) { toast('No hay datos para exportar', 'error'); return; }
