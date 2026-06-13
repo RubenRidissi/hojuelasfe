@@ -246,9 +246,9 @@ function showSection(name) {
 <div class="login-screen" id="loginScreen">
   <div class="login-box">
     <div class="login-logo">
-      <img src="https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp" alt="Hojuelas con Miel" onerror="this.style.display='none'">
-      <h2>Distri LST</h2>
-      <p>Panel de gestión · Hojuelas con Miel</p>
+      <img id="loginLogoImg" src="" alt="Hojuelas con Miel" style="height:72px;object-fit:contain;margin-bottom:6px" onerror="this.style.display='none'">
+      <h2>Hojuelas SFE</h2>
+      <p>Panel de gestión · Distri LST</p>
     </div>
 
     <!-- SETUP (primera vez) -->
@@ -1266,6 +1266,11 @@ function closeModal(id) {
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('dashDate').textContent = new Date().toLocaleDateString('es-AR', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  // Asignar logo al login (LOGO_URL se define más abajo en el script)
+  setTimeout(() => {
+    const loginLogo = document.getElementById('loginLogoImg');
+    if (loginLogo && typeof LOGO_URL !== 'undefined') loginLogo.src = LOGO_URL;
+  }, 0);
 
   const today = new Date().toISOString().split('T')[0];
   ['pedidoFechaEntrega','ventaFecha','pagoFecha'].forEach(id => {
