@@ -326,7 +326,7 @@ function showSection(name) {
         <strong id="userNombre">—</strong>
         <span class="rol-badge" id="userRolBadge">—</span>
       </div>
-      <button class="btn btn-sm" style="margin-left:auto;padding:4px 8px;font-size:11px;background:#FEF3DC;color:#9A5F00;border:none" onclick="openModal('modalAyuda')" title="Ayuda">❓</button>
+      <button class="btn btn-sm" style="margin-left:auto;padding:4px 8px;font-size:11px;background:#FEF3DC;color:#9A5F00;border:none" onclick="abrirAyuda()" title="Ayuda">❓</button>
       <button class="btn btn-sm btn-secondary" style="padding:4px 8px;font-size:11px" onclick="doLogout()">Salir</button>
     </div>
   </aside>
@@ -1288,6 +1288,9 @@ function showSection(name) {
     </button>
     <button class="mobile-nav-item" id="mn-more" onclick="toggleMoreDrawer()">
       <span class="mn-icon">☰</span><span class="mn-label">Más</span>
+    </button>
+    <button class="mobile-nav-item" onclick="abrirAyuda()">
+      <span class="mn-icon">❓</span><span class="mn-label">Ayuda</span>
     </button>
   </div>
 </nav>
@@ -3381,6 +3384,14 @@ function filterTable(tbodyId, query) {
 }
 
 // ==================== AYUDA ====================
+function abrirAyuda() {
+  if (currentRol === 'admin') {
+    toast('Ayuda para administrador — próximamente 🛠');
+  } else {
+    openModal('modalAyuda');
+  }
+}
+
 function switchAyuda(seccion, btn) {
   document.querySelectorAll('.ayuda-panel').forEach(p => p.style.display = 'none');
   document.querySelectorAll('.ayuda-tab').forEach(b => b.classList.remove('active'));
