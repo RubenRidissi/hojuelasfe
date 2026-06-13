@@ -226,10 +226,11 @@
 function showSection(name) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const sec = document.getElementById('sec-' + name);
+  // Vendedor ve su propia sección de reportes
+  const secName = (name === 'reportes' && currentRol !== 'admin') ? 'reportes-vendedor' : name;
+  const sec = document.getElementById('sec-' + secName);
   if (sec) sec.classList.add('active');
   if (event && event.currentTarget) event.currentTarget.classList.add('active');
-  // Load data for section (functions may not be defined yet on first load)
   try {
     if (typeof loadDashboard === 'function' && name === 'dashboard') loadDashboard();
     if (typeof loadClientes === 'function' && name === 'clientes') loadClientes();
@@ -238,7 +239,10 @@ function showSection(name) {
     if (typeof loadVentas === 'function' && name === 'ventas') loadVentas();
     if (typeof loadPagos === 'function' && name === 'pagos') loadPagos();
     if (typeof loadStock === 'function' && name === 'stock') loadStock();
-    if (typeof initReportes === 'function' && name === 'reportes') initReportes();
+    if (name === 'reportes') {
+      if (currentRol === 'admin') { if (typeof initReportes === 'function') initReportes(); }
+      else { if (typeof initReportesVendedor === 'function') initReportesVendedor(); }
+    }
     if (typeof initCtaCte === 'function' && name === 'ctacte') initCtaCte();
   } catch(e) { console.error('showSection error:', e); }
 }
@@ -500,19 +504,22 @@ function showSection(name) {
         </div>
       </div>
       <div class="search-bar">
-        <select style="width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPedidos(this.value)">
+        <select id="pedidoFiltroEstado" style="width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPedidos()">
           <option value="">Todos los estados</option>
           <option value="pendiente">Pendiente</option>
           <option value="confirmado">Confirmado</option>
           <option value="entregado">Entregado</option>
           <option value="cancelado">Cancelado</option>
         </select>
+        <select id="pedidoFiltroVendedor" style="display:none;width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPedidos()">
+          <option value="">Todos los vendedores</option>
+        </select>
       </div>
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>Cliente</th><th>Fecha entrega</th><th>Estado</th><th>Total</th><th></th></tr></thead>
-            <tbody id="tablaPedidos"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+            <thead><tr><th>N°</th><th>Cliente</th><th>Fecha entrega</th><th>Estado</th><th>Total</th><th id="thPedidoVendedor" style="display:none">Vendedor</th><th></th></tr></thead>
+            <tbody id="tablaPedidos"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -527,11 +534,16 @@ function showSection(name) {
           <button class="btn btn-primary" onclick="openModal('modalVenta')">+ Nueva venta</button>
         </div>
       </div>
+      <div class="search-bar" id="ventasSearchBar">
+        <select id="ventaFiltroVendedor" style="display:none;width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadVentas()">
+          <option value="">Todos los vendedores</option>
+        </select>
+      </div>
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Pago</th><th>Acciones</th></tr></thead>
-            <tbody id="tablaVentas"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+            <thead><tr><th>N°</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Pago</th><th id="thVentaVendedor" style="display:none">Vendedor</th><th>Acciones</th></tr></thead>
+            <tbody id="tablaVentas"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -546,11 +558,16 @@ function showSection(name) {
           <button class="btn btn-primary" onclick="openModal('modalPago')">+ Registrar cobro</button>
         </div>
       </div>
+      <div class="search-bar">
+        <select id="pagoFiltroVendedor" style="display:none;width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPagos()">
+          <option value="">Todos los vendedores</option>
+        </select>
+      </div>
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Fecha</th><th>Cliente</th><th>Monto</th><th>Medio</th><th>Notas</th><th></th></tr></thead>
-            <tbody id="tablaPagos"><tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+            <thead><tr><th>Fecha</th><th>Cliente</th><th>Monto</th><th>Medio</th><th>Notas</th><th id="thPagoVendedor" style="display:none">Vendedor</th><th></th></tr></thead>
+            <tbody id="tablaPagos"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -704,6 +721,50 @@ function showSection(name) {
           </div>
         </div>
         <div id="repMuestrasTotal" style="margin-top:12px;padding:10px 14px;background:var(--honey-light);border-radius:8px;font-size:13px"></div>
+      </div>
+    </div>
+
+    <!-- REPORTES VENDEDOR -->
+    <div id="sec-reportes-vendedor" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Mis Reportes</h1>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="font-size:13px;color:var(--muted)">Período:</label>
+          <input type="date" id="vRepDesde" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <span style="color:var(--muted)">→</span>
+          <input type="date" id="vRepHasta" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
+          <button class="btn btn-primary" onclick="loadReportesVendedor()">Actualizar</button>
+        </div>
+      </div>
+
+      <!-- Stats período -->
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-label">Mis ventas del período</div><div class="stat-value" id="vRepTotalVentas">—</div><div class="stat-sub">ARS</div></div>
+        <div class="stat-card"><div class="stat-label">Cantidad de ventas</div><div class="stat-value" id="vRepCantVentas">—</div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <!-- Ventas por semana -->
+        <div class="card">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Ventas por semana</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Semana</th><th>Ventas</th><th>Total</th></tr></thead>
+              <tbody id="vRepVentasSemana"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Ventas por tipo de cliente -->
+        <div class="card">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Ventas por tipo de cliente</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Tipo</th><th>Ventas</th><th>Total</th><th>%</th></tr></thead>
+              <tbody id="vRepVentasTipo"></tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1783,30 +1844,48 @@ function clearProductoForm() {
 }
 
 // ==================== PEDIDOS ====================
-async function loadPedidos(estado='') {
+async function loadPedidos() {
   if (!SUPABASE_URL) return;
   try {
-    const q = estado
-      ? `?select=id,fecha,fecha_entrega,estado,total,clientes(nombre,nombre_fantasia)&estado=eq.${estado}&order=created_at.desc`
-      : '?select=id,fecha,fecha_entrega,estado,total,clientes(nombre,nombre_fantasia)&order=created_at.desc';
+    await loadVendedores();
+    const estado = document.getElementById('pedidoFiltroEstado')?.value || '';
+    const vendedorId = currentRol === 'admin'
+      ? (document.getElementById('pedidoFiltroVendedor')?.value || '')
+      : currentUser;
+    let q = `?select=id,fecha,fecha_entrega,estado,total,vendedor_id,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    if (estado) q += `&estado=eq.${estado}`;
+    if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
     const pedidos = await api('pedidos', 'GET', null, q);
+    const isAdmin = currentRol === 'admin';
+    // Mostrar/ocultar columna vendedor y filtro (solo admin)
+    const thVendedor = document.getElementById('thPedidoVendedor');
+    const filtroVendedor = document.getElementById('pedidoFiltroVendedor');
+    if (thVendedor) thVendedor.style.display = isAdmin ? '' : 'none';
+    if (filtroVendedor) {
+      filtroVendedor.style.display = isAdmin ? '' : 'none';
+      if (isAdmin && filtroVendedor.options.length <= 1) poblarSelectVendedor('pedidoFiltroVendedor');
+    }
     const tbody = document.getElementById('tablaPedidos');
-    if (!pedidos.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">📋</div><p>No hay pedidos todavía</p></div></td></tr>'; return; }
-    tbody.innerHTML = pedidos.map((p, i) => `
+    if (!pedidos.length) { tbody.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}"><div class="empty"><div class="empty-icon">📋</div><p>No hay pedidos todavía</p></div></td></tr>`; return; }
+    tbody.innerHTML = pedidos.map((p, i) => {
+      const nombreVendedor = cachedVendedores.find(v => v.user_id === p.vendedor_id)?.nombre || '—';
+      return `
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(i+1).padStart(3,'0')}</td>
         <td>${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
         <td class="hide-mobile">${p.fecha_entrega || '—'}</td>
         <td>${badgeEstado(p.estado)}</td>
         <td>$${parseFloat(p.total||0).toLocaleString('es-AR')}</td>
+        ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
         <td style="white-space:nowrap">
           <select style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" onchange="updateEstadoPedido('${p.id}',this.value)">
             ${['pendiente','confirmado','entregado','cancelado'].map(e => `<option value="${e}" ${p.estado===e?'selected':''}>${e.charAt(0).toUpperCase()+e.slice(1)}</option>`).join('')}
           </select>
           <button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="verComprobante('pedido','${p.id}')">📋</button>
-          ${currentRol === 'admin' ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
+          ${isAdmin ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     setTimeout(applyTableRolRestrictions, 100);
   } catch(e) { console.error(e); }
 }
@@ -1991,22 +2070,41 @@ async function deletePedido(id, nombreCliente) {
 async function loadVentas() {
   if (!SUPABASE_URL) return;
   try {
-    const ventas = await api('ventas', 'GET', null, '?select=id,fecha,total,estado_pago,clientes(nombre,nombre_fantasia)&order=created_at.desc');
+    await loadVendedores();
+    const vendedorId = currentRol === 'admin'
+      ? (document.getElementById('ventaFiltroVendedor')?.value || '')
+      : currentUser;
+    let q = `?select=id,fecha,total,estado_pago,vendedor_id,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
+    const ventas = await api('ventas', 'GET', null, q);
+    const isAdmin = currentRol === 'admin';
+    // Mostrar/ocultar columna vendedor y filtro (solo admin)
+    const thVendedor = document.getElementById('thVentaVendedor');
+    const filtroVendedor = document.getElementById('ventaFiltroVendedor');
+    if (thVendedor) thVendedor.style.display = isAdmin ? '' : 'none';
+    if (filtroVendedor) {
+      filtroVendedor.style.display = isAdmin ? '' : 'none';
+      if (isAdmin && filtroVendedor.options.length <= 1) poblarSelectVendedor('ventaFiltroVendedor');
+    }
     const tbody = document.getElementById('tablaVentas');
-    if (!ventas.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">🧾</div><p>No hay ventas todavía</p></div></td></tr>'; return; }
-    tbody.innerHTML = ventas.map((v, i) => `
+    if (!ventas.length) { tbody.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}"><div class="empty"><div class="empty-icon">🧾</div><p>No hay ventas todavía</p></div></td></tr>`; return; }
+    tbody.innerHTML = ventas.map((v, i) => {
+      const nombreVendedor = cachedVendedores.find(vv => vv.user_id === v.vendedor_id)?.nombre || '—';
+      return `
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(i+1).padStart(3,'0')}</td>
         <td>${v.clientes ? nombreCliente(v.clientes) : '—'}</td>
         <td>${v.fecha}</td>
         <td>$${parseFloat(v.total||0).toLocaleString('es-AR')}</td>
         <td>${badgePago(v.estado_pago)}</td>
+        ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
         <td style="white-space:nowrap">
           ${v.estado_pago !== 'pagado' ? `<button class="btn btn-sm btn-success" onclick="marcarPagado('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}',${v.total})">Cobrar</button>` : '<span class="badge badge-green">Pagado</span>'}
           <button class="btn btn-sm btn-secondary" onclick="verComprobante('venta','${v.id}')">🧾</button>
-          ${currentRol === 'admin' ? `<button class="btn btn-sm btn-danger" onclick="deleteVenta('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
+          ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="deleteVenta('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     setTimeout(applyTableRolRestrictions, 100);
   } catch(e) { console.error(e); }
 }
@@ -2150,21 +2248,40 @@ async function marcarPagado(id, nombreCliente, total) {
 async function loadPagos() {
   if (!SUPABASE_URL) return;
   try {
-    const pagos = await api('pagos', 'GET', null, '?select=id,fecha,monto,medio,notas,clientes(nombre,nombre_fantasia)&order=created_at.desc');
+    await loadVendedores();
+    const vendedorId = currentRol === 'admin'
+      ? (document.getElementById('pagoFiltroVendedor')?.value || '')
+      : currentUser;
+    let q = `?select=id,fecha,monto,medio,notas,vendedor_id,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
+    const pagos = await api('pagos', 'GET', null, q);
+    const isAdmin = currentRol === 'admin';
+    // Mostrar/ocultar columna vendedor y filtro (solo admin)
+    const thVendedor = document.getElementById('thPagoVendedor');
+    const filtroVendedor = document.getElementById('pagoFiltroVendedor');
+    if (thVendedor) thVendedor.style.display = isAdmin ? '' : 'none';
+    if (filtroVendedor) {
+      filtroVendedor.style.display = isAdmin ? '' : 'none';
+      if (isAdmin && filtroVendedor.options.length <= 1) poblarSelectVendedor('pagoFiltroVendedor');
+    }
     const tbody = document.getElementById('tablaPagos');
-    if (!pagos.length) { tbody.innerHTML = '<tr><td colspan="5"><div class="empty"><div class="empty-icon">💰</div><p>No hay cobros registrados</p></div></td></tr>'; return; }
-    tbody.innerHTML = pagos.map(p => `
+    if (!pagos.length) { tbody.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}"><div class="empty"><div class="empty-icon">💰</div><p>No hay cobros registrados</p></div></td></tr>`; return; }
+    tbody.innerHTML = pagos.map(p => {
+      const nombreVendedor = cachedVendedores.find(v => v.user_id === p.vendedor_id)?.nombre || '—';
+      return `
       <tr>
         <td>${p.fecha}</td>
         <td>${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
         <td><strong>$${parseFloat(p.monto||0).toLocaleString('es-AR')}</strong></td>
         <td><span class="badge badge-blue">${p.medio}</span></td>
         <td class="hide-mobile" style="color:var(--muted)">${p.notas || '—'}</td>
+        ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
         <td style="white-space:nowrap">
           <button class="btn btn-sm btn-secondary admin-only" onclick="editPago('${p.id}','${p.fecha}',${p.monto},'${p.medio}','${(p.notas||'').replace(/'/g,'')}','${p.clientes?.id||''}')">✏</button>
           <button class="btn btn-sm btn-danger admin-only" onclick="deletePago('${p.id}')">🗑</button>
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   } catch(e) { console.error(e); }
 }
 
@@ -2706,10 +2823,9 @@ function applyRolRestrictions() {
 
   if (isAdmin) return;
 
-  // Vendedor: hide reportes, config nav items
-  const hideNavs = ['reportes', 'config'];
+  // Vendedor: hide config nav item only (reportes se muestra para vendedor)
   document.querySelectorAll('.nav-item').forEach(el => {
-    if (hideNavs.some(s => el.getAttribute('onclick')?.includes(s))) {
+    if (el.getAttribute('onclick')?.includes('config')) {
       el.style.display = 'none';
     }
   });
@@ -2725,9 +2841,8 @@ function applyTableRolRestrictions() {
 
 function applyMobileRolRestrictions() {
   if (currentRol !== 'admin') {
-    const el1 = document.getElementById('moreReportes');
+    // Vendedor puede ver reportes (su versión), solo ocultamos config
     const el2 = document.getElementById('moreConfig');
-    if (el1) el1.style.display = 'none';
     if (el2) el2.style.display = 'none';
   }
 }
@@ -3189,6 +3304,71 @@ function filterTable(tbodyId, query) {
   rows.forEach(row => {
     row.style.display = row.textContent.toLowerCase().includes(query.toLowerCase()) ? '' : 'none';
   });
+}
+
+// ==================== REPORTES VENDEDOR ====================
+function initReportesVendedor() {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  document.getElementById('vRepDesde').value = firstDay.toISOString().split('T')[0];
+  document.getElementById('vRepHasta').value = today.toISOString().split('T')[0];
+  loadReportesVendedor();
+}
+
+async function loadReportesVendedor() {
+  if (!SUPABASE_URL) return;
+  const desde = document.getElementById('vRepDesde').value;
+  const hasta = document.getElementById('vRepHasta').value;
+  if (!desde || !hasta) { toast('Seleccioná un período', 'error'); return; }
+  try {
+    const ventas = await api('ventas', 'GET', null,
+      `?select=id,fecha,total,clientes(nombre,tipo),venta_items(cantidad,precio_unitario)&fecha=gte.${desde}&fecha=lte.${hasta}&vendedor_id=eq.${currentUser}&order=fecha.asc`);
+
+    if (!ventas.length) {
+      document.getElementById('vRepTotalVentas').textContent = '—';
+      document.getElementById('vRepCantVentas').textContent = '—';
+      ['vRepVentasSemana','vRepVentasTipo'].forEach(id => {
+        document.getElementById(id).innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--muted)">Sin datos en este período</td></tr>';
+      });
+      return;
+    }
+
+    const totalIngresos = ventas.reduce((s, v) => s + parseFloat(v.total || 0), 0);
+    document.getElementById('vRepTotalVentas').textContent = '$' + totalIngresos.toLocaleString('es-AR', {maximumFractionDigits:0});
+    document.getElementById('vRepCantVentas').textContent = ventas.length;
+
+    // Por semana
+    const semanas = {};
+    ventas.forEach(v => {
+      const d = new Date(v.fecha + 'T00:00:00');
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const lunes = new Date(new Date(v.fecha + 'T00:00:00').setDate(diff));
+      const key = lunes.toISOString().split('T')[0];
+      if (!semanas[key]) semanas[key] = { ventas: 0, total: 0 };
+      semanas[key].ventas++;
+      semanas[key].total += parseFloat(v.total || 0);
+    });
+    document.getElementById('vRepVentasSemana').innerHTML = Object.entries(semanas).map(([lunes, d]) => {
+      const viernes = new Date(lunes + 'T00:00:00'); viernes.setDate(viernes.getDate() + 4);
+      const label = new Date(lunes+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) + ' – ' + viernes.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+      return `<tr><td style="font-size:12px">${label}</td><td>${d.ventas}</td><td>$${d.total.toLocaleString('es-AR',{maximumFractionDigits:0})}</td></tr>`;
+    }).join('') || '<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--muted)">Sin datos</td></tr>';
+
+    // Por tipo de cliente
+    const tipos = {};
+    ventas.forEach(v => {
+      const tipo = v.clientes?.tipo || 'Minorista';
+      if (!tipos[tipo]) tipos[tipo] = { ventas: 0, total: 0 };
+      tipos[tipo].ventas++; tipos[tipo].total += parseFloat(v.total || 0);
+    });
+    const tipoColors = { Minorista:'badge-gray', Distribuidor:'badge-blue', Mayorista:'badge-yellow', Institucional:'badge-green' };
+    document.getElementById('vRepVentasTipo').innerHTML = Object.entries(tipos).sort((a,b) => b[1].total - a[1].total).map(([tipo, d]) => {
+      const pct = totalIngresos > 0 ? (d.total / totalIngresos * 100).toFixed(1) : 0;
+      return `<tr><td><span class="badge ${tipoColors[tipo]||'badge-gray'}">${tipo}</span></td><td>${d.ventas}</td><td>$${d.total.toLocaleString('es-AR',{maximumFractionDigits:0})}</td><td><div style="display:flex;align-items:center;gap:6px"><div style="width:60px;height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div style="width:${pct}%;height:100%;background:var(--honey);border-radius:4px"></div></div><span style="font-size:12px">${pct}%</span></div></td></tr>`;
+    }).join('') || '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--muted)">Sin datos</td></tr>';
+
+  } catch(e) { console.error(e); toast('Error cargando reportes', 'error'); }
 }
 
 // ==================== REPORTES ====================
