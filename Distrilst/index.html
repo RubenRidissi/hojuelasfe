@@ -1678,7 +1678,9 @@ function renderClientes(list) {
 
     // Coordenadas
     const tieneCoordenadas = c.latitud && c.longitud;
-    const coordIcon = tieneCoordenadas ? `<span title="Lat: ${c.latitud} / Lon: ${c.longitud}" style="cursor:default">📍</span>` : '';
+    const coordIcon = tieneCoordenadas
+      ? `<a href="https://www.google.com/maps?q=${c.latitud},${c.longitud}" target="_blank" title="Ver en Google Maps" style="text-decoration:none">📍</a>`
+      : '';
 
     return `
     <tr data-estado="${c.estado_cliente||'Pendiente'}" data-cartera="${carteraData}" data-propio="${esPropio}" data-vendedor="${c.vendedor_id||''}">
@@ -3691,6 +3693,8 @@ const EMPRESA = {
   tel: '342 630-0603',
   web: 'hojuelassrl.com'
 };
+// Asignar logo al login inmediatamente — no depende de eventos
+(function() { const el = document.getElementById('loginLogoImg'); if (el) el.src = LOGO_URL; })();
 let compNumVenta = 1;
 let compNumPedido = 1;
 
@@ -3914,9 +3918,6 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('pedidoPromoInfo').style.display = 'none';
     document.getElementById('pedidoPromoCheck').checked = false;
   });
-  // Asignar logo al login desde LOGO_URL
-  const loginLogo = document.getElementById('loginLogoImg');
-  if (loginLogo) loginLogo.src = LOGO_URL;
 });
 </script>
 </body>
