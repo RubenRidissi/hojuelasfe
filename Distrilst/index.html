@@ -1266,11 +1266,6 @@ function closeModal(id) {
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('dashDate').textContent = new Date().toLocaleDateString('es-AR', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
-  // Asignar logo al login (LOGO_URL se define más abajo en el script)
-  setTimeout(() => {
-    const loginLogo = document.getElementById('loginLogoImg');
-    if (loginLogo && typeof LOGO_URL !== 'undefined') loginLogo.src = LOGO_URL;
-  }, 0);
 
   const today = new Date().toISOString().split('T')[0];
   ['pedidoFechaEntrega','ventaFecha','pagoFecha'].forEach(id => {
@@ -3507,6 +3502,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('pedidoPromoInfo').style.display = 'none';
     document.getElementById('pedidoPromoCheck').checked = false;
   });
+  // Asignar logo al login desde LOGO_URL
+  const loginLogo = document.getElementById('loginLogoImg');
+  if (loginLogo) loginLogo.src = LOGO_URL;
 });
 </script>
 </body>
