@@ -217,6 +217,7 @@
 .comp-badge.remito { background: #DBEAFE; color: #1D4ED8; }
 .comp-badge.venta { background: #DCFCE7; color: #15803D; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -423,6 +424,7 @@ function showSection(name) {
       <div class="page-header">
         <h1 class="page-title">Clientes</h1>
         <div class="page-header-actions" style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="exportarExcel('clientes')">📥 Excel</button>
           <button class="btn btn-secondary" onclick="imprimirClientes()">📄 Imprimir listado</button>
           <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
         </div>
@@ -471,6 +473,7 @@ function showSection(name) {
       <div class="page-header">
         <h1 class="page-title">Productos</h1>
         <span id="btnNuevoProducto"></span>
+        <button class="btn btn-secondary" onclick="exportarExcel('productos')">📥 Excel</button>
         <button class="btn btn-secondary" id="btnImprimirProductos" onclick="imprimirProductos()">📄 Imprimir listado</button>
         <button class="btn btn-secondary" onclick="openModal('modalListaPrecios')">📄 Lista de precios</button>
       </div>
@@ -491,7 +494,10 @@ function showSection(name) {
     <div id="sec-pedidos" class="section">
       <div class="page-header">
         <h1 class="page-title">Pedidos</h1>
-        <div class="page-header-actions"><button class="btn btn-primary" onclick="openModal('modalPedido')">+ Nuevo pedido</button></div>
+        <div class="page-header-actions" style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="exportarExcel('pedidos')">📥 Excel</button>
+          <button class="btn btn-primary" onclick="openModal('modalPedido')">+ Nuevo pedido</button>
+        </div>
       </div>
       <div class="search-bar">
         <select style="width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPedidos(this.value)">
@@ -516,7 +522,10 @@ function showSection(name) {
     <div id="sec-ventas" class="section">
       <div class="page-header">
         <h1 class="page-title">Ventas</h1>
-        <div class="page-header-actions"><button class="btn btn-primary" onclick="openModal('modalVenta')">+ Nueva venta</button></div>
+        <div class="page-header-actions" style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="exportarExcel('ventas')">📥 Excel</button>
+          <button class="btn btn-primary" onclick="openModal('modalVenta')">+ Nueva venta</button>
+        </div>
       </div>
       <div class="card">
         <div class="table-wrap">
@@ -532,7 +541,10 @@ function showSection(name) {
     <div id="sec-pagos" class="section">
       <div class="page-header">
         <h1 class="page-title">Pagos</h1>
-        <div class="page-header-actions"><button class="btn btn-primary" onclick="openModal('modalPago')">+ Registrar cobro</button></div>
+        <div class="page-header-actions" style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="exportarExcel('pagos')">📥 Excel</button>
+          <button class="btn btn-primary" onclick="openModal('modalPago')">+ Registrar cobro</button>
+        </div>
       </div>
       <div class="card">
         <div class="table-wrap">
@@ -2654,10 +2666,12 @@ function applyRolRestrictions() {
   const stockBtns = document.getElementById('stockBtns');
   if (stockBtns) {
     stockBtns.innerHTML = isAdmin
-      ? `<button class="btn btn-primary" onclick="openModal('modalEntrada')">+ Entrada de mercadería</button>
+      ? `<button class="btn btn-secondary" onclick="exportarExcel('stock')">📥 Excel</button>
+         <button class="btn btn-primary" onclick="openModal('modalEntrada')">+ Entrada de mercadería</button>
          <button class="btn btn-secondary" onclick="openModal('modalMuestra')">🎁 Registrar muestra</button>
          <button class="btn btn-secondary" onclick="openModal('modalAjuste')">✏ Ajuste manual</button>`
-      : '<span style="font-size:13px;color:var(--muted);padding:8px 0">Solo lectura</span>';
+      : `<button class="btn btn-secondary" onclick="exportarExcel('stock')">📥 Excel</button>
+         <span style="font-size:13px;color:var(--muted);padding:8px 0">Solo lectura</span>`;
   }
 
   // Nuevo producto button - admin only
@@ -3490,6 +3504,132 @@ document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
     if (e.target === backdrop) backdrop.classList.remove('open');
   });
 });
+
+// ==================== EXPORTAR EXCEL ====================
+async function exportarExcel(seccion) {
+  if (typeof XLSX === 'undefined') { toast('Librería Excel no cargada, intentá de nuevo', 'error'); return; }
+  toast('Generando Excel...');
+  try {
+    // Garantizar que clientes y vendedores estén cargados (necesarios para resolver nombres)
+    if (!cachedClientes.length) cachedClientes = await api('clientes', 'GET', null, '?order=nombre.asc');
+    if (!cachedVendedores.length) await loadVendedores();
+
+    let filas = [];
+    const hoy = new Date().toLocaleDateString('es-AR').replace(/\//g, '-');
+
+    if (seccion === 'clientes') {
+      const data = await api('clientes', 'GET', null, '?order=nombre.asc');
+      filas = data.map(c => ({
+        'Nombre': c.nombre || '',
+        'Nombre fantasía': c.nombre_fantasia || '',
+        'Estado': c.estado_cliente || '',
+        'Tipo': c.tipo || '',
+        'Descuento %': c.descuento || 0,
+        'Localidad': c.localidad || '',
+        'Provincia': c.provincia || '',
+        'Dirección': c.direccion || '',
+        'Teléfono': c.telefono || '',
+        'Email': c.email || '',
+        'Notas': c.notas || ''
+      }));
+    }
+
+    else if (seccion === 'productos') {
+      const data = await api('productos', 'GET', null, '?order=nombre.asc');
+      filas = data.map(p => ({
+        'Código': p.codigo || '',
+        'Código viejo': p.codigo_viejo || '',
+        'Nombre': p.nombre || '',
+        'Familia': p.familia || '',
+        'Variante': p.variante || '',
+        'Precio s/IVA': p.precio || 0,
+        'Precio c/IVA': p.precio_iva || 0,
+        'Costo': p.costo || 0,
+        'Margen %': p.precio && p.costo ? +(((p.precio - p.costo) / p.precio) * 100).toFixed(1) : 0,
+        'Stock': p.stock || 0,
+        'Stock mínimo': p.stock_minimo || 0,
+        'Unidad': p.unidad || '',
+        'Estado': p.activo === false ? 'Inactivo' : 'Activo'
+      }));
+    }
+
+    else if (seccion === 'pedidos') {
+      const data = await api('pedidos', 'GET', null, '?order=created_at.desc');
+      filas = data.map(p => {
+        const cliente = cachedClientes.find(c => c.id === p.cliente_id);
+        return {
+          'N°': p.numero || '',
+          'Cliente': cliente ? nombreCliente(cliente) : '',
+          'Fecha': p.created_at ? new Date(p.created_at).toLocaleDateString('es-AR') : '',
+          'Fecha entrega': p.fecha_entrega || '',
+          'Estado': p.estado || '',
+          'Total': p.total || 0,
+          'Vendedor': cachedVendedores.find(v => v.user_id === p.vendedor_id)?.nombre || ''
+        };
+      });
+    }
+
+    else if (seccion === 'ventas') {
+      const data = await api('ventas', 'GET', null, '?order=created_at.desc');
+      filas = data.map(v => {
+        const cliente = cachedClientes.find(c => c.id === v.cliente_id);
+        return {
+          'N°': v.numero || '',
+          'Cliente': cliente ? nombreCliente(cliente) : '',
+          'Fecha': v.fecha ? new Date(v.fecha).toLocaleDateString('es-AR') : '',
+          'Total': v.total || 0,
+          'Estado pago': v.estado_pago || '',
+          'Vendedor': cachedVendedores.find(vv => vv.user_id === v.vendedor_id)?.nombre || ''
+        };
+      });
+    }
+
+    else if (seccion === 'pagos') {
+      const data = await api('pagos', 'GET', null, '?order=fecha.desc');
+      filas = data.map(p => {
+        const cliente = cachedClientes.find(c => c.id === p.cliente_id);
+        return {
+          'Fecha': p.fecha ? new Date(p.fecha).toLocaleDateString('es-AR') : '',
+          'Cliente': cliente ? nombreCliente(cliente) : '',
+          'Monto': p.monto || 0,
+          'Medio de pago': p.medio_pago || '',
+          'Notas': p.notas || '',
+          'Vendedor': cachedVendedores.find(v => v.user_id === p.vendedor_id)?.nombre || ''
+        };
+      });
+    }
+
+    else if (seccion === 'stock') {
+      const data = await api('productos', 'GET', null, '?order=nombre.asc&select=codigo,nombre,familia,stock,stock_minimo,activo');
+      filas = data.map(p => ({
+        'Código': p.codigo || '',
+        'Producto': p.nombre || '',
+        'Familia': p.familia || '',
+        'Stock actual': p.stock || 0,
+        'Stock mínimo': p.stock_minimo || 0,
+        'Estado': (p.stock || 0) <= 0 ? 'Sin stock' : (p.stock || 0) <= (p.stock_minimo || 0) ? 'Stock bajo' : 'OK'
+      }));
+    }
+
+    if (!filas.length) { toast('No hay datos para exportar', 'error'); return; }
+
+    const ws = XLSX.utils.json_to_sheet(filas);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, seccion.charAt(0).toUpperCase() + seccion.slice(1));
+
+    // Ancho de columnas automático
+    const colWidths = Object.keys(filas[0]).map(key => ({
+      wch: Math.max(key.length, ...filas.map(r => String(r[key] ?? '').length), 10)
+    }));
+    ws['!cols'] = colWidths;
+
+    XLSX.writeFile(wb, `hojuelas-${seccion}-${hoy}.xlsx`);
+    toast(`Excel de ${seccion} descargado ✓`);
+  } catch(e) {
+    console.error(e);
+    toast('Error al generar Excel: ' + e.message, 'error');
+  }
+}
 
 document.addEventListener('DOMContentLoaded', function() {
   document.getElementById('ventaPromoCheck')?.addEventListener('change', recalcPromo);
