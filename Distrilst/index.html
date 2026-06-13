@@ -338,24 +338,82 @@ function showSection(name) {
     <!-- DASHBOARD -->
     <div id="sec-dashboard" class="section active">
       <div class="page-header">
-        <h1 class="page-title">Dashboard</h1>
+        <h1 class="page-title" id="dashTitle">Dashboard</h1>
         <span id="dashDate" style="color:var(--muted);font-size:13px"></span>
       </div>
-      <div class="stats-grid" id="statsGrid">
-        <div class="stat-card"><div class="stat-label">Clientes</div><div class="stat-value" id="statClientes">—</div></div>
-        <div class="stat-card"><div class="stat-label">Productos</div><div class="stat-value" id="statProductos">—</div></div>
-        <div class="stat-card"><div class="stat-label">Pedidos pendientes</div><div class="stat-value" id="statPedidos">—</div></div>
-        <div class="stat-card"><div class="stat-label">Cobrado hoy</div><div class="stat-value" id="statCobrado">—</div><div class="stat-sub">ARS</div></div>
-        <div class="stat-card"><div class="stat-label">Ganancia hoy</div><div class="stat-value" id="statGanancia">—</div><div class="stat-sub">ARS estimado</div></div>
-        <div class="stat-card"><div class="stat-label">Saldo pendiente</div><div class="stat-value" id="statDeuda">—</div><div class="stat-sub">ARS</div></div>
+
+      <!-- ADMIN DASHBOARD -->
+      <div id="dashAdmin">
+        <!-- Filtro vendedor -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <label style="font-size:13px;color:var(--muted)">Ver por vendedor:</label>
+          <select id="dashFiltroVendedor" onchange="loadDashboardAdmin()" style="padding:7px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface)">
+            <option value="">Todos</option>
+          </select>
+          <span id="dashFiltroLabel" style="font-size:12px;color:var(--muted)"></span>
+        </div>
+        <div class="stats-grid" id="statsGrid">
+          <div class="stat-card"><div class="stat-label">Clientes</div><div class="stat-value" id="statClientes">—</div></div>
+          <div class="stat-card"><div class="stat-label">Productos</div><div class="stat-value" id="statProductos">—</div></div>
+          <div class="stat-card"><div class="stat-label">Pedidos pendientes</div><div class="stat-value" id="statPedidos">—</div></div>
+          <div class="stat-card"><div class="stat-label">Cobrado hoy</div><div class="stat-value" id="statCobrado">—</div><div class="stat-sub">ARS</div></div>
+          <div class="stat-card"><div class="stat-label">Ganancia hoy</div><div class="stat-value" id="statGanancia">—</div><div class="stat-sub">ARS estimado</div></div>
+          <div class="stat-card"><div class="stat-label">Saldo pendiente</div><div class="stat-value" id="statDeuda">—</div><div class="stat-sub">ARS</div></div>
+        </div>
+        <div class="card">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Últimos pedidos</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Total</th></tr></thead>
+              <tbody id="dashPedidos"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Cargando...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
       </div>
-      <div class="card">
-        <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Últimos pedidos</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Total</th></tr></thead>
-            <tbody id="dashPedidos"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Cargando...</td></tr></tbody>
-          </table>
+
+      <!-- VENDEDOR DASHBOARD -->
+      <div id="dashVendedor" style="display:none">
+        <!-- Stats del vendedor -->
+        <div class="stats-grid" style="margin-bottom:20px">
+          <div class="stat-card"><div class="stat-label">Mis pedidos hoy</div><div class="stat-value" id="vStatPedidosHoy">—</div></div>
+          <div class="stat-card"><div class="stat-label">Mis pedidos pendientes</div><div class="stat-value" id="vStatPedidosPend">—</div></div>
+          <div class="stat-card"><div class="stat-label">Cobrado hoy</div><div class="stat-value" id="vStatCobrado">—</div><div class="stat-sub">ARS</div></div>
+          <div class="stat-card"><div class="stat-label">Ventas esta semana</div><div class="stat-value" id="vStatVentasSemana">—</div><div class="stat-sub">ARS</div></div>
+          <div class="stat-card"><div class="stat-label">Clientes activos</div><div class="stat-value" id="vStatClientesActivos">—</div></div>
+          <div class="stat-card"><div class="stat-label">Productos disponibles</div><div class="stat-value" id="vStatProductos">—</div></div>
+        </div>
+
+        <!-- Acciones rápidas -->
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Acciones rápidas</h3>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-primary" onclick="showSection('pedidos');setTimeout(()=>openModal('modalPedido'),200)">📋 Nuevo pedido</button>
+            <button class="btn btn-primary" onclick="showSection('ventas');setTimeout(()=>openModal('modalVenta'),200)">🧾 Nueva venta</button>
+            <button class="btn btn-secondary" onclick="showSection('pagos');setTimeout(()=>openModal('modalPago'),200)">💰 Registrar cobro</button>
+            <button class="btn btn-secondary" onclick="showSection('clientes')">👥 Ver clientes</button>
+          </div>
+        </div>
+
+        <!-- Mis últimos pedidos -->
+        <div class="card" style="margin-bottom:16px">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Mis últimos pedidos</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Total</th></tr></thead>
+              <tbody id="vDashPedidos"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Cargando...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Stock bajo -->
+        <div class="card" id="vDashStockWrap" style="display:none">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">⚠ Productos con stock bajo</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Código</th><th>Producto</th><th>Stock</th><th>Mínimo</th></tr></thead>
+              <tbody id="vDashStock"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -518,7 +576,11 @@ function showSection(name) {
     <div id="sec-reportes" class="section">
       <div class="page-header">
         <h1 class="page-title">Reportes</h1>
-        <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="font-size:13px;color:var(--muted)">Vendedor:</label>
+          <select id="repFiltroVendedor" onchange="loadReportes()" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--surface)">
+            <option value="">Todos</option>
+          </select>
           <label style="font-size:13px;color:var(--muted)">Período:</label>
           <input type="date" id="repDesde" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
           <span style="color:var(--muted)">→</span>
@@ -1218,13 +1280,37 @@ async function ensureCache() {
 // ==================== DASHBOARD ====================
 async function loadDashboard() {
   if (!SUPABASE_URL) return;
+  if (currentRol === 'admin') {
+    await loadDashboardAdmin();
+  } else {
+    await loadDashboardVendedor();
+  }
+}
+
+async function loadDashboardAdmin() {
+  // Mostrar panel admin, ocultar vendedor
+  document.getElementById('dashAdmin').style.display = '';
+  document.getElementById('dashVendedor').style.display = 'none';
+  document.getElementById('dashTitle').textContent = 'Dashboard';
+
+  // Cargar vendedores si no están cacheados
+  await loadVendedores();
+  poblarSelectVendedor('dashFiltroVendedor');
+
+  const vendedorId = document.getElementById('dashFiltroVendedor')?.value || '';
+  const vFiltro = vendedorId ? `&vendedor_id=eq.${vendedorId}` : '';
+  const vLabel = vendedorId ? (cachedVendedores.find(v => v.user_id === vendedorId)?.nombre || '') : '';
+  const labelEl = document.getElementById('dashFiltroLabel');
+  if (labelEl) labelEl.textContent = vLabel ? `Mostrando: ${vLabel}` : '';
+
   try {
+    const today = new Date().toISOString().split('T')[0];
     const [clientes, productos, pedidos, pagos, ventas] = await Promise.all([
       api('clientes', 'GET', null, '?select=id'),
       api('productos', 'GET', null, '?select=id'),
-      api('pedidos', 'GET', null, '?select=id&estado=eq.pendiente'),
-      api('pagos', 'GET', null, `?select=monto&fecha=eq.${new Date().toISOString().split('T')[0]}`),
-      api('ventas', 'GET', null, '?select=total,estado_pago&estado_pago=neq.pagado')
+      api('pedidos', 'GET', null, `?select=id&estado=eq.pendiente${vFiltro}`),
+      api('pagos',   'GET', null, `?select=monto&fecha=eq.${today}${vFiltro}`),
+      api('ventas',  'GET', null, `?select=total,estado_pago&estado_pago=neq.pagado${vFiltro}`)
     ]);
     document.getElementById('statClientes').textContent = clientes.length;
     document.getElementById('statProductos').textContent = productos.length;
@@ -1234,13 +1320,8 @@ async function loadDashboard() {
     const deuda = ventas.reduce((s, v) => s + parseFloat(v.total || 0), 0);
     document.getElementById('statDeuda').textContent = '$' + deuda.toLocaleString('es-AR');
 
-    try {
-      const stockBajo = await api('stock_actual', 'GET', null, '?select=nombre,codigo,stock,stock_minimo');
-      const bajos = stockBajo.filter(p => parseFloat(p.stock) <= parseFloat(p.stock_minimo));
-      if (bajos.length) { /* show alert if needed */ }
-    } catch(e) {}
-
-    const ventasHoy = await api('ventas', 'GET', null, `?select=total,venta_items(cantidad,precio_unitario,producto_id,productos(costo))&fecha=eq.${new Date().toISOString().split('T')[0]}`);
+    const ventasHoy = await api('ventas', 'GET', null,
+      `?select=total,venta_items(cantidad,precio_unitario,producto_id,productos(costo))&fecha=eq.${today}${vFiltro}`);
     let gananciaHoy = 0;
     ventasHoy.forEach(v => {
       (v.venta_items || []).forEach(item => {
@@ -1250,7 +1331,8 @@ async function loadDashboard() {
     });
     document.getElementById('statGanancia').textContent = '$' + gananciaHoy.toLocaleString('es-AR', {maximumFractionDigits:0});
 
-    const ultPedidos = await api('pedidos', 'GET', null, '?select=id,total,estado,fecha,clientes(nombre,nombre_fantasia)&order=created_at.desc&limit=5');
+    const ultPedidos = await api('pedidos', 'GET', null,
+      `?select=id,total,estado,fecha,clientes(nombre,nombre_fantasia)&order=created_at.desc&limit=5${vFiltro}`);
     const tbody = document.getElementById('dashPedidos');
     if (!ultPedidos.length) {
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Sin pedidos aún</td></tr>';
@@ -1264,6 +1346,78 @@ async function loadDashboard() {
         </tr>`).join('');
     }
   } catch(e) { console.error(e); }
+}
+
+async function loadDashboardVendedor() {
+  // Mostrar panel vendedor, ocultar admin
+  document.getElementById('dashAdmin').style.display = 'none';
+  document.getElementById('dashVendedor').style.display = '';
+  document.getElementById('dashTitle').textContent = 'Inicio';
+  const today = new Date().toISOString().split('T')[0];
+
+  // Lunes de la semana actual
+  const d = new Date(); d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  const lunnes = d.toISOString().split('T')[0];
+
+  try {
+    const [pedidosHoy, pedidosPend, pagosHoy, ventasSemana, clientesActivos, productos] = await Promise.all([
+      api('pedidos', 'GET', null, `?select=id&vendedor_id=eq.${currentUser}&created_at=gte.${today}T00:00:00`),
+      api('pedidos', 'GET', null, `?select=id&vendedor_id=eq.${currentUser}&estado=eq.pendiente`),
+      api('pagos',   'GET', null, `?select=monto&vendedor_id=eq.${currentUser}&fecha=eq.${today}`),
+      api('ventas',  'GET', null, `?select=total&vendedor_id=eq.${currentUser}&fecha=gte.${lunnes}`),
+      api('clientes','GET', null, '?select=id&estado_cliente=eq.Activo'),
+      api('productos','GET', null, '?select=id&activo=eq.true')
+    ]);
+
+    document.getElementById('vStatPedidosHoy').textContent = pedidosHoy.length;
+    document.getElementById('vStatPedidosPend').textContent = pedidosPend.length;
+
+    const cobrado = pagosHoy.reduce((s, p) => s + parseFloat(p.monto || 0), 0);
+    document.getElementById('vStatCobrado').textContent = '$' + cobrado.toLocaleString('es-AR', {maximumFractionDigits:0});
+
+    const totalSemana = ventasSemana.reduce((s, v) => s + parseFloat(v.total || 0), 0);
+    document.getElementById('vStatVentasSemana').textContent = '$' + totalSemana.toLocaleString('es-AR', {maximumFractionDigits:0});
+
+    document.getElementById('vStatClientesActivos').textContent = clientesActivos.length;
+    document.getElementById('vStatProductos').textContent = productos.length;
+  } catch(e) { console.error('vDash stats:', e); }
+
+  // Mis últimos pedidos
+  try {
+    const ultPedidos = await api('pedidos', 'GET', null,
+      `?select=id,total,estado,fecha,clientes(nombre,nombre_fantasia)&vendedor_id=eq.${currentUser}&order=created_at.desc&limit=6`);
+    const tbody = document.getElementById('vDashPedidos');
+    if (!ultPedidos.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Sin pedidos registrados todavía</td></tr>';
+    } else {
+      tbody.innerHTML = ultPedidos.map(p => `
+        <tr>
+          <td>${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
+          <td>${p.fecha}</td>
+          <td>${badgeEstado(p.estado)}</td>
+          <td>$${parseFloat(p.total||0).toLocaleString('es-AR')}</td>
+        </tr>`).join('');
+    }
+  } catch(e) { console.error('vDash pedidos:', e); }
+
+  // Stock bajo (info útil para el vendedor)
+  try {
+    const stockBajo = await api('stock_actual', 'GET', null, '?select=nombre,codigo,stock,stock_minimo');
+    const bajos = stockBajo.filter(p => parseFloat(p.stock) <= parseFloat(p.stock_minimo) && parseFloat(p.stock_minimo) > 0);
+    if (bajos.length) {
+      document.getElementById('vDashStockWrap').style.display = '';
+      document.getElementById('vDashStock').innerHTML = bajos.map(p => `
+        <tr>
+          <td><code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px">${p.codigo||'—'}</code></td>
+          <td>${p.nombre}</td>
+          <td><span class="badge badge-red">⚠ ${p.stock}</span></td>
+          <td style="color:var(--muted)">${p.stock_minimo}</td>
+        </tr>`).join('');
+    } else {
+      document.getElementById('vDashStockWrap').style.display = 'none';
+    }
+  } catch(e) { console.error('vDash stock:', e); }
 }
 
 // ==================== CLIENTES ====================
@@ -2249,6 +2403,7 @@ let SUPABASE_URL = localStorage.getItem('sb_url') || '';
 let SUPABASE_KEY = localStorage.getItem('sb_key') || '';
 
 let cachedClientes = [];
+let cachedVendedores = []; // { user_id, nombre }
 
 // Formato de nombre de cliente: "Razón Social (Fantasía)" o solo "Razón Social"
 function nombreCliente(c) {
@@ -2348,6 +2503,22 @@ async function loadUserRole() {
       currentNombre = 'Usuario';
     }
   } catch(e) { currentRol = 'vendedor'; currentNombre = 'Usuario'; }
+}
+
+async function loadVendedores() {
+  if (cachedVendedores.length) return; // ya cargados
+  try {
+    const roles = await api('user_roles', 'GET', null, '?rol=eq.vendedor&select=user_id,nombre&order=nombre.asc');
+    cachedVendedores = roles;
+  } catch(e) { console.error('loadVendedores:', e); }
+}
+
+function poblarSelectVendedor(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Todos</option>' +
+    cachedVendedores.map(v => `<option value="${v.user_id}" ${v.user_id === current ? 'selected' : ''}>${v.nombre}</option>`).join('');
 }
 
 async function showApp() {
@@ -2825,6 +2996,7 @@ function initReportes() {
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
   document.getElementById('repDesde').value = firstDay.toISOString().split('T')[0];
   document.getElementById('repHasta').value = today.toISOString().split('T')[0];
+  loadVendedores().then(() => poblarSelectVendedor('repFiltroVendedor'));
   loadReportes();
 }
 
@@ -2833,9 +3005,13 @@ async function loadReportes() {
   const desde = document.getElementById('repDesde').value;
   const hasta = document.getElementById('repHasta').value;
   if (!desde || !hasta) { toast('Seleccioná un período', 'error'); return; }
+
+  const vendedorId = document.getElementById('repFiltroVendedor')?.value || '';
+  const vFiltro = vendedorId ? `&vendedor_id=eq.${vendedorId}` : '';
+
   try {
     const ventas = await api('ventas', 'GET', null,
-      `?select=id,fecha,total,estado_pago,clientes(nombre,tipo,descuento_pct),venta_items(cantidad,precio_unitario,producto_id,productos(costo,nombre,codigo))&fecha=gte.${desde}&fecha=lte.${hasta}&order=fecha.asc`);
+      `?select=id,fecha,total,estado_pago,clientes(nombre,tipo,descuento_pct),venta_items(cantidad,precio_unitario,producto_id,productos(costo,nombre,codigo))&fecha=gte.${desde}&fecha=lte.${hasta}&order=fecha.asc${vFiltro}`);
     if (!ventas.length) {
       ['repTotalVentas','repCantVentas','repGanancia','repMargen'].forEach(id => document.getElementById(id).textContent = '—');
       ['repVentasSemana','repVentasTipo','repMargenSemana','repGananciaProd'].forEach(id => {
