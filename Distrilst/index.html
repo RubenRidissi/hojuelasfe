@@ -461,12 +461,13 @@ function showSection(name) {
         <select id="filtroCarteraCliente" onchange="filterClientes()" style="flex:1;min-width:140px;max-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
           <option value="">Toda la cartera</option>
         </select>
+        <span id="clientesTotalizador" style="font-size:13px;color:var(--muted);white-space:nowrap;padding:8px 4px;align-self:center"></span>
       </div>
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nombre</th><th>Estado</th><th>Tipo</th><th>Cartera</th><th>Saldo</th><th>Localidad</th><th></th></tr></thead>
-            <tbody id="tablaClientes"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+            <thead><tr><th>Nombre</th><th>Estado</th><th>Tipo</th><th>Cartera</th><th>Facturación</th><th>Saldo</th><th>Loc.</th><th></th></tr></thead>
+            <tbody id="tablaClientes"><tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -898,6 +899,35 @@ function showSection(name) {
       </div>
     </div>
     <div class="form-group"><label>Notas</label><textarea id="clienteNotas" placeholder="Observaciones opcionales..."></textarea></div>
+
+    <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:14px">
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Facturación y ubicación</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Facturación</label>
+          <select id="clienteFacturacion" onchange="toggleFacturacionPct()">
+            <option value="Sin factura">Sin factura</option>
+            <option value="Factura completa">Factura completa</option>
+            <option value="Mix">Mix</option>
+          </select>
+        </div>
+        <div class="form-group" id="clienteFacturacionPctWrap" style="display:none">
+          <label>% facturado</label>
+          <input id="clienteFacturacionPct" type="number" min="1" max="99" step="1" placeholder="Ej: 50" value="50">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Latitud</label>
+          <input id="clienteLatitud" type="number" step="0.0000001" placeholder="Ej: -31.6333">
+        </div>
+        <div class="form-group">
+          <label>Longitud</label>
+          <input id="clienteLongitud" type="number" step="0.0000001" placeholder="Ej: -60.7000">
+        </div>
+      </div>
+    </div>
+
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalCliente')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveCliente()">Guardar</button>
@@ -1639,21 +1669,36 @@ function renderClientes(list) {
       }
     }
 
+    // Facturación badge
+    const factBadge = {
+      'Sin factura': '<span class="badge badge-gray">SF</span>',
+      'Factura completa': '<span class="badge badge-green">FC</span>',
+      'Mix': `<span class="badge badge-yellow">${c.facturacion_pct || '?'}%</span>`
+    }[c.facturacion] || '<span class="badge badge-gray">SF</span>';
+
+    // Coordenadas
+    const tieneCoordenadas = c.latitud && c.longitud;
+    const coordIcon = tieneCoordenadas ? `<span title="Lat: ${c.latitud} / Lon: ${c.longitud}" style="cursor:default">📍</span>` : '';
+
     return `
     <tr data-estado="${c.estado_cliente||'Pendiente'}" data-cartera="${carteraData}" data-propio="${esPropio}" data-vendedor="${c.vendedor_id||''}">
       <td><strong>${nombreCliente(c)}</strong>${c.email ? `<br><span style="font-size:12px;color:var(--muted)">${c.email}</span>` : ''}</td>
       <td><span class="badge ${estadoBadge}">${estadoIcon} ${c.estado_cliente||'Pendiente'}</span></td>
       <td><span class="badge ${tipoBadge}">${c.tipo||'Minorista'}</span></td>
       <td>${carteraBadge}</td>
+      <td>${factBadge}</td>
       <td id="saldo-${c.id}" style="font-weight:500;color:var(--muted)">...</td>
-      <td>${c.localidad || '—'}</td>
+      <td>${c.localidad || '—'} ${coordIcon}</td>
       <td style="white-space:nowrap;width:1%">${acciones}</td>
     </tr>`;
   }).join('');
+  // Actualizar totalizador con el total sin filtros activos
+  setTimeout(filterClientes, 0);
 }
 
 async function saveCliente() {
   const id = document.getElementById('clienteId').value;
+  const facturacion = document.getElementById('clienteFacturacion').value;
   const data = {
     nombre: document.getElementById('clienteNombre').value.trim(),
     nombre_fantasia: document.getElementById('clienteFantasia').value.trim() || null,
@@ -1665,7 +1710,11 @@ async function saveCliente() {
     tipo: document.getElementById('clienteTipo').value,
     descuento_pct: parseFloat(document.getElementById('clienteDescuento').value) || 0,
     estado_cliente: document.getElementById('clienteEstado').value,
-    notas: document.getElementById('clienteNotas').value.trim()
+    notas: document.getElementById('clienteNotas').value.trim(),
+    facturacion,
+    facturacion_pct: facturacion === 'Mix' ? parseInt(document.getElementById('clienteFacturacionPct').value) || 0 : null,
+    latitud: document.getElementById('clienteLatitud').value ? parseFloat(document.getElementById('clienteLatitud').value) : null,
+    longitud: document.getElementById('clienteLongitud').value ? parseFloat(document.getElementById('clienteLongitud').value) : null,
   };
   if (!data.nombre) { toast('El nombre es obligatorio', 'error'); return; }
   try {
@@ -1679,7 +1728,8 @@ async function saveCliente() {
         const dataSanitizada = {
           telefono: data.telefono, email: data.email,
           direccion: data.direccion, localidad: data.localidad,
-          provincia: data.provincia, notas: data.notas
+          provincia: data.provincia, notas: data.notas,
+          latitud: data.latitud, longitud: data.longitud
         };
         await api('clientes', 'PATCH', dataSanitizada, `?id=eq.${id}`);
       } else {
@@ -1714,6 +1764,11 @@ function editCliente(id) {
   document.getElementById('clienteDescuento').value = c.descuento_pct || 0;
   document.getElementById('clienteEstado').value = c.estado_cliente || 'Pendiente';
   document.getElementById('clienteNotas').value = c.notas || '';
+  document.getElementById('clienteFacturacion').value = c.facturacion || 'Sin factura';
+  document.getElementById('clienteFacturacionPct').value = c.facturacion_pct || 50;
+  document.getElementById('clienteFacturacionPctWrap').style.display = c.facturacion === 'Mix' ? '' : 'none';
+  document.getElementById('clienteLatitud').value = c.latitud || '';
+  document.getElementById('clienteLongitud').value = c.longitud || '';
   openModal('modalCliente');
 }
 
@@ -1728,11 +1783,19 @@ async function deleteCliente(id) {
 }
 
 function clearClienteForm() {
-  ['clienteId','clienteNombre','clienteFantasia','clienteTel','clienteEmail','clienteLocalidad','clienteDir','clienteNotas','clienteDescuento'].forEach(id => document.getElementById(id).value = '');
+  ['clienteId','clienteNombre','clienteFantasia','clienteTel','clienteEmail','clienteLocalidad','clienteDir','clienteNotas','clienteDescuento','clienteLatitud','clienteLongitud'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('clienteTipo').value = 'Minorista';
   document.getElementById('clienteEstado').value = 'Pendiente';
   document.getElementById('clienteProvincia').value = 'Santa Fe';
+  document.getElementById('clienteFacturacion').value = 'Sin factura';
+  document.getElementById('clienteFacturacionPct').value = 50;
+  document.getElementById('clienteFacturacionPctWrap').style.display = 'none';
   document.getElementById('modalClienteTitle').textContent = 'Nuevo cliente';
+}
+
+function toggleFacturacionPct() {
+  const val = document.getElementById('clienteFacturacion').value;
+  document.getElementById('clienteFacturacionPctWrap').style.display = val === 'Mix' ? '' : 'none';
 }
 
 // ==================== PRODUCTOS ====================
@@ -3019,15 +3082,20 @@ function filterClientes() {
   const estado = document.getElementById('filtroEstadoCliente').value;
   const cartera = document.getElementById('filtroCarteraCliente').value;
   const rows = document.getElementById('tablaClientes').querySelectorAll('tr');
+  let visible = 0;
   rows.forEach(row => {
     const matchQuery = !query || row.textContent.toLowerCase().includes(query);
     const matchEstado = !estado || row.dataset.estado === estado;
     let matchCartera = true;
     if (cartera === 'mios') matchCartera = row.dataset.propio === 'true';
     else if (cartera === 'sinasignar') matchCartera = row.dataset.cartera === 'sinasignar';
-    else if (cartera) matchCartera = row.dataset.vendedor === cartera; // admin filtra por UUID
-    row.style.display = matchQuery && matchEstado && matchCartera ? '' : 'none';
+    else if (cartera) matchCartera = row.dataset.vendedor === cartera;
+    const show = matchQuery && matchEstado && matchCartera;
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
   });
+  const tot = document.getElementById('clientesTotalizador');
+  if (tot) tot.textContent = visible > 0 ? `${visible} cliente${visible !== 1 ? 's' : ''}` : '';
 }
 
 // ==================== CARTERA ====================
