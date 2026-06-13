@@ -427,20 +427,40 @@ function showSection(name) {
           <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
         </div>
       </div>
+
+      <!-- Solicitudes pendientes (solo admin) -->
+      <div id="panelSolicitudes" style="display:none;margin-bottom:16px">
+        <div class="card" style="border-color:#F6C456;background:#FFFBEB">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <h3 style="font-size:14px;font-weight:600;color:#92400E">📬 Solicitudes de clientes pendientes</h3>
+            <span id="solicitudesBadge" class="badge badge-yellow"></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Cliente</th><th>Vendedor solicita</th><th>Fecha</th><th></th></tr></thead>
+              <tbody id="tablaSolicitudes"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div class="search-bar">
         <input class="search-input" id="searchClientes" type="text" placeholder="Buscar cliente..." oninput="filterClientes()" style="flex:2;min-width:200px">
-      <select id="filtroEstadoCliente" onchange="filterClientes()" style="flex:1;min-width:140px;max-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
-        <option value="">Todos los estados</option>
-        <option value="Pendiente">⏳ Pendiente</option>
-        <option value="Activo">✅ Activo</option>
-        <option value="Inactivo">❌ Inactivo</option>
-      </select>
+        <select id="filtroEstadoCliente" onchange="filterClientes()" style="flex:1;min-width:140px;max-width:180px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+          <option value="">Todos los estados</option>
+          <option value="Pendiente">⏳ Pendiente</option>
+          <option value="Activo">✅ Activo</option>
+          <option value="Inactivo">❌ Inactivo</option>
+        </select>
+        <select id="filtroCarteraCliente" onchange="filterClientes()" style="flex:1;min-width:140px;max-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+          <option value="">Toda la cartera</option>
+        </select>
       </div>
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Nombre</th><th>Estado</th><th>Tipo</th><th>Saldo</th><th>Dirección</th><th>Localidad</th><th></th></tr></thead>
-            <tbody id="tablaClientes"><tr><td colspan="5" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+            <thead><tr><th>Nombre</th><th>Estado</th><th>Tipo</th><th>Cartera</th><th>Saldo</th><th>Localidad</th><th></th></tr></thead>
+            <tbody id="tablaClientes"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -808,6 +828,26 @@ function showSection(name) {
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalCliente')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveCliente()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PRODUCTO -->
+<div class="modal-backdrop" id="modalAsignarCliente">
+  <div class="modal" style="max-width:400px">
+    <h3 class="modal-title">Asignar cliente a vendedor</h3>
+    <input type="hidden" id="asignarClienteId">
+    <div style="margin-bottom:14px;padding:10px 12px;background:var(--bg);border-radius:8px;font-size:13px">
+      <strong id="asignarClienteNombre"></strong><br>
+      <span style="color:var(--muted);font-size:12px">Asignado actualmente: <span id="asignarClienteActual"></span></span>
+    </div>
+    <div class="form-group">
+      <label>Asignar a</label>
+      <select id="asignarVendedorSel"></select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="document.getElementById('modalAsignarCliente').classList.remove('open')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarAsignacion()">Guardar</button>
     </div>
   </div>
 </div>
@@ -1421,11 +1461,18 @@ async function loadDashboardVendedor() {
 }
 
 // ==================== CLIENTES ====================
+let cachedSolicitudes = []; // solicitudes pendientes
+
 async function loadClientes() {
   if (!SUPABASE_URL) return;
   try {
+    await loadVendedores();
     cachedClientes = await api('clientes', 'GET', null, '?order=nombre.asc');
+    // Solicitudes pendientes (solo admin las usa, pero las cargamos siempre para el render)
+    cachedSolicitudes = await api('solicitudes_clientes', 'GET', null,
+      '?estado=eq.pendiente&select=id,cliente_id,vendedor_id,created_at');
     renderClientes(cachedClientes);
+    renderSolicitudes();
     loadSaldosClientes();
   } catch(e) { console.error(e); }
 }
@@ -1459,32 +1506,77 @@ async function loadSaldosClientes() {
 }
 
 function renderClientes(list) {
+  // Poblar filtro de cartera según rol
+  const filtroCartera = document.getElementById('filtroCarteraCliente');
+  if (filtroCartera) {
+    const valorActual = filtroCartera.value;
+    if (currentRol === 'admin') {
+      filtroCartera.innerHTML = '<option value="">Toda la cartera</option>' +
+        '<option value="sinasignar">Sin asignar</option>' +
+        cachedVendedores.map(v => `<option value="${v.user_id}">${v.nombre}</option>`).join('');
+    } else {
+      filtroCartera.innerHTML = '<option value="">Toda la cartera</option>' +
+        '<option value="mios">Mis clientes</option>' +
+        '<option value="sinasignar">Sin asignar</option>';
+    }
+    filtroCartera.value = valorActual; // mantener selección al recargar
+  }
+
   const tbody = document.getElementById('tablaClientes');
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><div class="empty-icon">👥</div><p>No hay clientes todavía</p></div></td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-icon">👥</div><p>No hay clientes todavía</p></div></td></tr>'; return; }
   tbody.innerHTML = list.map(c => {
     const tipoBadge = { Minorista:'badge-gray', Distribuidor:'badge-blue', Mayorista:'badge-yellow', Institucional:'badge-green' }[c.tipo] || 'badge-gray';
     const estadoBadge = { Activo:'badge-green', Pendiente:'badge-yellow', Inactivo:'badge-red' }[c.estado_cliente] || 'badge-yellow';
     const estadoIcon = { Activo:'✅', Pendiente:'⏳', Inactivo:'❌' }[c.estado_cliente] || '⏳';
+
+    // Cartera badge
+    const esPropio = c.vendedor_id === currentUser;
+    const vendedorNombre = c.vendedor_id
+      ? (cachedVendedores.find(v => v.user_id === c.vendedor_id)?.nombre || 'Vendedor')
+      : null;
+    let carteraBadge = '';
+    let carteraData = c.vendedor_id ? 'asignado' : 'sinasignar';
+    if (!c.vendedor_id) {
+      carteraBadge = '<span class="badge badge-gray">Sin asignar</span>';
+    } else if (esPropio) {
+      carteraBadge = '<span class="badge badge-green">✓ Mío</span>';
+    } else {
+      carteraBadge = `<span class="badge badge-blue">${vendedorNombre}</span>`;
+    }
+
+    // Solicitud pendiente de este vendedor para este cliente
+    const tieneSolicitud = cachedSolicitudes.some(s => s.cliente_id === c.id && s.vendedor_id === currentUser);
+
+    // Botones según rol
+    let acciones = '';
+    if (currentRol === 'admin') {
+      acciones = `
+        <button class="btn btn-sm btn-success" onclick="handleClienteAction('toggle','${c.id}')" title="Activar/Desactivar">✅</button>
+        <button class="btn btn-sm btn-secondary" onclick="handleClienteAction('edit','${c.id}')" title="Editar" style="padding:5px 8px">✏</button>
+        <button class="btn btn-sm btn-danger" onclick="handleClienteAction('delete','${c.id}')" title="Borrar" style="padding:5px 8px">🗑</button>
+        <button class="btn btn-sm" style="background:#EDE9FE;color:#6D28D9;padding:5px 8px" onclick="abrirAsignarCliente('${c.id}')" title="Asignar vendedor">👤</button>`;
+    } else {
+      // Vendedor
+      if (esPropio) {
+        acciones = `<button class="btn btn-sm btn-secondary" onclick="editCliente('${c.id}')" title="Editar" style="padding:5px 8px">✏</button>`;
+      } else if (tieneSolicitud) {
+        acciones = `<span style="font-size:11px;color:var(--muted)">Solicitud enviada</span>`;
+      } else {
+        acciones = `<button class="btn btn-sm" style="background:#FEF3DC;color:#92400E;padding:5px 8px" onclick="solicitarCliente('${c.id}')" title="Solicitar este cliente">📬 Solicitar</button>`;
+      }
+    }
+
     return `
-    <tr data-estado="${c.estado_cliente||'Pendiente'}">
+    <tr data-estado="${c.estado_cliente||'Pendiente'}" data-cartera="${carteraData}" data-propio="${esPropio}" data-vendedor="${c.vendedor_id||''}">
       <td><strong>${nombreCliente(c)}</strong>${c.email ? `<br><span style="font-size:12px;color:var(--muted)">${c.email}</span>` : ''}</td>
       <td><span class="badge ${estadoBadge}">${estadoIcon} ${c.estado_cliente||'Pendiente'}</span></td>
       <td><span class="badge ${tipoBadge}">${c.tipo||'Minorista'}</span></td>
-
+      <td>${carteraBadge}</td>
       <td id="saldo-${c.id}" style="font-weight:500;color:var(--muted)">...</td>
-      <td>${c.direccion || '—'}</td>
       <td>${c.localidad || '—'}</td>
-
-      <td style="white-space:nowrap;width:1%">
-        <button class="btn btn-sm btn-success admin-only" onclick="handleClienteAction('toggle','${c.id}')" title="Activar/Desactivar">✅</button><button class="btn btn-sm btn-secondary admin-only" onclick="handleClienteAction('edit','${c.id}')" title="Editar" style="padding:5px 8px">✏</button><button class="btn btn-sm btn-danger admin-only" onclick="handleClienteAction('delete','${c.id}')" title="Borrar" style="padding:5px 8px">🗑</button>
-      </td>
-    </tr>`}).join('');
-  // Hide action buttons for vendedor
-  if (currentRol !== 'admin') {
-    setTimeout(() => {
-      document.querySelectorAll('#tablaClientes .btn').forEach(btn => btn.style.display = 'none');
-    }, 50);
-  }
+      <td style="white-space:nowrap;width:1%">${acciones}</td>
+    </tr>`;
+  }).join('');
 }
 
 async function saveCliente() {
@@ -1505,7 +1597,21 @@ async function saveCliente() {
   if (!data.nombre) { toast('El nombre es obligatorio', 'error'); return; }
   try {
     if (id) {
-      await api('clientes', 'PATCH', data, `?id=eq.${id}`);
+      // Vendedor solo puede editar datos de contacto de sus propios clientes
+      if (currentRol !== 'admin') {
+        const cliente = cachedClientes.find(c => c.id === id);
+        if (!cliente || cliente.vendedor_id !== currentUser) {
+          toast('No tenés permiso para editar este cliente', 'error'); return;
+        }
+        const dataSanitizada = {
+          telefono: data.telefono, email: data.email,
+          direccion: data.direccion, localidad: data.localidad,
+          provincia: data.provincia, notas: data.notas
+        };
+        await api('clientes', 'PATCH', dataSanitizada, `?id=eq.${id}`);
+      } else {
+        await api('clientes', 'PATCH', data, `?id=eq.${id}`);
+      }
       toast('Cliente actualizado');
     } else {
       data.estado_cliente = 'Pendiente';
@@ -2778,20 +2884,99 @@ async function toggleEstadoCliente(id, nuevoEstado) {
 
 // ==================== FILTER CLIENTES ====================
 function filterClientes() {
-  const queryEl = document.getElementById('searchClientes');
-  const query = queryEl ? queryEl.value.toLowerCase() : '';
+  const query = (document.getElementById('searchClientes')?.value || '').toLowerCase();
   const estado = document.getElementById('filtroEstadoCliente').value;
-  const tbody = document.getElementById('tablaClientes');
-  const rows = tbody.querySelectorAll('tr');
+  const cartera = document.getElementById('filtroCarteraCliente').value;
+  const rows = document.getElementById('tablaClientes').querySelectorAll('tr');
   rows.forEach(row => {
-    const text = row.textContent.toLowerCase();
-    const matchQuery = !query || text.includes(query.toLowerCase());
-    let matchEstado = true;
-    if (estado) {
-      matchEstado = row.dataset.estado === estado;
-    }
-    row.style.display = matchQuery && matchEstado ? '' : 'none';
+    const matchQuery = !query || row.textContent.toLowerCase().includes(query);
+    const matchEstado = !estado || row.dataset.estado === estado;
+    let matchCartera = true;
+    if (cartera === 'mios') matchCartera = row.dataset.propio === 'true';
+    else if (cartera === 'sinasignar') matchCartera = row.dataset.cartera === 'sinasignar';
+    else if (cartera) matchCartera = row.dataset.vendedor === cartera; // admin filtra por UUID
+    row.style.display = matchQuery && matchEstado && matchCartera ? '' : 'none';
   });
+}
+
+// ==================== CARTERA ====================
+function renderSolicitudes() {
+  const panel = document.getElementById('panelSolicitudes');
+  const tbody = document.getElementById('tablaSolicitudes');
+  const badge = document.getElementById('solicitudesBadge');
+  if (currentRol !== 'admin' || !cachedSolicitudes.length) {
+    if (panel) panel.style.display = 'none';
+    return;
+  }
+  panel.style.display = '';
+  badge.textContent = cachedSolicitudes.length + ' pendiente' + (cachedSolicitudes.length > 1 ? 's' : '');
+  tbody.innerHTML = cachedSolicitudes.map(s => {
+    const cliente = cachedClientes.find(c => c.id === s.cliente_id);
+    const nombreVendedor = cachedVendedores.find(v => v.user_id === s.vendedor_id)?.nombre || '—';
+    const fecha = new Date(s.created_at).toLocaleDateString('es-AR');
+    return `<tr>
+      <td><strong>${cliente ? nombreCliente(cliente) : '—'}</strong></td>
+      <td>${nombreVendedor}</td>
+      <td style="font-size:12px;color:var(--muted)">${fecha}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-sm btn-success" onclick="responderSolicitud('${s.id}','${s.cliente_id}','${s.vendedor_id}','aprobada')">✓ Aprobar</button>
+        <button class="btn btn-sm btn-danger" onclick="responderSolicitud('${s.id}','${s.cliente_id}','${s.vendedor_id}','rechazada')" style="margin-left:4px">✕ Rechazar</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function solicitarCliente(clienteId) {
+  if (!confirm('¿Enviar solicitud al admin para que te asigne este cliente?')) return;
+  try {
+    await api('solicitudes_clientes', 'POST', { cliente_id: clienteId, vendedor_id: currentUser });
+    toast('Solicitud enviada al administrador');
+    loadClientes();
+  } catch(e) { toast('Error al enviar solicitud', 'error'); }
+}
+
+async function responderSolicitud(solicitudId, clienteId, vendedorId, decision) {
+  try {
+    await api('solicitudes_clientes', 'PATCH', { estado: decision }, `?id=eq.${solicitudId}`);
+    if (decision === 'aprobada') {
+      await api('clientes', 'PATCH', { vendedor_id: vendedorId }, `?id=eq.${clienteId}`);
+      const nombre = cachedVendedores.find(v => v.user_id === vendedorId)?.nombre || 'el vendedor';
+      toast(`Cliente asignado a ${nombre}`);
+    } else {
+      toast('Solicitud rechazada');
+    }
+    loadClientes();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+function abrirAsignarCliente(clienteId) {
+  const cliente = cachedClientes.find(c => c.id === clienteId);
+  if (!cliente) return;
+  const actual = cliente.vendedor_id
+    ? (cachedVendedores.find(v => v.user_id === cliente.vendedor_id)?.nombre || '—')
+    : 'Sin asignar';
+  const opciones = ['<option value="">Sin asignar</option>',
+    ...cachedVendedores.map(v => `<option value="${v.user_id}" ${v.user_id === cliente.vendedor_id ? 'selected' : ''}>${v.nombre}</option>`)
+  ].join('');
+  document.getElementById('asignarClienteId').value = clienteId;
+  document.getElementById('asignarClienteNombre').textContent = nombreCliente(cliente);
+  document.getElementById('asignarClienteActual').textContent = actual;
+  document.getElementById('asignarVendedorSel').innerHTML = opciones;
+  document.getElementById('modalAsignarCliente').classList.add('open');
+}
+
+async function guardarAsignacion() {
+  const clienteId = document.getElementById('asignarClienteId').value;
+  const vendedorId = document.getElementById('asignarVendedorSel').value || null;
+  try {
+    await api('clientes', 'PATCH', { vendedor_id: vendedorId }, `?id=eq.${clienteId}`);
+    const nombre = vendedorId
+      ? (cachedVendedores.find(v => v.user_id === vendedorId)?.nombre || 'vendedor')
+      : 'Sin asignar';
+    toast(vendedorId ? `Cliente asignado a ${nombre}` : 'Asignación removida');
+    document.getElementById('modalAsignarCliente').classList.remove('open');
+    loadClientes();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
 // ==================== LISTADO PRODUCTOS ====================
