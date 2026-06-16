@@ -222,6 +222,8 @@
 .ayuda-tab:hover:not(.active) { border-color:var(--honey);color:var(--honey-dark) }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
@@ -243,6 +245,7 @@ function showSection(name) {
     if (typeof loadVentas === 'function' && name === 'ventas') loadVentas();
     if (typeof loadPagos === 'function' && name === 'pagos') loadPagos();
     if (typeof loadStock === 'function' && name === 'stock') loadStock();
+    if (name === 'mapa') loadMapa();
     if (name === 'reportes') {
       if (currentRol === 'admin') { if (typeof initReportes === 'function') initReportes(); }
       else { if (typeof initReportesVendedor === 'function') initReportesVendedor(); }
@@ -296,6 +299,9 @@ function showSection(name) {
       </div>
       <div class="nav-item" onclick="showSection('clientes')">
         <span class="nav-icon">👥</span><span>Clientes</span>
+      </div>
+      <div class="nav-item admin-only" onclick="showSection('mapa')">
+        <span class="nav-icon">🗺️</span><span>Mapa</span>
       </div>
       <div class="nav-item" onclick="showSection('productos')">
         <span class="nav-icon">📦</span><span>Productos</span>
@@ -771,6 +777,39 @@ function showSection(name) {
             </table>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- MAPA -->
+    <div id="sec-mapa" class="section">
+      <div class="page-header">
+        <h1 class="page-title">🗺️ Mapa de clientes</h1>
+        <div style="font-size:13px;color:var(--muted)" id="mapaContador"></div>
+      </div>
+      <!-- Filtros -->
+      <div class="search-bar" style="margin-bottom:12px">
+        <select id="mapaFiltroVendedor" onchange="renderMapa()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+          <option value="">Todos los vendedores</option>
+        </select>
+        <select id="mapaFiltroTipo" onchange="renderMapa()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+          <option value="">Todos los tipos</option>
+          <option value="Minorista">Minorista</option>
+          <option value="Mayorista">Mayorista</option>
+          <option value="Distribuidor">Distribuidor</option>
+          <option value="Institucional">Institucional</option>
+        </select>
+        <span id="mapaSinCoords" style="font-size:12px;color:var(--muted);padding:8px 4px;align-self:center"></span>
+      </div>
+      <!-- Mapa -->
+      <div class="card" style="padding:0;overflow:hidden">
+        <div id="mapaContainer" style="height:520px;width:100%;border-radius:var(--radius)"></div>
+      </div>
+      <!-- Leyenda -->
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--muted)">
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#6B7280;margin-right:4px"></span>Minorista</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#3B82F6;margin-right:4px"></span>Mayorista</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#F59E0B;margin-right:4px"></span>Distribuidor</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#10B981;margin-right:4px"></span>Institucional</span>
       </div>
     </div>
 
@@ -1255,6 +1294,7 @@ function showSection(name) {
 
 <!-- MORE DRAWER -->
 <div class="more-drawer" id="moreDrawer">
+  <div class="more-drawer-item admin-only" id="moreMapa" onclick="mobileNav('mapa')"><span class="mn-icon">🗺️</span>Mapa</div>
   <div class="more-drawer-item" onclick="mobileNav('productos')"><span class="mn-icon">📦</span>Productos</div>
   <div class="more-drawer-item" onclick="mobileNav('pagos')"><span class="mn-icon">💰</span>Pagos</div>
   <div class="more-drawer-item" onclick="mobileNav('stock')"><span class="mn-icon">🏪</span>Stock</div>
@@ -3382,6 +3422,112 @@ function filterTable(tbodyId, query) {
   rows.forEach(row => {
     row.style.display = row.textContent.toLowerCase().includes(query.toLowerCase()) ? '' : 'none';
   });
+}
+
+// ==================== MAPA ====================
+let mapaInstance = null;
+let mapaMarkers = [];
+let mapaClientesData = [];
+
+async function loadMapa() {
+  if (!SUPABASE_URL) return;
+  try {
+    await loadVendedores();
+    // Poblar filtro vendedor
+    poblarSelectVendedor('mapaFiltroVendedor');
+    // Traer clientes con coordenadas
+    const todos = cachedClientes.length ? cachedClientes : await api('clientes', 'GET', null, '?order=nombre.asc');
+    if (!cachedClientes.length) cachedClientes = todos;
+    mapaClientesData = todos;
+    // Inicializar mapa si no existe
+    if (!mapaInstance) {
+      mapaInstance = L.map('mapaContainer').setView([-31.63, -60.70], 11);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(mapaInstance);
+    }
+    renderMapa();
+    // Forzar redibujado por si el contenedor no era visible al inicializar
+    setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 200);
+  } catch(e) { console.error(e); toast('Error cargando mapa', 'error'); }
+}
+
+function renderMapa() {
+  if (!mapaInstance) return;
+  const filtroVendedor = document.getElementById('mapaFiltroVendedor')?.value || '';
+  const filtroTipo = document.getElementById('mapaFiltroTipo')?.value || '';
+
+  // Limpiar marcadores anteriores
+  mapaMarkers.forEach(m => mapaInstance.removeLayer(m));
+  mapaMarkers = [];
+
+  const colores = {
+    Minorista: '#6B7280',
+    Mayorista: '#3B82F6',
+    Distribuidor: '#F59E0B',
+    Institucional: '#10B981'
+  };
+
+  const conCoords = mapaClientesData.filter(c => c.latitud && c.longitud);
+  const sinCoords = mapaClientesData.filter(c => !c.latitud || !c.longitud);
+
+  // Actualizar contador sin coords
+  const sinEl = document.getElementById('mapaSinCoords');
+  if (sinEl) sinEl.textContent = sinCoords.length > 0 ? `${sinCoords.length} sin coordenadas` : '';
+
+  // Filtrar
+  const filtrados = conCoords.filter(c => {
+    const matchVendedor = !filtroVendedor || c.vendedor_id === filtroVendedor;
+    const matchTipo = !filtroTipo || c.tipo === filtroTipo;
+    return matchVendedor && matchTipo;
+  });
+
+  const contador = document.getElementById('mapaContador');
+  if (contador) contador.textContent = `${filtrados.length} cliente${filtrados.length !== 1 ? 's' : ''} en el mapa`;
+
+  if (!filtrados.length) return;
+
+  const bounds = [];
+  filtrados.forEach(c => {
+    const color = colores[c.tipo] || '#6B7280';
+    const vendedorNombre = c.vendedor_id
+      ? (cachedVendedores.find(v => v.user_id === c.vendedor_id)?.nombre || 'Asignado')
+      : 'Sin asignar';
+    const factBadge = c.facturacion === 'Mix'
+      ? `${c.facturacion_pct || '?'}% fact.`
+      : (c.facturacion || 'SF');
+
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="width:14px;height:14px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+      popupAnchor: [0, -10]
+    });
+
+    const popup = `
+      <div style="min-width:180px;font-family:sans-serif">
+        <div style="font-weight:600;font-size:14px;margin-bottom:4px">${nombreCliente(c)}</div>
+        <div style="font-size:12px;color:#6B7280;margin-bottom:6px">${c.localidad || ''}${c.localidad && c.provincia ? ', ' : ''}${c.provincia || ''}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
+          <span style="background:${color}22;color:${color};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">${c.tipo || 'Minorista'}</span>
+          <span style="background:#F3F4F6;color:#374151;padding:2px 8px;border-radius:12px;font-size:11px">${vendedorNombre}</span>
+          <span style="background:#FEF3DC;color:#92400E;padding:2px 8px;border-radius:12px;font-size:11px">${factBadge}</span>
+        </div>
+        ${c.telefono ? `<div style="font-size:12px;margin-bottom:2px">📞 ${c.telefono}</div>` : ''}
+        <a href="https://www.google.com/maps?q=${c.latitud},${c.longitud}" target="_blank" style="font-size:12px;color:#3B82F6;text-decoration:none">📍 Ver en Google Maps</a>
+      </div>`;
+
+    const marker = L.marker([c.latitud, c.longitud], { icon })
+      .addTo(mapaInstance)
+      .bindPopup(popup);
+    mapaMarkers.push(marker);
+    bounds.push([c.latitud, c.longitud]);
+  });
+
+  // Ajustar vista a los marcadores
+  if (bounds.length) mapaInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
 }
 
 // ==================== AYUDA ====================
