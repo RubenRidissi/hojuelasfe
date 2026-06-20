@@ -1373,14 +1373,14 @@ function showSection(name) {
 <script>
 
 // ==================== API ====================
-async function api(table, method='GET', body=null, query='') {
+async function api(table, method='GET', body=null, query='', preferOverride=null) {
   const url = `${SUPABASE_URL}${table}${query}`;
   const token = localStorage.getItem('sb_token');
   const headers = {
     'apikey': SUPABASE_KEY,
     'Authorization': `Bearer ${token || SUPABASE_KEY}`,
     'Content-Type': 'application/json',
-    'Prefer': 'return=representation'
+    'Prefer': preferOverride || 'return=representation'
   };
   const opts = { method, headers };
   if (body) opts.body = JSON.stringify(body);
@@ -3491,20 +3491,23 @@ async function guardarObjetivos() {
   const anio = parseInt(document.getElementById('objAnio').value);
   if (!mes || !anio) { toast('Seleccioná mes y año', 'error'); return; }
   try {
+    let errores = 0;
     for (const v of cachedVendedores) {
       const val = parseFloat(document.getElementById(`obj_${v.user_id}`)?.value);
       if (isNaN(val) || val <= 0) continue;
-      // Upsert: si ya existe lo actualiza, si no lo crea
-      await fetch(`${SUPABASE_URL}/rest/v1/objetivos_ventas`, {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify({ vendedor_id: v.user_id, mes, anio, objetivo: val })
-      });
+      try {
+        // Upsert: si ya existe (mismo vendedor+mes+año) lo actualiza, si no lo crea
+        await api('objetivos_ventas', 'POST',
+          { vendedor_id: v.user_id, mes, anio, objetivo: val },
+          '?on_conflict=vendedor_id,mes,anio',
+          'resolution=merge-duplicates,return=representation');
+      } catch(err) {
+        errores++;
+        console.error('Error guardando objetivo de', v.nombre, err.message);
+      }
     }
-    toast('Objetivos guardados ✓');
+    if (errores > 0) toast(`Hubo ${errores} error(es) al guardar — revisá la consola`, 'error');
+    else toast('Objetivos guardados ✓');
   } catch(e) { toast('Error al guardar: ' + e.message, 'error'); }
 }
 
