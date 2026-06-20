@@ -503,6 +503,7 @@ function showSection(name) {
         <button class="btn btn-secondary" onclick="exportarExcel('productos')">📥 Excel</button>
         <button class="btn btn-secondary" id="btnImprimirProductos" onclick="imprimirProductos()">📄 Imprimir listado</button>
         <button class="btn btn-secondary" onclick="openModal('modalListaPrecios')">📄 Lista de precios</button>
+        <button class="btn btn-secondary admin-only" onclick="abrirActualizacionMasiva()">💲 Actualizar precios</button>
       </div>
       <div class="search-bar">
         <input class="search-input" type="text" placeholder="Buscar producto..." oninput="filterTable('tablaProductos',this.value)">
@@ -1046,12 +1047,12 @@ function showSection(name) {
     <div class="form-group"><label>Nombre *</label><input id="productoNombre" placeholder="Ej: Lactal Blanco mediano 18 fetas"></div>
     <div class="form-group"><label>Descripción</label><input id="productoDesc" placeholder="Ej: 455 grs."></div>
     <div class="form-row">
-      <div class="form-group"><label>Precio de venta *</label><input id="productoPrecio" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcMargenProducto()"></div>
-      <div class="form-group"><label>Costo</label><input id="productoCosto" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcMargenProducto()"></div>
+      <div class="form-group"><label>Costo *</label><input id="productoCosto" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcPrecioProducto()"></div>
+      <div class="form-group"><label>Margen % *</label><input id="productoMargen" type="number" min="0" step="0.1" placeholder="Ej: 35" oninput="calcPrecioProducto()"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Unidad</label><input id="productoUnidad" placeholder="unidad, kg, paquete..."></div>
-      <div class="form-group"><label style="margin-bottom:5px">Margen estimado</label><div id="productoMargenPreview" style="padding:8px 10px;background:var(--bg);border-radius:7px;font-size:13px;color:var(--muted)">—</div></div>
+      <div class="form-group"><label style="margin-bottom:5px">Precio de venta</label><div id="productoPrecioPreview" style="padding:8px 10px;background:var(--bg);border-radius:7px;font-size:14px;font-weight:600;color:var(--honey-dark)">—</div><input type="hidden" id="productoPrecio"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Stock actual</label><input id="productoStock" type="number" min="0" placeholder="0"></div>
@@ -1302,6 +1303,65 @@ function showSection(name) {
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalListaPrecios')">Cancelar</button>
       <button class="btn btn-primary" onclick="generarListaPrecios()">📄 Generar PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL ACTUALIZACIÓN MASIVA DE PRECIOS -->
+<div class="modal-backdrop" id="modalActualizacionMasiva">
+  <div class="modal" style="max-width:480px">
+    <h3 class="modal-title">💲 Actualizar precios en masa</h3>
+
+    <div class="form-group">
+      <label>Aplicar a</label>
+      <select id="amAlcance" onchange="toggleAmFamilia()">
+        <option value="todos">Todos los productos</option>
+        <option value="familia">Una familia específica</option>
+      </select>
+    </div>
+    <div class="form-group" id="amFamiliaWrap" style="display:none">
+      <label>Familia</label>
+      <select id="amFamilia"></select>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:14px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:13px;margin-bottom:10px">
+        <input type="checkbox" id="amActualizarCosto" onchange="toggleAmCosto()">
+        Actualizar costo
+      </label>
+      <div id="amCostoWrap" style="display:none;padding-left:24px;margin-bottom:10px">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Modo</label>
+            <select id="amCostoModo">
+              <option value="porcentaje">% de aumento</option>
+              <option value="fijo">Monto fijo nuevo</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label id="amCostoValorLabel">% aumento</label>
+            <input id="amCostoValor" type="number" step="0.1" placeholder="Ej: 8">
+          </div>
+        </div>
+      </div>
+
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:13px;margin-bottom:10px">
+        <input type="checkbox" id="amActualizarMargen" onchange="toggleAmMargen()">
+        Actualizar margen
+      </label>
+      <div id="amMargenWrap" style="display:none;padding-left:24px">
+        <div class="form-group">
+          <label>Nuevo margen %</label>
+          <input id="amMargenValor" type="number" min="0" step="0.1" placeholder="Ej: 35">
+        </div>
+      </div>
+    </div>
+
+    <div id="amPreview" style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px;margin-top:10px;display:none"></div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalActualizacionMasiva')">Cancelar</button>
+      <button class="btn btn-primary" onclick="aplicarActualizacionMasiva()">Aplicar cambios</button>
     </div>
   </div>
 </div>
@@ -1925,8 +1985,17 @@ function renderProductos(list) {
     </tr>`}).join('');
 }
 
+function calcPrecioProducto() {
+  const costo = parseFloat(document.getElementById('productoCosto').value) || 0;
+  const margen = parseFloat(document.getElementById('productoMargen').value) || 0;
+  const precio = margen > 0 ? costo / (1 - margen / 100) : costo;
+  document.getElementById('productoPrecio').value = precio.toFixed(2);
+  document.getElementById('productoPrecioPreview').textContent = precio > 0 ? `$${precio.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
+}
+
 async function saveProducto() {
   const id = document.getElementById('productoId').value;
+  calcPrecioProducto(); // asegurar precio calculado antes de guardar
   const data = {
     codigo: document.getElementById('productoCodigo').value.trim().toUpperCase(),
     codigo_viejo: document.getElementById('productoCodigoViejo').value.trim(),
@@ -1934,8 +2003,9 @@ async function saveProducto() {
     variante: document.getElementById('productoVariante').value.trim(),
     nombre: document.getElementById('productoNombre').value.trim(),
     descripcion: document.getElementById('productoDesc').value.trim(),
-    precio: parseFloat(document.getElementById('productoPrecio').value) || 0,
     costo: parseFloat(document.getElementById('productoCosto').value) || 0,
+    margen_pct: parseFloat(document.getElementById('productoMargen').value) || 0,
+    precio: parseFloat(document.getElementById('productoPrecio').value) || 0,
     unidad: document.getElementById('productoUnidad').value.trim() || 'unidad',
     stock: parseInt(document.getElementById('productoStock').value) || 0,
     stock_minimo: parseInt(document.getElementById('productoStockMin').value) || 0
@@ -1967,12 +2037,12 @@ function editProducto(id) {
   document.getElementById('productoVariante').value = p.variante || '';
   document.getElementById('productoNombre').value = p.nombre || '';
   document.getElementById('productoDesc').value = p.descripcion || '';
-  document.getElementById('productoPrecio').value = p.precio || 0;
   document.getElementById('productoCosto').value = p.costo || 0;
+  document.getElementById('productoMargen').value = p.margen_pct || '';
   document.getElementById('productoUnidad').value = p.unidad || '';
   document.getElementById('productoStock').value = p.stock || 0;
   document.getElementById('productoStockMin').value = p.stock_minimo || 0;
-  calcMargenProducto();
+  calcPrecioProducto();
   openModal('modalProducto');
 }
 
@@ -1986,9 +2056,88 @@ async function deleteProducto(id) {
 }
 
 function clearProductoForm() {
-  ['productoId','productoCodigo','productoCodigoViejo','productoFamilia','productoVariante','productoNombre','productoDesc','productoPrecio','productoCosto','productoUnidad','productoStock','productoStockMin'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('productoMargenPreview').textContent = '—';
+  ['productoId','productoCodigo','productoCodigoViejo','productoFamilia','productoVariante','productoNombre','productoDesc','productoCosto','productoMargen','productoUnidad','productoStock','productoStockMin'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('productoPrecioPreview').textContent = '—';
   document.getElementById('modalProductoTitle').textContent = 'Nuevo producto';
+}
+
+// ==================== ACTUALIZACIÓN MASIVA DE PRECIOS ====================
+function abrirActualizacionMasiva() {
+  const familias = [...new Set(cachedProductos.map(p => p.familia).filter(Boolean))].sort();
+  document.getElementById('amFamilia').innerHTML = familias.map(f => `<option value="${f}">${f}</option>`).join('');
+  document.getElementById('amAlcance').value = 'todos';
+  document.getElementById('amFamiliaWrap').style.display = 'none';
+  document.getElementById('amActualizarCosto').checked = false;
+  document.getElementById('amActualizarMargen').checked = false;
+  document.getElementById('amCostoWrap').style.display = 'none';
+  document.getElementById('amMargenWrap').style.display = 'none';
+  document.getElementById('amCostoModo').value = 'porcentaje';
+  document.getElementById('amCostoValor').value = '';
+  document.getElementById('amMargenValor').value = '';
+  document.getElementById('amPreview').style.display = 'none';
+  openModal('modalActualizacionMasiva');
+}
+
+function toggleAmFamilia() {
+  document.getElementById('amFamiliaWrap').style.display = document.getElementById('amAlcance').value === 'familia' ? '' : 'none';
+}
+
+function toggleAmCosto() {
+  document.getElementById('amCostoWrap').style.display = document.getElementById('amActualizarCosto').checked ? '' : 'none';
+}
+
+function toggleAmMargen() {
+  document.getElementById('amMargenWrap').style.display = document.getElementById('amActualizarMargen').checked ? '' : 'none';
+}
+
+document.addEventListener('change', function(e) {
+  if (e.target?.id === 'amCostoModo') {
+    document.getElementById('amCostoValorLabel').textContent = e.target.value === 'porcentaje' ? '% aumento' : 'Nuevo costo $';
+  }
+});
+
+async function aplicarActualizacionMasiva() {
+  const alcance = document.getElementById('amAlcance').value;
+  const familia = document.getElementById('amFamilia').value;
+  const actualizarCosto = document.getElementById('amActualizarCosto').checked;
+  const actualizarMargen = document.getElementById('amActualizarMargen').checked;
+
+  if (!actualizarCosto && !actualizarMargen) { toast('Seleccioná al menos costo o margen para actualizar', 'error'); return; }
+
+  const costoModo = document.getElementById('amCostoModo').value;
+  const costoValor = parseFloat(document.getElementById('amCostoValor').value);
+  const margenValor = parseFloat(document.getElementById('amMargenValor').value);
+
+  if (actualizarCosto && isNaN(costoValor)) { toast('Ingresá el valor de costo', 'error'); return; }
+  if (actualizarMargen && (isNaN(margenValor) || margenValor < 0)) { toast('Ingresá el margen', 'error'); return; }
+
+  const productos = cachedProductos.filter(p => alcance === 'todos' || p.familia === familia);
+  if (!productos.length) { toast('No hay productos en ese alcance', 'error'); return; }
+
+  if (!confirm(`Esto va a actualizar ${productos.length} producto(s). ¿Confirmás?`)) return;
+
+  let errores = 0;
+  for (const p of productos) {
+    let nuevoCosto = p.costo || 0;
+    if (actualizarCosto) {
+      nuevoCosto = costoModo === 'porcentaje' ? nuevoCosto * (1 + costoValor / 100) : costoValor;
+    }
+    const nuevoMargen = actualizarMargen ? margenValor : (p.margen_pct || 0);
+    const nuevoPrecio = nuevoMargen > 0 ? nuevoCosto / (1 - nuevoMargen / 100) : nuevoCosto;
+
+    try {
+      await api('productos', 'PATCH', {
+        costo: Math.round(nuevoCosto * 100) / 100,
+        margen_pct: nuevoMargen,
+        precio: Math.round(nuevoPrecio * 100) / 100
+      }, `?id=eq.${p.id}`);
+    } catch(e) { errores++; console.error('Error actualizando', p.nombre, e.message); }
+  }
+
+  if (errores > 0) toast(`Actualizado con ${errores} error(es) — revisá la consola`, 'error');
+  else toast(`${productos.length} producto(s) actualizados ✓`);
+  closeModal('modalActualizacionMasiva');
+  loadProductos();
 }
 
 // ==================== PEDIDOS ====================
@@ -4126,7 +4275,7 @@ async function exportarExcel(seccion) {
         };
         if (currentRol === 'admin') {
           fila['Costo'] = p.costo || 0;
-          fila['Margen %'] = p.precio && p.costo ? +(((p.precio - p.costo) / p.precio) * 100).toFixed(1) : 0;
+          fila['Margen %'] = p.margen_pct || 0;
         }
         fila['Stock'] = p.stock || 0;
         fila['Stock mínimo'] = p.stock_minimo || 0;
