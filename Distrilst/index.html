@@ -542,7 +542,7 @@ function showSection(name) {
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>Cliente</th><th>Fecha entrega</th><th>Estado</th><th>Total</th><th id="thPedidoVendedor" style="display:none">Vendedor</th><th></th></tr></thead>
+            <thead><tr><th>N°</th><th>Cliente</th><th>Entrega</th><th>Estado</th><th>Total</th><th id="thPedidoVendedor" style="display:none">Vendedor</th><th></th></tr></thead>
             <tbody id="tablaPedidos"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
@@ -2182,7 +2182,7 @@ async function loadPedidos() {
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('pedidoFiltroVendedor')?.value || '')
       : currentUser;
-    let q = `?select=id,fecha,fecha_entrega,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    let q = `?select=id,fecha,fecha_entrega,fecha_entrega_real,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
     if (estado) q += `&estado=eq.${estado}`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
     const pedidos = await api('pedidos', 'GET', null, q);
@@ -2206,7 +2206,13 @@ async function loadPedidos() {
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(i+1).padStart(3,'0')}</td>
         <td>${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
-        <td class="hide-mobile">${p.fecha_entrega || '—'}</td>
+        <td class="hide-mobile" style="font-size:12px">
+          <div>📅 ${p.fecha_entrega || 'Sin programar'}</div>
+          <div style="color:${p.fecha_entrega_real ? 'var(--success)' : 'var(--muted)'};display:flex;align-items:center;gap:4px">
+            ${p.fecha_entrega_real ? '✓ Entregado: ' + p.fecha_entrega_real : 'Sin entregar'}
+            <span style="cursor:pointer" onclick="editarFechaEntregaReal('${p.id}','${p.fecha_entrega_real||''}')" title="Editar fecha real de entrega">✏</span>
+          </div>
+        </td>
         <td>${badgeEstado(p.estado)}</td>
         <td>$${parseFloat(p.total||0).toLocaleString('es-AR')}</td>
         ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
@@ -2228,10 +2234,28 @@ async function loadPedidos() {
 
 async function updateEstadoPedido(id, estado) {
   try {
-    await api('pedidos', 'PATCH', { estado }, `?id=eq.${id}`);
+    const data = { estado };
+    if (estado === 'entregado') {
+      const pedido = cachedPedidos.find(p => p.id === id);
+      const fechaSugerida = pedido?.fecha_entrega_real || new Date().toISOString().split('T')[0];
+      const fecha = prompt('¿Qué fecha se entregó el pedido?', fechaSugerida);
+      if (fecha === null) { loadPedidos(); return; } // canceló, refresca para revertir el select
+      if (fecha) data.fecha_entrega_real = fecha;
+    }
+    await api('pedidos', 'PATCH', data, `?id=eq.${id}`);
     toast('Estado actualizado');
     loadPedidos();
   } catch(e) { toast('Error', 'error'); }
+}
+
+async function editarFechaEntregaReal(id, fechaActual) {
+  const fecha = prompt('Fecha real de entrega (dejá vacío para borrarla):', fechaActual || new Date().toISOString().split('T')[0]);
+  if (fecha === null) return; // canceló
+  try {
+    await api('pedidos', 'PATCH', { fecha_entrega_real: fecha || null }, `?id=eq.${id}`);
+    toast(fecha ? 'Fecha de entrega actualizada' : 'Fecha de entrega borrada');
+    loadPedidos();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
 async function convertirPedidoEnVenta(pedidoId) {
@@ -2240,6 +2264,13 @@ async function convertirPedidoEnVenta(pedidoId) {
   if (pedido.convertido_venta_id) { toast('Este pedido ya fue convertido', 'error'); return; }
 
   if (!confirm(`¿Convertir este pedido en venta?\n\nCliente: ${nombreCliente(pedido.clientes)}\nTotal: $${parseFloat(pedido.total||0).toLocaleString('es-AR')}\n\nEsto va a descontar stock y generar una venta con fecha de hoy.`)) return;
+
+  // Si todavía no tiene fecha real de entrega, preguntar (opcional, puede dejarse vacío)
+  let fechaEntregaReal = pedido.fecha_entrega_real || null;
+  if (!fechaEntregaReal) {
+    const resp = prompt('¿Ya se entregó la mercadería? Si es así, ingresá la fecha (o dejá vacío si todavía no se entregó):', '');
+    if (resp) fechaEntregaReal = resp;
+  }
 
   try {
     // Traer los ítems del pedido
@@ -2265,8 +2296,13 @@ async function convertirPedidoEnVenta(pedidoId) {
       ])
     ));
 
-    // Marcar el pedido como convertido
-    await api('pedidos', 'PATCH', { convertido_venta_id: venta.id, estado: 'entregado' }, `?id=eq.${pedidoId}`);
+    // Marcar el pedido como convertido. Solo pasa a "entregado" si ya hay fecha real.
+    const patchPedido = { convertido_venta_id: venta.id };
+    if (fechaEntregaReal) {
+      patchPedido.estado = 'entregado';
+      patchPedido.fecha_entrega_real = fechaEntregaReal;
+    }
+    await api('pedidos', 'PATCH', patchPedido, `?id=eq.${pedidoId}`);
 
     toast('Pedido convertido en venta ✓');
     loadPedidos();
@@ -4385,7 +4421,8 @@ async function exportarExcel(seccion) {
           'N°': p.numero || '',
           'Cliente': cliente ? nombreCliente(cliente) : '',
           'Fecha': p.created_at ? new Date(p.created_at).toLocaleDateString('es-AR') : '',
-          'Fecha entrega': p.fecha_entrega || '',
+          'Fecha entrega programada': p.fecha_entrega || '',
+          'Fecha entrega real': p.fecha_entrega_real || '',
           'Estado': p.estado || '',
           'Total': p.total || 0,
           'Vendedor': cachedVendedores.find(v => v.user_id === p.vendedor_id)?.nombre || ''
