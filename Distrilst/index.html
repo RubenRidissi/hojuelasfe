@@ -251,6 +251,7 @@ function showSection(name) {
       else { if (typeof initReportesVendedor === 'function') initReportesVendedor(); }
     }
     if (typeof initCtaCte === 'function' && name === 'ctacte') initCtaCte();
+    if (name === 'config') loadObjetivosConfig();
   } catch(e) { console.error('showSection error:', e); }
 }
 </script>
@@ -376,6 +377,10 @@ function showSection(name) {
           <div class="stat-card"><div class="stat-label">Ganancia hoy</div><div class="stat-value" id="statGanancia">—</div><div class="stat-sub">ARS estimado</div></div>
           <div class="stat-card"><div class="stat-label">Saldo pendiente</div><div class="stat-value" id="statDeuda">—</div><div class="stat-sub">ARS</div></div>
         </div>
+        <div class="card" id="dashObjetivosWrap" style="margin-bottom:16px;display:none">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">🎯 Objetivos del mes</h3>
+          <div id="dashObjetivosContenido"></div>
+        </div>
         <div class="card">
           <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Últimos pedidos</h3>
           <div class="table-wrap">
@@ -397,6 +402,12 @@ function showSection(name) {
           <div class="stat-card"><div class="stat-label">Ventas esta semana</div><div class="stat-value" id="vStatVentasSemana">—</div><div class="stat-sub">ARS</div></div>
           <div class="stat-card"><div class="stat-label">Clientes activos</div><div class="stat-value" id="vStatClientesActivos">—</div></div>
           <div class="stat-card"><div class="stat-label">Productos disponibles</div><div class="stat-value" id="vStatProductos">—</div></div>
+        </div>
+
+        <!-- Objetivo mensual -->
+        <div class="card" id="vDashObjetivoWrap" style="margin-bottom:16px;display:none">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">🎯 Mi objetivo del mes</h3>
+          <div id="vDashObjetivoContenido"></div>
         </div>
 
         <!-- Acciones rápidas -->
@@ -881,6 +892,26 @@ function showSection(name) {
         <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Backup de datos</h3>
         <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Exportá todos tus datos en formato JSON para respaldo local.</p>
         <button class="btn btn-secondary" onclick="exportBackup()">⬇ Descargar backup JSON</button>
+      </div>
+      <div class="card" style="max-width:500px;margin-top:16px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">🎯 Objetivos de ventas</h3>
+        <div class="form-row" style="margin-bottom:14px">
+          <div class="form-group">
+            <label>Mes</label>
+            <select id="objMes" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;width:100%">
+              <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+              <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+              <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+              <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Año</label>
+            <input id="objAnio" type="number" value="" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;width:100%">
+          </div>
+        </div>
+        <div id="objVendedoresList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px"></div>
+        <button class="btn btn-primary" onclick="guardarObjetivos()">💾 Guardar objetivos</button>
       </div>
     </div>
 
@@ -1537,6 +1568,8 @@ async function loadDashboardAdmin() {
         </tr>`).join('');
     }
   } catch(e) { console.error(e); }
+  // Objetivos del mes
+  loadObjetivosAdmin();
 }
 
 async function loadDashboardVendedor() {
@@ -1609,6 +1642,8 @@ async function loadDashboardVendedor() {
       document.getElementById('vDashStockWrap').style.display = 'none';
     }
   } catch(e) { console.error('vDash stock:', e); }
+  // Objetivo del mes
+  loadObjetivoVendedor();
 }
 
 // ==================== CLIENTES ====================
@@ -3422,6 +3457,118 @@ function filterTable(tbodyId, query) {
   rows.forEach(row => {
     row.style.display = row.textContent.toLowerCase().includes(query.toLowerCase()) ? '' : 'none';
   });
+}
+
+// ==================== OBJETIVOS ====================
+async function loadObjetivosConfig() {
+  if (!SUPABASE_URL) return;
+  const now = new Date();
+  document.getElementById('objMes').value = now.getMonth() + 1;
+  document.getElementById('objAnio').value = now.getFullYear();
+  await loadVendedores();
+  await renderObjetivosConfig();
+}
+
+async function renderObjetivosConfig() {
+  const mes = parseInt(document.getElementById('objMes').value);
+  const anio = parseInt(document.getElementById('objAnio').value);
+  const objetivos = await api('objetivos_ventas', 'GET', null, `?mes=eq.${mes}&anio=eq.${anio}`);
+  const container = document.getElementById('objVendedoresList');
+  if (!cachedVendedores.length) { container.innerHTML = '<p style="font-size:13px;color:var(--muted)">No hay vendedores cargados.</p>'; return; }
+  container.innerHTML = cachedVendedores.map(v => {
+    const obj = objetivos.find(o => o.vendedor_id === v.user_id);
+    return `
+    <div style="display:flex;align-items:center;gap:12px">
+      <label style="font-size:13px;font-weight:500;min-width:90px">${v.nombre}</label>
+      <input type="number" id="obj_${v.user_id}" value="${obj?.objetivo || ''}" placeholder="$ objetivo" min="0" step="1000"
+        style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px">
+    </div>`;
+  }).join('');
+}
+
+async function guardarObjetivos() {
+  const mes = parseInt(document.getElementById('objMes').value);
+  const anio = parseInt(document.getElementById('objAnio').value);
+  if (!mes || !anio) { toast('Seleccioná mes y año', 'error'); return; }
+  try {
+    for (const v of cachedVendedores) {
+      const val = parseFloat(document.getElementById(`obj_${v.user_id}`)?.value);
+      if (isNaN(val) || val <= 0) continue;
+      // Upsert: si ya existe lo actualiza, si no lo crea
+      await fetch(`${SUPABASE_URL}/rest/v1/objetivos_ventas`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify({ vendedor_id: v.user_id, mes, anio, objetivo: val })
+      });
+    }
+    toast('Objetivos guardados ✓');
+  } catch(e) { toast('Error al guardar: ' + e.message, 'error'); }
+}
+
+function barraProgreso(actual, objetivo, color = '#F59E0B') {
+  if (!objetivo) return '';
+  const pct = Math.min(100, Math.round((actual / objetivo) * 100));
+  const colorBarra = pct >= 100 ? '#10B981' : pct >= 70 ? '#F59E0B' : '#EF4444';
+  return `
+    <div style="margin-bottom:4px;display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
+      <span>$${actual.toLocaleString('es-AR',{maximumFractionDigits:0})} de $${objetivo.toLocaleString('es-AR',{maximumFractionDigits:0})}</span>
+      <span style="font-weight:600;color:${colorBarra}">${pct}%</span>
+    </div>
+    <div style="height:10px;background:var(--border);border-radius:6px;overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:${colorBarra};border-radius:6px;transition:width .4s ease"></div>
+    </div>`;
+}
+
+async function loadObjetivosAdmin() {
+  if (!SUPABASE_URL) return;
+  const now = new Date();
+  const mes = now.getMonth() + 1;
+  const anio = now.getFullYear();
+  const desde = `${anio}-${String(mes).padStart(2,'0')}-01`;
+  const hasta = `${anio}-${String(mes).padStart(2,'0')}-${new Date(anio, mes, 0).getDate()}`;
+  try {
+    const objetivos = await api('objetivos_ventas', 'GET', null, `?mes=eq.${mes}&anio=eq.${anio}`);
+    if (!objetivos.length) { document.getElementById('dashObjetivosWrap').style.display = 'none'; return; }
+    const ventas = await api('ventas', 'GET', null, `?fecha=gte.${desde}&fecha=lte.${hasta}&select=total,vendedor_id`);
+    const wrap = document.getElementById('dashObjetivosWrap');
+    const contenido = document.getElementById('dashObjetivosContenido');
+    wrap.style.display = '';
+    const mesesNombre = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    contenido.innerHTML = `<p style="font-size:12px;color:var(--muted);margin-bottom:14px">${mesesNombre[mes]} ${anio}</p>` +
+      objetivos.map(o => {
+        const vendedor = cachedVendedores.find(v => v.user_id === o.vendedor_id);
+        const nombre = vendedor?.nombre || '—';
+        const actual = ventas.filter(v => v.vendedor_id === o.vendedor_id).reduce((s, v) => s + parseFloat(v.total || 0), 0);
+        return `<div style="margin-bottom:14px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px">${nombre}</div>
+          ${barraProgreso(actual, o.objetivo)}
+        </div>`;
+      }).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function loadObjetivoVendedor() {
+  if (!SUPABASE_URL) return;
+  const now = new Date();
+  const mes = now.getMonth() + 1;
+  const anio = now.getFullYear();
+  const desde = `${anio}-${String(mes).padStart(2,'0')}-01`;
+  const hasta = `${anio}-${String(mes).padStart(2,'0')}-${new Date(anio, mes, 0).getDate()}`;
+  try {
+    const objetivos = await api('objetivos_ventas', 'GET', null, `?mes=eq.${mes}&anio=eq.${anio}&vendedor_id=eq.${currentUser}`);
+    if (!objetivos.length) { document.getElementById('vDashObjetivoWrap').style.display = 'none'; return; }
+    const ventas = await api('ventas', 'GET', null, `?fecha=gte.${desde}&fecha=lte.${hasta}&vendedor_id=eq.${currentUser}&select=total`);
+    const actual = ventas.reduce((s, v) => s + parseFloat(v.total || 0), 0);
+    const objetivo = objetivos[0].objetivo;
+    const wrap = document.getElementById('vDashObjetivoWrap');
+    const contenido = document.getElementById('vDashObjetivoContenido');
+    wrap.style.display = '';
+    const mesesNombre = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    contenido.innerHTML = `<p style="font-size:12px;color:var(--muted);margin-bottom:10px">${mesesNombre[mes]} ${anio}</p>` + barraProgreso(actual, objetivo);
+  } catch(e) { console.error(e); }
 }
 
 // ==================== MAPA ====================
