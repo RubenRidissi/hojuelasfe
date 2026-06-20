@@ -1058,6 +1058,16 @@ function showSection(name) {
       <div class="form-group"><label>Stock actual</label><input id="productoStock" type="number" min="0" placeholder="0"></div>
       <div class="form-group"><label>Stock mínimo</label><input id="productoStockMin" type="number" min="0" placeholder="0"></div>
     </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal">
+        <input type="checkbox" id="productoTienePromo" onchange="toggleProductoPromo()">
+        Tiene promoción de volumen (ej: 10+1)
+      </label>
+    </div>
+    <div class="form-row" id="productoPromoWrap" style="display:none">
+      <div class="form-group"><label>Paga (cantidad)</label><input id="productoPromoPaga" type="number" min="1" step="1" placeholder="Ej: 10"></div>
+      <div class="form-group"><label>Lleva gratis</label><input id="productoPromoLleva" type="number" min="1" step="1" placeholder="Ej: 1"></div>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalProducto')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveProducto()">Guardar</button>
@@ -1993,6 +2003,10 @@ function calcPrecioProducto() {
   document.getElementById('productoPrecioPreview').textContent = precio > 0 ? `$${precio.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
 }
 
+function toggleProductoPromo() {
+  document.getElementById('productoPromoWrap').style.display = document.getElementById('productoTienePromo').checked ? '' : 'none';
+}
+
 async function saveProducto() {
   const id = document.getElementById('productoId').value;
   calcPrecioProducto(); // asegurar precio calculado antes de guardar
@@ -2008,10 +2022,16 @@ async function saveProducto() {
     precio: parseFloat(document.getElementById('productoPrecio').value) || 0,
     unidad: document.getElementById('productoUnidad').value.trim() || 'unidad',
     stock: parseInt(document.getElementById('productoStock').value) || 0,
-    stock_minimo: parseInt(document.getElementById('productoStockMin').value) || 0
+    stock_minimo: parseInt(document.getElementById('productoStockMin').value) || 0,
+    promo: document.getElementById('productoTienePromo').checked
+      ? `${parseInt(document.getElementById('productoPromoPaga').value) || 0}+${parseInt(document.getElementById('productoPromoLleva').value) || 0}`
+      : null
   };
   if (!data.nombre) { toast('El nombre es obligatorio', 'error'); return; }
   if (!data.codigo) { toast('El código es obligatorio', 'error'); return; }
+  if (document.getElementById('productoTienePromo').checked && data.promo === '0+0') {
+    toast('Completá los valores de la promoción', 'error'); return;
+  }
   try {
     if (id) {
       await api('productos', 'PATCH', data, `?id=eq.${id}`);
@@ -2042,6 +2062,17 @@ function editProducto(id) {
   document.getElementById('productoUnidad').value = p.unidad || '';
   document.getElementById('productoStock').value = p.stock || 0;
   document.getElementById('productoStockMin').value = p.stock_minimo || 0;
+  if (p.promo) {
+    const [paga, lleva] = p.promo.split('+');
+    document.getElementById('productoTienePromo').checked = true;
+    document.getElementById('productoPromoPaga').value = paga;
+    document.getElementById('productoPromoLleva').value = lleva;
+  } else {
+    document.getElementById('productoTienePromo').checked = false;
+    document.getElementById('productoPromoPaga').value = '';
+    document.getElementById('productoPromoLleva').value = '';
+  }
+  toggleProductoPromo();
   calcPrecioProducto();
   openModal('modalProducto');
 }
@@ -2056,8 +2087,10 @@ async function deleteProducto(id) {
 }
 
 function clearProductoForm() {
-  ['productoId','productoCodigo','productoCodigoViejo','productoFamilia','productoVariante','productoNombre','productoDesc','productoCosto','productoMargen','productoUnidad','productoStock','productoStockMin'].forEach(id => document.getElementById(id).value = '');
+  ['productoId','productoCodigo','productoCodigoViejo','productoFamilia','productoVariante','productoNombre','productoDesc','productoCosto','productoMargen','productoUnidad','productoStock','productoStockMin','productoPromoPaga','productoPromoLleva'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('productoPrecioPreview').textContent = '—';
+  document.getElementById('productoTienePromo').checked = false;
+  document.getElementById('productoPromoWrap').style.display = 'none';
   document.getElementById('modalProductoTitle').textContent = 'Nuevo producto';
 }
 
@@ -2477,7 +2510,8 @@ function renderVentaItems() {
   ventaItems.forEach(item => {
     const prod = cachedProductos.find(p => p.id === item.producto_id);
     const costo = parseFloat(prod?.costo || 0);
-    costoTotal += costo * (item.cantidad + (item.bonificado || 0));
+    // Las unidades bonificadas por promo del proveedor no tienen costo para nosotros
+    costoTotal += costo * item.cantidad;
   });
   const total = ventaItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100), 0);
   const totalOriginal = ventaItems.reduce((s, item) => s + item.cantidad * item.precio_unitario, 0);
