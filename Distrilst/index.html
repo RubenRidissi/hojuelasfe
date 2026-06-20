@@ -2182,10 +2182,11 @@ async function loadPedidos() {
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('pedidoFiltroVendedor')?.value || '')
       : currentUser;
-    let q = `?select=id,fecha,fecha_entrega,estado,total,vendedor_id,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    let q = `?select=id,fecha,fecha_entrega,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
     if (estado) q += `&estado=eq.${estado}`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
     const pedidos = await api('pedidos', 'GET', null, q);
+    cachedPedidos = pedidos;
     const isAdmin = currentRol === 'admin';
     // Mostrar/ocultar columna vendedor y filtro (solo admin)
     const thVendedor = document.getElementById('thPedidoVendedor');
@@ -2199,6 +2200,8 @@ async function loadPedidos() {
     if (!pedidos.length) { tbody.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}"><div class="empty"><div class="empty-icon">📋</div><p>No hay pedidos todavía</p></div></td></tr>`; return; }
     tbody.innerHTML = pedidos.map((p, i) => {
       const nombreVendedor = cachedVendedores.find(v => v.user_id === p.vendedor_id)?.nombre || '—';
+      const yaConvertido = !!p.convertido_venta_id;
+      const puedeConvertir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado');
       return `
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(i+1).padStart(3,'0')}</td>
@@ -2208,11 +2211,14 @@ async function loadPedidos() {
         <td>$${parseFloat(p.total||0).toLocaleString('es-AR')}</td>
         ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
         <td style="white-space:nowrap">
-          <select style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" onchange="updateEstadoPedido('${p.id}',this.value)">
-            ${['pendiente','confirmado','entregado','cancelado'].map(e => `<option value="${e}" ${p.estado===e?'selected':''}>${e.charAt(0).toUpperCase()+e.slice(1)}</option>`).join('')}
-          </select>
+          ${yaConvertido
+            ? `<span class="badge badge-green" title="Ya facturado">✓ Facturado</span>`
+            : `<select style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" onchange="updateEstadoPedido('${p.id}',this.value)">
+                ${['pendiente','confirmado','entregado','cancelado'].map(e => `<option value="${e}" ${p.estado===e?'selected':''}>${e.charAt(0).toUpperCase()+e.slice(1)}</option>`).join('')}
+              </select>`}
+          ${puedeConvertir ? `<button class="btn btn-sm btn-success" style="margin-left:4px" onclick="convertirPedidoEnVenta('${p.id}')" title="Convertir en venta">🧾 Convertir</button>` : ''}
           <button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="verComprobante('pedido','${p.id}')">📋</button>
-          ${isAdmin ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
+          ${isAdmin && !yaConvertido ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
       </tr>`;
     }).join('');
@@ -2224,7 +2230,50 @@ async function updateEstadoPedido(id, estado) {
   try {
     await api('pedidos', 'PATCH', { estado }, `?id=eq.${id}`);
     toast('Estado actualizado');
+    loadPedidos();
   } catch(e) { toast('Error', 'error'); }
+}
+
+async function convertirPedidoEnVenta(pedidoId) {
+  const pedido = cachedPedidos.find(p => p.id === pedidoId);
+  if (!pedido) { toast('Pedido no encontrado', 'error'); return; }
+  if (pedido.convertido_venta_id) { toast('Este pedido ya fue convertido', 'error'); return; }
+
+  if (!confirm(`¿Convertir este pedido en venta?\n\nCliente: ${nombreCliente(pedido.clientes)}\nTotal: $${parseFloat(pedido.total||0).toLocaleString('es-AR')}\n\nEsto va a descontar stock y generar una venta con fecha de hoy.`)) return;
+
+  try {
+    // Traer los ítems del pedido
+    const items = await api('pedido_items', 'GET', null, `?pedido_id=eq.${pedidoId}&select=producto_id,cantidad,precio_unitario`);
+    if (!items.length) { toast('El pedido no tiene productos', 'error'); return; }
+
+    const hoy = new Date().toISOString().split('T')[0];
+    // Crear la venta
+    const [venta] = await api('ventas', 'POST', {
+      cliente_id: pedido.cliente_id,
+      fecha: hoy,
+      notas: (pedido.notas || '') + ' | Generada desde pedido',
+      total: pedido.total,
+      vendedor_id: pedido.vendedor_id,
+      estado_pago: 'pendiente'
+    });
+
+    // Crear venta_items y descontar stock por cada uno
+    await Promise.all(items.map(item =>
+      Promise.all([
+        api('venta_items', 'POST', { venta_id: venta.id, producto_id: item.producto_id, cantidad: item.cantidad, precio_unitario: item.precio_unitario }),
+        api('stock_movimientos', 'POST', { producto_id: item.producto_id, tipo: 'salida', origen: 'venta', cantidad: -item.cantidad, referencia_id: venta.id, notas: `Venta #${venta.id.substring(0,8)} (desde pedido)`, fecha: hoy })
+      ])
+    ));
+
+    // Marcar el pedido como convertido
+    await api('pedidos', 'PATCH', { convertido_venta_id: venta.id, estado: 'entregado' }, `?id=eq.${pedidoId}`);
+
+    toast('Pedido convertido en venta ✓');
+    loadPedidos();
+    loadDashboard();
+  } catch(e) {
+    toast('Error al convertir: ' + e.message, 'error');
+  }
 }
 
 function populateSelects() {
@@ -2386,6 +2435,11 @@ async function deleteVenta(id, nombreCliente) {
 }
 
 async function deletePedido(id, nombreCliente) {
+  const pedido = cachedPedidos.find(p => p.id === id);
+  if (pedido?.convertido_venta_id) {
+    toast('Este pedido ya fue facturado y no se puede borrar. Borrá la venta asociada si corresponde.', 'error');
+    return;
+  }
   if (!confirm('Borrar este pedido?\n\nCliente: ' + nombreCliente + '\n\nSe eliminarán también los ítems asociados. Esta acción no se puede deshacer.')) return;
   try {
     await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
@@ -2971,6 +3025,7 @@ let SUPABASE_URL = localStorage.getItem('sb_url') || '';
 let SUPABASE_KEY = localStorage.getItem('sb_key') || '';
 
 let cachedClientes = [];
+let cachedPedidos = [];
 let cachedVendedores = []; // { user_id, nombre }
 
 // Formato de nombre de cliente: "Razón Social (Fantasía)" o solo "Razón Social"
