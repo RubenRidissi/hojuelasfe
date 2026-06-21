@@ -2634,7 +2634,7 @@ async function loadVentas() {
           <div>🧾 ${v.fecha}</div>
           <div style="color:${v.fecha_entrega_real ? 'var(--success)' : 'var(--muted)'};display:flex;align-items:center;gap:4px">
             ${v.fecha_entrega_real ? '✓ Entregado: ' + v.fecha_entrega_real : 'Sin entregar'}
-            <span style="cursor:pointer" onclick="editarFechaEntregaVenta('${v.id}','${v.fecha_entrega_real||''}')" title="Editar fecha real de entrega">✏</span>
+            ${v.fecha_entrega_real ? `<span style="cursor:pointer" onclick="editarFechaEntregaVenta('${v.id}','${v.fecha_entrega_real||''}')" title="Editar fecha real de entrega">✏</span>` : ''}
           </div>
         </td>
         <td>$${parseFloat(v.total||0).toLocaleString('es-AR')}</td>
@@ -2642,6 +2642,7 @@ async function loadVentas() {
         ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
         <td style="white-space:nowrap">
           ${v.estado_pago !== 'pagado' ? `<button class="btn btn-sm btn-success" onclick="marcarPagado('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}',${v.total})">Cobrar</button>` : '<span class="badge badge-green">Pagado</span>'}
+          ${!v.fecha_entrega_real ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="editarFechaEntregaVenta('${v.id}','')" title="Marcar como entregado">📦 Entregar</button>` : ''}
           <button class="btn btn-sm btn-secondary" onclick="verComprobante('venta','${v.id}')">🧾</button>
           ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="deleteVenta('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
