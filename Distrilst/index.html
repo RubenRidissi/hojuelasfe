@@ -244,6 +244,7 @@ function showSection(name) {
     if (typeof loadProductos === 'function' && name === 'productos') loadProductos();
     if (typeof loadPedidos === 'function' && name === 'pedidos') loadPedidos();
     if (typeof loadVentas === 'function' && name === 'ventas') loadVentas();
+    if (name === 'remitos') loadRemitos();
     if (typeof loadPagos === 'function' && name === 'pagos') loadPagos();
     if (typeof loadStock === 'function' && name === 'stock') loadStock();
     if (name === 'mapa') loadMapa();
@@ -313,6 +314,9 @@ function showSection(name) {
       </div>
       <div class="nav-item" onclick="showSection('ventas')">
         <span class="nav-icon">🧾</span><span>Ventas</span>
+      </div>
+      <div class="nav-item" onclick="showSection('remitos')">
+        <span class="nav-icon">🚚</span><span>Remitos</span>
       </div>
       <div class="nav-item" onclick="showSection('pagos')">
         <span class="nav-icon">💰</span><span>Pagos</span>
@@ -569,6 +573,35 @@ function showSection(name) {
           <table>
             <thead><tr><th>N°</th><th>Cliente</th><th>Facturación / Entrega</th><th>Total</th><th>Pago</th><th id="thVentaVendedor" style="display:none">Vendedor</th><th>Acciones</th></tr></thead>
             <tbody id="tablaVentas"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- REMITOS -->
+    <div id="sec-remitos" class="section">
+      <div class="page-header">
+        <h1 class="page-title">🚚 Remitos</h1>
+        <div class="page-header-actions" style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="exportarExcel('remitos')">📥 Excel</button>
+        </div>
+      </div>
+      <div class="search-bar">
+        <input class="search-input" type="text" id="searchRemitos" placeholder="Buscar por cliente..." oninput="filterTable('tablaRemitos',this.value)">
+        <select id="remitoFiltroOrigen" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadRemitos()">
+          <option value="">Todos los orígenes</option>
+          <option value="pedido">Desde Pedido</option>
+          <option value="venta">Desde Venta</option>
+        </select>
+        <select id="remitoFiltroVendedor" style="display:none;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadRemitos()">
+          <option value="">Todos los vendedores</option>
+        </select>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>N° Remito</th><th>Cliente</th><th>Origen</th><th>Fecha generado</th><th>Entrega real</th><th>Total</th><th id="thRemitoVendedor" style="display:none">Vendedor</th><th></th></tr></thead>
+            <tbody id="tablaRemitos"><tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -2238,6 +2271,50 @@ async function aplicarActualizacionMasiva() {
 }
 
 // ==================== PEDIDOS ====================
+async function loadRemitos() {
+  if (!SUPABASE_URL) return;
+  try {
+    await loadVendedores();
+    await ensureCache();
+    const origenFiltro = document.getElementById('remitoFiltroOrigen')?.value || '';
+    const vendedorId = currentRol === 'admin'
+      ? (document.getElementById('remitoFiltroVendedor')?.value || '')
+      : currentUser;
+    let q = '?select=*&order=numero.desc';
+    if (origenFiltro) q += `&origen_tipo=eq.${origenFiltro}`;
+    if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
+    const remitos = await api('remitos', 'GET', null, q);
+    const isAdmin = currentRol === 'admin';
+    const thVendedor = document.getElementById('thRemitoVendedor');
+    const filtroVendedor = document.getElementById('remitoFiltroVendedor');
+    if (thVendedor) thVendedor.style.display = isAdmin ? '' : 'none';
+    if (filtroVendedor) {
+      filtroVendedor.style.display = isAdmin ? '' : 'none';
+      if (isAdmin && filtroVendedor.options.length <= 1) poblarSelectVendedor('remitoFiltroVendedor');
+    }
+    const tbody = document.getElementById('tablaRemitos');
+    if (!remitos.length) { tbody.innerHTML = `<tr><td colspan="${isAdmin ? 8 : 7}"><div class="empty"><div class="empty-icon">🚚</div><p>No hay remitos generados todavía</p></div></td></tr>`; return; }
+    tbody.innerHTML = remitos.map(r => {
+      const cliente = cachedClientes.find(c => c.id === r.cliente_id);
+      const nombreVendedor = cachedVendedores.find(v => v.user_id === r.vendedor_id)?.nombre || '—';
+      const origenBadge = r.origen_tipo === 'pedido'
+        ? `<span class="badge badge-yellow">📋 Pedido</span>`
+        : `<span class="badge badge-green">🧾 Venta</span>`;
+      return `
+      <tr>
+        <td style="font-weight:600">#${String(r.numero).padStart(6,'0')}</td>
+        <td>${cliente ? nombreCliente(cliente) : '—'}</td>
+        <td>${origenBadge}</td>
+        <td style="font-size:12px">${new Date(r.fecha_generado+'T00:00:00').toLocaleDateString('es-AR')}</td>
+        <td style="font-size:12px;color:${r.fecha_entrega_real ? 'var(--success)' : 'var(--muted)'}">${r.fecha_entrega_real ? '✓ ' + new Date(r.fecha_entrega_real+'T00:00:00').toLocaleDateString('es-AR') : 'Sin entregar'}</td>
+        <td>$${parseFloat(r.total||0).toLocaleString('es-AR')}</td>
+        ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
+        <td><button class="btn btn-sm btn-secondary" onclick="verRemito('${r.origen_tipo}','${r.origen_id}')" title="Ver remito">👁 Ver</button></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { console.error(e); toast('Error cargando remitos', 'error'); }
+}
+
 async function loadPedidos() {
   if (!SUPABASE_URL) return;
   try {
@@ -2246,11 +2323,15 @@ async function loadPedidos() {
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('pedidoFiltroVendedor')?.value || '')
       : currentUser;
-    let q = `?select=id,fecha,fecha_entrega,fecha_entrega_real,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,remito_generado,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    let q = `?select=id,fecha,fecha_entrega,fecha_entrega_real,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
     if (estado) q += `&estado=eq.${estado}`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
     const pedidos = await api('pedidos', 'GET', null, q);
     cachedPedidos = pedidos;
+    // Traer todos los remitos existentes para saber cuáles pedidos ya tienen uno (directo o vía la venta relacionada)
+    const idsRelevantes = [...pedidos.map(p => p.id), ...pedidos.filter(p => p.convertido_venta_id).map(p => p.convertido_venta_id)];
+    const remitosExistentes = idsRelevantes.length ? await api('remitos', 'GET', null, `?origen_id=in.(${idsRelevantes.join(',')})&select=origen_id`) : [];
+    const origenesConRemito = new Set(remitosExistentes.map(r => r.origen_id));
     const isAdmin = currentRol === 'admin';
     // Mostrar/ocultar columna vendedor y filtro (solo admin)
     const thVendedor = document.getElementById('thPedidoVendedor');
@@ -2266,6 +2347,8 @@ async function loadPedidos() {
       const nombreVendedor = cachedVendedores.find(v => v.user_id === p.vendedor_id)?.nombre || '—';
       const yaConvertido = !!p.convertido_venta_id;
       const puedeConvertir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado');
+      const puedeRemitir = p.estado === 'confirmado' || p.estado === 'entregado';
+      const tieneRemito = origenesConRemito.has(p.id) || (yaConvertido && origenesConRemito.has(p.convertido_venta_id));
       return `
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(i+1).padStart(3,'0')}</td>
@@ -2284,14 +2367,14 @@ async function loadPedidos() {
           ${yaConvertido
             ? `<span class="badge badge-green" title="Ya facturado">✓ Facturado</span>`
             : `<select style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" onchange="updateEstadoPedido('${p.id}',this.value)">
-                ${['pendiente','confirmado','entregado','cancelado'].map(e => `<option value="${e}" ${p.estado===e?'selected':''}>${e.charAt(0).toUpperCase()+e.slice(1)}</option>`).join('')}
+                ${['pendiente','confirmado','entregado','cancelado'].filter(e => !(p.estado === 'pendiente' && e === 'entregado')).map(e => `<option value="${e}" ${p.estado===e?'selected':''}>${e.charAt(0).toUpperCase()+e.slice(1)}</option>`).join('')}
               </select>`}
           ${puedeConvertir ? `<button class="btn btn-sm btn-success" style="margin-left:4px" onclick="convertirPedidoEnVenta('${p.id}')" title="Convertir en venta">🧾 Convertir</button>` : ''}
           ${p.estado === 'pendiente' && !yaConvertido ? `<button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="editPedido('${p.id}')" title="Editar pedido">✏</button>` : ''}
           <button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="verComprobante('pedido','${p.id}')" title="Ver comprobante">📋</button>
-          ${p.remito_generado
+          ${tieneRemito
             ? `<button class="btn btn-sm" style="margin-left:4px;background:#F3F4F6;color:#374151" onclick="verRemito('pedido','${p.id}')" title="Ver remito generado">👁 Remito</button>`
-            : `<button class="btn btn-sm" style="margin-left:4px;background:#FEF3C7;color:#92400E" onclick="imprimirRemito('pedido','${p.id}')" title="Imprimir remito de entrega">🚚</button>`
+            : (puedeRemitir ? `<button class="btn btn-sm" style="margin-left:4px;background:#FEF3C7;color:#92400E" onclick="imprimirRemito('pedido','${p.id}')" title="Imprimir remito de entrega">🚚</button>` : '')
           }
           ${isAdmin ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
@@ -2387,8 +2470,10 @@ function convertirPedidoEnVenta(pedidoId) {
 
   const yaTieneFecha = !!pedido.fecha_entrega_real;
   document.getElementById('convertirYaEntregado').checked = yaTieneFecha;
+  document.getElementById('convertirYaEntregado').disabled = yaTieneFecha;
   document.getElementById('convertirFechaInput').value = pedido.fecha_entrega_real || new Date().toISOString().split('T')[0];
   document.getElementById('convertirFechaWrap').style.display = yaTieneFecha ? '' : 'none';
+  document.getElementById('convertirFechaInput').disabled = yaTieneFecha;
 
   openModal('modalConvertirVenta');
 }
@@ -2412,15 +2497,17 @@ async function confirmarConvertirPedidoEnVenta() {
     if (!items.length) { toast('El pedido no tiene productos', 'error'); return; }
 
     const hoy = new Date().toISOString().split('T')[0];
-    // Crear la venta
-    const [venta] = await api('ventas', 'POST', {
+    // Crear la venta (incluyendo la fecha de entrega real si ya se conoce)
+    const dataVenta = {
       cliente_id: pedido.cliente_id,
       fecha: hoy,
       notas: (pedido.notas || '') + ' | Generada desde pedido',
       total: pedido.total,
       vendedor_id: pedido.vendedor_id,
       estado_pago: 'pendiente'
-    });
+    };
+    if (fechaEntregaReal) dataVenta.fecha_entrega_real = fechaEntregaReal;
+    const [venta] = await api('ventas', 'POST', dataVenta);
 
     // Crear venta_items y descontar stock por cada uno (cantidad pagada + bonificada)
     await Promise.all(items.map(item => {
@@ -2685,10 +2772,16 @@ async function loadVentas() {
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('ventaFiltroVendedor')?.value || '')
       : currentUser;
-    let q = `?select=id,fecha,fecha_entrega_real,total,estado_pago,vendedor_id,remito_generado,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    let q = `?select=id,fecha,fecha_entrega_real,total,estado_pago,vendedor_id,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
     const ventas = await api('ventas', 'GET', null, q);
     cachedVentas = ventas;
+    // Buscar pedidos que se hayan convertido en alguna de estas ventas, para considerar el remito relacionado
+    const ventaIds = ventas.map(v => v.id);
+    const pedidosRelacionados = ventaIds.length ? await api('pedidos', 'GET', null, `?convertido_venta_id=in.(${ventaIds.join(',')})&select=id,convertido_venta_id`) : [];
+    const idsRelevantes = [...ventaIds, ...pedidosRelacionados.map(p => p.id)];
+    const remitosExistentes = idsRelevantes.length ? await api('remitos', 'GET', null, `?origen_id=in.(${idsRelevantes.join(',')})&select=origen_id`) : [];
+    const origenesConRemito = new Set(remitosExistentes.map(r => r.origen_id));
     const isAdmin = currentRol === 'admin';
     // Mostrar/ocultar columna vendedor y filtro (solo admin)
     const thVendedor = document.getElementById('thVentaVendedor');
@@ -2702,6 +2795,8 @@ async function loadVentas() {
     if (!ventas.length) { tbody.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}"><div class="empty"><div class="empty-icon">🧾</div><p>No hay ventas todavía</p></div></td></tr>`; return; }
     tbody.innerHTML = ventas.map((v, i) => {
       const nombreVendedor = cachedVendedores.find(vv => vv.user_id === v.vendedor_id)?.nombre || '—';
+      const pedidoRelacionado = pedidosRelacionados.find(p => p.convertido_venta_id === v.id);
+      const tieneRemito = origenesConRemito.has(v.id) || (pedidoRelacionado && origenesConRemito.has(pedidoRelacionado.id));
       return `
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(i+1).padStart(3,'0')}</td>
@@ -2720,7 +2815,7 @@ async function loadVentas() {
           ${v.estado_pago !== 'pagado' ? `<button class="btn btn-sm btn-success" onclick="marcarPagado('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}',${v.total})">Cobrar</button>` : '<span class="badge badge-green">Pagado</span>'}
           ${!v.fecha_entrega_real ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="editarFechaEntregaVenta('${v.id}','')" title="Marcar como entregado">📦 Entregar</button>` : ''}
           <button class="btn btn-sm btn-secondary" onclick="verComprobante('venta','${v.id}')" title="Ver comprobante">🧾</button>
-          ${v.remito_generado
+          ${tieneRemito
             ? `<button class="btn btn-sm" style="background:#F3F4F6;color:#374151" onclick="verRemito('venta','${v.id}')" title="Ver remito generado">👁 Remito</button>`
             : `<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E" onclick="imprimirRemito('venta','${v.id}')" title="Imprimir remito de entrega">🚚</button>`
           }
@@ -4490,24 +4585,36 @@ function buildComprobanteVenta(v) {
   return html;
 }
 
-async function obtenerProximoNumeroRemito() {
-  const [pedidosMax] = await api('pedidos', 'GET', null, '?remito_numero=not.is.null&select=remito_numero&order=remito_numero.desc&limit=1');
-  const [ventasMax] = await api('ventas', 'GET', null, '?remito_numero=not.is.null&select=remito_numero&order=remito_numero.desc&limit=1');
-  const maxActual = Math.max(pedidosMax?.remito_numero || 0, ventasMax?.remito_numero || 0);
-  return maxActual + 1;
+async function buscarRemitoExistente(tipo, id) {
+  // Busca un remito ya generado para este pedido/venta, considerando también el origen relacionado
+  let origenIds = [id];
+  if (tipo === 'pedido') {
+    const pedido = cachedPedidos.find(p => p.id === id);
+    if (pedido?.convertido_venta_id) origenIds.push(pedido.convertido_venta_id);
+  } else {
+    const pedidoOrigen = await api('pedidos', 'GET', null, `?convertido_venta_id=eq.${id}&select=id`);
+    if (pedidoOrigen.length) origenIds.push(pedidoOrigen[0].id);
+  }
+  for (const oid of origenIds) {
+    const remitos = await api('remitos', 'GET', null, `?origen_id=eq.${oid}&select=*&limit=1`);
+    if (remitos.length) return remitos[0];
+  }
+  return null;
 }
 
 async function verRemito(tipo, id) {
   try {
+    const remito = await buscarRemitoExistente(tipo, id);
+    if (!remito) { toast('No se encontró el remito', 'error'); return; }
     let datos;
     if (tipo === 'venta') {
-      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,fecha_entrega_real,estado_pago,notas,remito_numero,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,fecha_entrega_real,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
       if (!v) { toast('No se encontró la venta', 'error'); return; }
-      datos = { fecha_entrega: v.fecha, fecha_entrega_real: v.fecha_entrega_real, estado: v.estado_pago === 'pagado' ? 'Facturada y pagada' : 'Facturada', notas: v.notas, clientes: v.clientes, items: v.venta_items, remito_numero: v.remito_numero };
+      datos = { fecha_entrega: v.fecha, fecha_entrega_real: v.fecha_entrega_real, estado: v.estado_pago === 'pagado' ? 'Facturada y pagada' : 'Facturada', notas: v.notas, clientes: v.clientes, items: v.venta_items, remito_numero: remito.numero };
     } else {
-      const [p] = await api('pedidos', 'GET', null, '?select=id,fecha_entrega,fecha_entrega_real,estado,notas,remito_numero,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      const [p] = await api('pedidos', 'GET', null, '?select=id,fecha_entrega,fecha_entrega_real,estado,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
       if (!p) { toast('No se encontró el pedido', 'error'); return; }
-      datos = { fecha_entrega: p.fecha_entrega, fecha_entrega_real: p.fecha_entrega_real, estado: p.estado.charAt(0).toUpperCase() + p.estado.slice(1), notas: p.notas, clientes: p.clientes, items: p.pedido_items, remito_numero: p.remito_numero };
+      datos = { fecha_entrega: p.fecha_entrega, fecha_entrega_real: p.fecha_entrega_real, estado: p.estado.charAt(0).toUpperCase() + p.estado.slice(1), notas: p.notas, clientes: p.clientes, items: p.pedido_items, remito_numero: remito.numero };
     }
     document.getElementById('compModalTitle').textContent = 'Remito de Entrega';
     document.getElementById('compContenido').innerHTML = buildRemitoEntrega(datos);
@@ -4517,33 +4624,33 @@ async function verRemito(tipo, id) {
 
 async function imprimirRemito(tipo, id) {
   try {
-    const numero = await obtenerProximoNumeroRemito();
-    let datos;
+    // Si ya existe un remito para este origen (o su relacionado), simplemente lo mostramos
+    const existente = await buscarRemitoExistente(tipo, id);
+    if (existente) { await verRemito(tipo, id); return; }
+
+    let datos, clienteId, vendedorId, total;
     if (tipo === 'venta') {
-      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,fecha_entrega_real,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,fecha_entrega_real,estado_pago,notas,cliente_id,vendedor_id,total,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
       if (!v) { toast('No se encontró la venta', 'error'); return; }
-      datos = { fecha_entrega: v.fecha, fecha_entrega_real: v.fecha_entrega_real, estado: v.estado_pago === 'pagado' ? 'Facturada y pagada' : 'Facturada', notas: v.notas, clientes: v.clientes, items: v.venta_items, remito_numero: numero };
-      await api('ventas', 'PATCH', { remito_generado: true, remito_numero: numero }, `?id=eq.${id}`);
-      // Si esta venta vino de un pedido convertido, sincronizar el mismo remito ahí también
-      try {
-        const pedidoOrigen = await api('pedidos', 'GET', null, `?convertido_venta_id=eq.${id}&select=id`);
-        if (pedidoOrigen.length) {
-          await api('pedidos', 'PATCH', { remito_generado: true, remito_numero: numero }, `?id=eq.${pedidoOrigen[0].id}`);
-        }
-      } catch(e) { console.error('No se pudo sincronizar el remito en el pedido origen:', e.message); }
+      datos = { fecha_entrega: v.fecha, fecha_entrega_real: v.fecha_entrega_real, estado: v.estado_pago === 'pagado' ? 'Facturada y pagada' : 'Facturada', notas: v.notas, clientes: v.clientes, items: v.venta_items };
+      clienteId = v.cliente_id; vendedorId = v.vendedor_id; total = v.total;
     } else {
-      const [p] = await api('pedidos', 'GET', null, '?select=id,fecha_entrega,fecha_entrega_real,estado,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      const [p] = await api('pedidos', 'GET', null, '?select=id,fecha_entrega,fecha_entrega_real,estado,notas,cliente_id,vendedor_id,total,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
       if (!p) { toast('No se encontró el pedido', 'error'); return; }
-      datos = { fecha_entrega: p.fecha_entrega, fecha_entrega_real: p.fecha_entrega_real, estado: p.estado.charAt(0).toUpperCase() + p.estado.slice(1), notas: p.notas, clientes: p.clientes, items: p.pedido_items, remito_numero: numero };
-      await api('pedidos', 'PATCH', { remito_generado: true, remito_numero: numero }, `?id=eq.${id}`);
-      // Si este pedido ya fue convertido en venta, sincronizar el mismo remito ahí también
-      try {
-        const pedido = cachedPedidos.find(x => x.id === id);
-        if (pedido?.convertido_venta_id) {
-          await api('ventas', 'PATCH', { remito_generado: true, remito_numero: numero }, `?id=eq.${pedido.convertido_venta_id}`);
-        }
-      } catch(e) { console.error('No se pudo sincronizar el remito en la venta relacionada:', e.message); }
+      datos = { fecha_entrega: p.fecha_entrega, fecha_entrega_real: p.fecha_entrega_real, estado: p.estado.charAt(0).toUpperCase() + p.estado.slice(1), notas: p.notas, clientes: p.clientes, items: p.pedido_items };
+      clienteId = p.cliente_id; vendedorId = p.vendedor_id; total = p.total;
     }
+
+    // Calcular el próximo número correlativo
+    const [ultimoRemito] = await api('remitos', 'GET', null, '?select=numero&order=numero.desc&limit=1');
+    const numero = (ultimoRemito?.numero || 0) + 1;
+
+    await api('remitos', 'POST', {
+      numero, origen_tipo: tipo, origen_id: id, cliente_id: clienteId, vendedor_id: vendedorId,
+      fecha_entrega_real: datos.fecha_entrega_real || null, total
+    });
+
+    datos.remito_numero = numero;
     document.getElementById('compModalTitle').textContent = 'Remito de Entrega';
     document.getElementById('compContenido').innerHTML = buildRemitoEntrega(datos);
     document.getElementById('modalComprobante').classList.add('open');
@@ -4776,6 +4883,25 @@ async function exportarExcel(seccion) {
           'Medio de pago': p.medio_pago || '',
           'Notas': p.notas || '',
           'Vendedor': cachedVendedores.find(v => v.user_id === p.vendedor_id)?.nombre || ''
+        };
+      });
+    }
+
+    else if (seccion === 'remitos') {
+      const filtro = currentRol === 'admin'
+        ? '?order=numero.desc'
+        : `?order=numero.desc&vendedor_id=eq.${currentUser}`;
+      const data = await api('remitos', 'GET', null, filtro);
+      filas = data.map(r => {
+        const cliente = cachedClientes.find(c => c.id === r.cliente_id);
+        return {
+          'N° Remito': r.numero,
+          'Cliente': cliente ? nombreCliente(cliente) : '',
+          'Origen': r.origen_tipo === 'pedido' ? 'Pedido' : 'Venta',
+          'Fecha generado': r.fecha_generado ? new Date(r.fecha_generado).toLocaleDateString('es-AR') : '',
+          'Fecha entrega real': r.fecha_entrega_real ? new Date(r.fecha_entrega_real).toLocaleDateString('es-AR') : '',
+          'Total': r.total || 0,
+          'Vendedor': cachedVendedores.find(v => v.user_id === r.vendedor_id)?.nombre || ''
         };
       });
     }
