@@ -655,7 +655,7 @@ function showSection(name) {
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>Fecha</th><th>Pedido asociado</th><th>Remito proveedor</th><th>Total</th><th></th></tr></thead>
+            <thead><tr><th>N°</th><th>Fecha real recepción</th><th>Pedido asociado</th><th>Remito proveedor</th><th>Total</th><th></th></tr></thead>
             <tbody id="tablaRecepciones"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
@@ -1255,7 +1255,23 @@ function showSection(name) {
 
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalRecepcion')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveRecepcion()">Registrar recepción</button>
+      <button class="btn btn-primary" onclick="abrirModalFechaRecepcionReal()">Registrar recepción</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL FECHA RECEPCIÓN REAL -->
+<div class="modal-backdrop" id="modalFechaRecepcionReal">
+  <div class="modal" style="max-width:380px">
+    <h3 class="modal-title">📅 Fecha real de recepción</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">¿Qué día llegó físicamente esta mercadería?</p>
+    <div class="form-group">
+      <label>Fecha de recepción</label>
+      <input type="date" id="fechaRecepcionRealInput">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalFechaRecepcionReal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarGuardarRecepcion()">Confirmar y guardar</button>
     </div>
   </div>
 </div>
@@ -4426,7 +4442,7 @@ async function loadRecepciones() {
     tbody.innerHTML = recepciones.map(r => `
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(r.numero).padStart(4,'0')}</td>
-        <td style="font-size:12px">${new Date(r.fecha+'T00:00:00').toLocaleDateString('es-AR')}</td>
+        <td style="font-size:12px">${r.fecha_recepcion_real ? new Date(r.fecha_recepcion_real+'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
         <td>${r.pedidos_proveedor ? `Pedido #${String(r.pedidos_proveedor.numero).padStart(4,'0')}` : '<span style="color:var(--muted)">Suelta (sin pedido)</span>'}</td>
         <td style="font-size:12px">${r.remito_proveedor || '—'}</td>
         <td>$${parseFloat(r.total||0).toLocaleString('es-AR')}</td>
@@ -4535,7 +4551,16 @@ function renderRecepItems() {
   document.getElementById('recepTotal').textContent = '$' + total.toLocaleString('es-AR');
 }
 
-async function saveRecepcion() {
+function abrirModalFechaRecepcionReal() {
+  if (!recepItems.length) { toast('Agregá al menos un producto recibido', 'error'); return; }
+  document.getElementById('fechaRecepcionRealInput').value = document.getElementById('recepFecha').value || new Date().toISOString().split('T')[0];
+  openModal('modalFechaRecepcionReal');
+}
+
+async function confirmarGuardarRecepcion() {
+  const fechaRecepcionReal = document.getElementById('fechaRecepcionRealInput').value;
+  if (!fechaRecepcionReal) { toast('Elegí la fecha de recepción', 'error'); return; }
+
   const pedidoProveedorId = document.getElementById('recepPedidoId').value || null;
   const fecha = document.getElementById('recepFecha').value;
   const remitoProveedor = document.getElementById('recepRemitoProveedor').value.trim();
@@ -4544,13 +4569,14 @@ async function saveRecepcion() {
   const total = recepItems.reduce((s, i) => s + i.cantidad * i.costo_unitario, 0);
   try {
     const [recepcion] = await api('recepciones', 'POST', {
-      pedido_proveedor_id: pedidoProveedorId, fecha, remito_proveedor: remitoProveedor || null, notas, total
+      pedido_proveedor_id: pedidoProveedorId, fecha, fecha_recepcion_real: fechaRecepcionReal, remito_proveedor: remitoProveedor || null, notas, total
     });
     await Promise.all(recepItems.map(item => Promise.all([
       api('recepcion_items', 'POST', { recepcion_id: recepcion.id, producto_id: item.producto_id, cantidad: item.cantidad, costo_unitario: item.costo_unitario }),
-      api('stock_movimientos', 'POST', { producto_id: item.producto_id, tipo: 'entrada', origen: 'recepcion_proveedor', cantidad: item.cantidad, referencia_id: recepcion.id, notas: `Recepción #${String(recepcion.numero).padStart(4,'0')}${remitoProveedor ? ' (remito '+remitoProveedor+')' : ''}`, fecha })
+      api('stock_movimientos', 'POST', { producto_id: item.producto_id, tipo: 'entrada', origen: 'reposicion', cantidad: item.cantidad, referencia_id: recepcion.id, notas: `Recepción #${String(recepcion.numero).padStart(4,'0')}${remitoProveedor ? ' (remito '+remitoProveedor+')' : ''}`, fecha: fechaRecepcionReal })
     ])));
     toast('Recepción registrada y stock actualizado ✓');
+    closeModal('modalFechaRecepcionReal');
     closeModal('modalRecepcion');
     loadRecepciones();
     if (typeof loadPedidosProveedor === 'function') loadPedidosProveedor();
@@ -4573,6 +4599,7 @@ function buildRecepcionDoc(r, items) {
   html += '<div class="comp-datos">' +
     '<div><span>Pedido asociado</span><strong>' + (r.pedidos_proveedor ? `#${String(r.pedidos_proveedor.numero).padStart(4,'0')} — ${r.pedidos_proveedor.proveedor}` : 'Sin pedido (suelta)') + '</strong></div>' +
     '<div><span>Remito proveedor</span><strong>' + (r.remito_proveedor || '—') + '</strong></div>' +
+    '<div><span>Fecha real de recepción</span><strong>' + (r.fecha_recepcion_real ? new Date(r.fecha_recepcion_real+'T00:00:00').toLocaleDateString('es-AR') : '—') + '</strong></div>' +
     '</div>';
   html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
   items.forEach(item => {
