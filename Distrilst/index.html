@@ -2274,7 +2274,7 @@ async function convertirPedidoEnVenta(pedidoId) {
 
   try {
     // Traer los ítems del pedido
-    const items = await api('pedido_items', 'GET', null, `?pedido_id=eq.${pedidoId}&select=producto_id,cantidad,precio_unitario`);
+    const items = await api('pedido_items', 'GET', null, `?pedido_id=eq.${pedidoId}&select=producto_id,cantidad,bonificado,precio_unitario`);
     if (!items.length) { toast('El pedido no tiene productos', 'error'); return; }
 
     const hoy = new Date().toISOString().split('T')[0];
@@ -2288,13 +2288,14 @@ async function convertirPedidoEnVenta(pedidoId) {
       estado_pago: 'pendiente'
     });
 
-    // Crear venta_items y descontar stock por cada uno
-    await Promise.all(items.map(item =>
-      Promise.all([
-        api('venta_items', 'POST', { venta_id: venta.id, producto_id: item.producto_id, cantidad: item.cantidad, precio_unitario: item.precio_unitario }),
-        api('stock_movimientos', 'POST', { producto_id: item.producto_id, tipo: 'salida', origen: 'venta', cantidad: -item.cantidad, referencia_id: venta.id, notas: `Venta #${venta.id.substring(0,8)} (desde pedido)`, fecha: hoy })
-      ])
-    ));
+    // Crear venta_items y descontar stock por cada uno (cantidad pagada + bonificada)
+    await Promise.all(items.map(item => {
+      const cantTotal = item.cantidad + (item.bonificado || 0);
+      return Promise.all([
+        api('venta_items', 'POST', { venta_id: venta.id, producto_id: item.producto_id, cantidad: item.cantidad, bonificado: item.bonificado || 0, precio_unitario: item.precio_unitario }),
+        api('stock_movimientos', 'POST', { producto_id: item.producto_id, tipo: 'salida', origen: 'venta', cantidad: -cantTotal, referencia_id: venta.id, notas: `Venta #${venta.id.substring(0,8)} (desde pedido)`, fecha: hoy })
+      ]);
+    }));
 
     // Marcar el pedido como convertido. Solo pasa a "entregado" si ya hay fecha real.
     const patchPedido = { convertido_venta_id: venta.id };
@@ -2447,8 +2448,7 @@ async function savePedido() {
     const [pedido] = await api('pedidos', 'POST', { cliente_id: clienteId, fecha_entrega: fechaEntrega || null, notas: notaFinal, total, vendedor_id: currentUser });
     await Promise.all(pedidoItems.map(item => {
       const precioConDesc = item.precio_unitario * (1 - descPct / 100);
-      const cantTotal = item.cantidad + (item.bonificado || 0);
-      return api('pedido_items', 'POST', { pedido_id: pedido.id, producto_id: item.producto_id, cantidad: cantTotal, precio_unitario: precioConDesc });
+      return api('pedido_items', 'POST', { pedido_id: pedido.id, producto_id: item.producto_id, cantidad: item.cantidad, bonificado: item.bonificado || 0, precio_unitario: precioConDesc });
     }));
     toast('Pedido creado');
     closeModal('modalPedido');
@@ -2650,7 +2650,7 @@ async function saveVenta() {
       const precioConDesc = item.precio_unitario * (1 - descPct / 100);
       const cantTotal = item.cantidad + (item.bonificado || 0);
       return Promise.all([
-        api('venta_items', 'POST', { venta_id: venta.id, producto_id: item.producto_id, cantidad: cantTotal, precio_unitario: precioConDesc }),
+        api('venta_items', 'POST', { venta_id: venta.id, producto_id: item.producto_id, cantidad: item.cantidad, bonificado: item.bonificado || 0, precio_unitario: precioConDesc }),
         api('stock_movimientos', 'POST', { producto_id: item.producto_id, tipo: 'salida', origen: 'venta', cantidad: -cantTotal, referencia_id: venta.id, notas: `Venta #${venta.id.substring(0,8)}${item.bonificado ? ' (incl. '+item.bonificado+' bonif.)' : ''}`, fecha: fecha || new Date().toISOString().split('T')[0] })
       ]);
     }));
@@ -4185,12 +4185,12 @@ async function verComprobante(tipo, id) {
   try {
     let html = '';
     if (tipo === 'venta') {
-      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,total,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,total,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
       if (!v) { toast('No se encontró la venta', 'error'); return; }
       document.getElementById('compModalTitle').textContent = 'Comprobante de Venta';
       html = buildComprobanteVenta(v);
     } else {
-      const [p] = await api('pedidos', 'GET', null, '?select=id,fecha,fecha_entrega,estado,notas,total,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      const [p] = await api('pedidos', 'GET', null, '?select=id,fecha,fecha_entrega,estado,notas,total,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
       if (!p) { toast('No se encontró el pedido', 'error'); return; }
       document.getElementById('compModalTitle').textContent = 'Remito de Pedido';
       html = buildRemitoPedido(p);
@@ -4235,9 +4235,10 @@ function buildComprobanteVenta(v) {
   html += buildClienteInfo(v.clientes, 'Estado de pago', v.estado_pago === 'pagado' ? '✓ Pagado' : 'Pendiente', 'Descuento', descPct > 0 ? descPct + '%' : '—');
   html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
   items.forEach(item => {
+    const bonifTxt = item.bonificado > 0 ? ` <span style="color:#15803D;font-size:11px">+${item.bonificado} 🎁</span>` : '';
     html += '<tr><td style="color:#78716C;font-size:12px">' + (item.productos?.codigo || '—') + '</td>' +
       '<td>' + (item.productos?.nombre || '—') + '</td>' +
-      '<td style="text-align:center">' + item.cantidad + ' ' + (item.productos?.unidad || '') + '</td>' +
+      '<td style="text-align:center">' + item.cantidad + bonifTxt + ' ' + (item.productos?.unidad || '') + '</td>' +
       '<td style="text-align:right">$' + parseFloat(item.precio_unitario).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
       '<td style="text-align:right">$' + (item.cantidad * item.precio_unitario).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
   });
@@ -4260,10 +4261,12 @@ function buildRemitoPedido(p) {
   html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:center">Unidad</th><th style="text-align:center">Recibido ✓</th></tr></thead><tbody>';
   let totalBultos = 0;
   items.forEach(item => {
-    totalBultos += item.cantidad;
+    const cantFisica = item.cantidad + (item.bonificado || 0);
+    totalBultos += cantFisica;
+    const bonifTxt = item.bonificado > 0 ? ` <span style="color:#15803D;font-size:11px">(incl. ${item.bonificado} bonif.)</span>` : '';
     html += '<tr><td style="color:#78716C;font-size:12px">' + (item.productos?.codigo || '—') + '</td>' +
       '<td>' + (item.productos?.nombre || '—') + '</td>' +
-      '<td style="text-align:center">' + item.cantidad + '</td>' +
+      '<td style="text-align:center">' + cantFisica + bonifTxt + '</td>' +
       '<td style="text-align:center">' + (item.productos?.unidad || '—') + '</td>' +
       '<td style="text-align:center">□</td></tr>';
   });
