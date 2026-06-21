@@ -631,6 +631,8 @@ function showSection(name) {
           <option value="pendiente">Pendiente</option>
           <option value="confirmado">Confirmado</option>
           <option value="enviado">Enviado</option>
+          <option value="recibido_incompleto">Recibido incompleto</option>
+          <option value="recibido_completo">Recibido completo</option>
           <option value="cancelado">Cancelado</option>
         </select>
       </div>
@@ -4578,9 +4580,26 @@ async function confirmarGuardarRecepcion() {
     toast('Recepción registrada y stock actualizado ✓');
     closeModal('modalFechaRecepcionReal');
     closeModal('modalRecepcion');
+    if (pedidoProveedorId) await recalcularEstadoPedidoProveedor(pedidoProveedorId);
     loadRecepciones();
     if (typeof loadPedidosProveedor === 'function') loadPedidosProveedor();
   } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function recalcularEstadoPedidoProveedor(pedidoId) {
+  try {
+    const itemsPedido = await api('pedido_proveedor_items', 'GET', null, `?pedido_proveedor_id=eq.${pedidoId}&select=producto_id,cantidad`);
+    const recepciones = await api('recepciones', 'GET', null, `?pedido_proveedor_id=eq.${pedidoId}&select=id`);
+    let recibidoPorProducto = {};
+    if (recepciones.length) {
+      const recepIds = recepciones.map(r => r.id);
+      const itemsRecibidos = await api('recepcion_items', 'GET', null, `?recepcion_id=in.(${recepIds.join(',')})&select=producto_id,cantidad`);
+      itemsRecibidos.forEach(i => { recibidoPorProducto[i.producto_id] = (recibidoPorProducto[i.producto_id] || 0) + i.cantidad; });
+    }
+    const completo = itemsPedido.every(item => (recibidoPorProducto[item.producto_id] || 0) >= item.cantidad);
+    const nuevoEstado = completo ? 'recibido_completo' : 'recibido_incompleto';
+    await api('pedidos_proveedor', 'PATCH', { estado: nuevoEstado }, `?id=eq.${pedidoId}`);
+  } catch(e) { console.error('No se pudo recalcular el estado del pedido:', e.message); }
 }
 
 async function verRecepcion(id) {
@@ -4630,7 +4649,8 @@ async function verPedidoProveedor(id) {
 }
 
 function buildPedidoProveedorDoc(pedido, items) {
-  const estadoLabel = pedido.estado.charAt(0).toUpperCase() + pedido.estado.slice(1);
+  const labelsEstado = { recibido_completo: 'Recibido completo', recibido_incompleto: 'Recibido incompleto' };
+  const estadoLabel = labelsEstado[pedido.estado] || (pedido.estado.charAt(0).toUpperCase() + pedido.estado.slice(1));
   let html = buildHeader('PEDIDO PROV.', pedido.numero, pedido.fecha);
   html += '<div class="comp-datos">' +
     '<div><span>Proveedor</span><strong>' + pedido.proveedor + '</strong></div>' +
@@ -4659,20 +4679,21 @@ async function loadPedidosProveedor() {
     const pedidos = await api('pedidos_proveedor', 'GET', null, q);
     const tbody = document.getElementById('tablaPedidosProveedor');
     if (!pedidos.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">🏭</div><p>No hay pedidos a proveedor todavía</p></div></td></tr>'; return; }
-    const estadoBadge = { borrador: 'badge-gray', pendiente: 'badge-yellow', confirmado: 'badge-green', enviado: 'badge-blue', cancelado: 'badge-red' };
+    const estadoBadge = { borrador: 'badge-gray', pendiente: 'badge-yellow', confirmado: 'badge-green', enviado: 'badge-blue', recibido_incompleto: 'badge-yellow', recibido_completo: 'badge-green', cancelado: 'badge-red' };
+    const estadoLabel = { recibido_completo: 'Recibido completo', recibido_incompleto: 'Recibido incompleto' };
     tbody.innerHTML = pedidos.map(p => `
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(p.numero).padStart(4,'0')}</td>
         <td>${p.proveedor}</td>
         <td style="font-size:12px">${new Date(p.fecha+'T00:00:00').toLocaleDateString('es-AR')}</td>
-        <td><span class="badge ${estadoBadge[p.estado]||'badge-gray'}">${p.estado.charAt(0).toUpperCase()+p.estado.slice(1)}</span></td>
+        <td><span class="badge ${estadoBadge[p.estado]||'badge-gray'}">${estadoLabel[p.estado] || (p.estado.charAt(0).toUpperCase()+p.estado.slice(1))}</span></td>
         <td>$${parseFloat(p.total_estimado||0).toLocaleString('es-AR')}</td>
         <td style="white-space:nowrap">
           ${p.estado === 'borrador' || p.estado === 'pendiente' ? `<button class="btn btn-sm btn-secondary" onclick="editarPedidoProveedor('${p.id}')" title="Editar">✏</button>` : ''}
           ${p.estado === 'borrador' || p.estado === 'pendiente' ? `<button class="btn btn-sm btn-success" onclick="updateEstadoPedidoProveedor('${p.id}','confirmado')" title="Confirmar pedido">✓ Confirmar</button>` : ''}
           ${p.estado === 'confirmado' ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="updateEstadoPedidoProveedor('${p.id}','enviado')" title="Marcar como enviado al proveedor">📤 Enviar al proveedor</button>` : ''}
-          ${['confirmado','enviado'].includes(p.estado) ? `<button class="btn btn-sm btn-success" onclick="abrirNuevaRecepcion('${p.id}')" title="Registrar recepción">📥 Recibir</button>` : ''}
-          ${['confirmado','enviado','cancelado'].includes(p.estado) ? `<button class="btn btn-sm btn-secondary" onclick="verPedidoProveedor('${p.id}')" title="Ver pedido">👁 Ver</button>` : ''}
+          ${['confirmado','enviado','recibido_incompleto'].includes(p.estado) ? `<button class="btn btn-sm btn-success" onclick="abrirNuevaRecepcion('${p.id}')" title="Registrar recepción">📥 Recibir</button>` : ''}
+          ${['confirmado','enviado','recibido_completo','recibido_incompleto','cancelado'].includes(p.estado) ? `<button class="btn btn-sm btn-secondary" onclick="verPedidoProveedor('${p.id}')" title="Ver pedido">👁 Ver</button>` : ''}
           ${p.estado !== 'cancelado' ? `<button class="btn btn-sm btn-danger" onclick="deletePedidoProveedor('${p.id}')">Borrar</button>` : ''}
         </td>
       </tr>`).join('');
