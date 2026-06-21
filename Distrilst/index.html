@@ -4492,17 +4492,24 @@ function buildComprobanteVenta(v) {
   return html;
 }
 
+async function obtenerProximoNumeroRemito() {
+  const [pedidosMax] = await api('pedidos', 'GET', null, '?remito_numero=not.is.null&select=remito_numero&order=remito_numero.desc&limit=1');
+  const [ventasMax] = await api('ventas', 'GET', null, '?remito_numero=not.is.null&select=remito_numero&order=remito_numero.desc&limit=1');
+  const maxActual = Math.max(pedidosMax?.remito_numero || 0, ventasMax?.remito_numero || 0);
+  return maxActual + 1;
+}
+
 async function verRemito(tipo, id) {
   try {
     let datos;
     if (tipo === 'venta') {
-      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,fecha_entrega_real,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,fecha_entrega_real,estado_pago,notas,remito_numero,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
       if (!v) { toast('No se encontró la venta', 'error'); return; }
-      datos = { fecha_entrega: v.fecha, fecha_entrega_real: v.fecha_entrega_real, estado: v.estado_pago === 'pagado' ? 'Facturada y pagada' : 'Facturada', notas: v.notas, clientes: v.clientes, items: v.venta_items };
+      datos = { fecha_entrega: v.fecha, fecha_entrega_real: v.fecha_entrega_real, estado: v.estado_pago === 'pagado' ? 'Facturada y pagada' : 'Facturada', notas: v.notas, clientes: v.clientes, items: v.venta_items, remito_numero: v.remito_numero };
     } else {
-      const [p] = await api('pedidos', 'GET', null, '?select=id,fecha_entrega,fecha_entrega_real,estado,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      const [p] = await api('pedidos', 'GET', null, '?select=id,fecha_entrega,fecha_entrega_real,estado,notas,remito_numero,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
       if (!p) { toast('No se encontró el pedido', 'error'); return; }
-      datos = { fecha_entrega: p.fecha_entrega, fecha_entrega_real: p.fecha_entrega_real, estado: p.estado.charAt(0).toUpperCase() + p.estado.slice(1), notas: p.notas, clientes: p.clientes, items: p.pedido_items };
+      datos = { fecha_entrega: p.fecha_entrega, fecha_entrega_real: p.fecha_entrega_real, estado: p.estado.charAt(0).toUpperCase() + p.estado.slice(1), notas: p.notas, clientes: p.clientes, items: p.pedido_items, remito_numero: p.remito_numero };
     }
     document.getElementById('compModalTitle').textContent = 'Remito de Entrega';
     document.getElementById('compContenido').innerHTML = buildRemitoEntrega(datos);
@@ -4512,17 +4519,18 @@ async function verRemito(tipo, id) {
 
 async function imprimirRemito(tipo, id) {
   try {
+    const numero = await obtenerProximoNumeroRemito();
     let datos;
     if (tipo === 'venta') {
       const [v] = await api('ventas', 'GET', null, '?select=id,fecha,fecha_entrega_real,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
       if (!v) { toast('No se encontró la venta', 'error'); return; }
-      datos = { fecha_entrega: v.fecha, fecha_entrega_real: v.fecha_entrega_real, estado: v.estado_pago === 'pagado' ? 'Facturada y pagada' : 'Facturada', notas: v.notas, clientes: v.clientes, items: v.venta_items };
-      await api('ventas', 'PATCH', { remito_generado: true }, `?id=eq.${id}`);
+      datos = { fecha_entrega: v.fecha, fecha_entrega_real: v.fecha_entrega_real, estado: v.estado_pago === 'pagado' ? 'Facturada y pagada' : 'Facturada', notas: v.notas, clientes: v.clientes, items: v.venta_items, remito_numero: numero };
+      await api('ventas', 'PATCH', { remito_generado: true, remito_numero: numero }, `?id=eq.${id}`);
     } else {
       const [p] = await api('pedidos', 'GET', null, '?select=id,fecha_entrega,fecha_entrega_real,estado,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
       if (!p) { toast('No se encontró el pedido', 'error'); return; }
-      datos = { fecha_entrega: p.fecha_entrega, fecha_entrega_real: p.fecha_entrega_real, estado: p.estado.charAt(0).toUpperCase() + p.estado.slice(1), notas: p.notas, clientes: p.clientes, items: p.pedido_items };
-      await api('pedidos', 'PATCH', { remito_generado: true }, `?id=eq.${id}`);
+      datos = { fecha_entrega: p.fecha_entrega, fecha_entrega_real: p.fecha_entrega_real, estado: p.estado.charAt(0).toUpperCase() + p.estado.slice(1), notas: p.notas, clientes: p.clientes, items: p.pedido_items, remito_numero: numero };
+      await api('pedidos', 'PATCH', { remito_generado: true, remito_numero: numero }, `?id=eq.${id}`);
     }
     document.getElementById('compModalTitle').textContent = 'Remito de Entrega';
     document.getElementById('compContenido').innerHTML = buildRemitoEntrega(datos);
@@ -4533,7 +4541,7 @@ async function imprimirRemito(tipo, id) {
 
 function buildRemitoEntrega(datos) {
   const items = datos.items || [];
-  let html = buildHeader('REMITO', compNumPedido++, new Date().toISOString().split('T')[0]);
+  let html = buildHeader('REMITO', datos.remito_numero || 0, new Date().toISOString().split('T')[0]);
   const fechaProgramada = datos.fecha_entrega ? new Date(datos.fecha_entrega+'T00:00:00').toLocaleDateString('es-AR') : 'A confirmar';
   const fechaReal = datos.fecha_entrega_real ? new Date(datos.fecha_entrega_real+'T00:00:00').toLocaleDateString('es-AR') : null;
   const fechaEntLabel = fechaReal ? `${fechaProgramada} <span style="color:#15803D;font-weight:600">(✓ entregado: ${fechaReal})</span>` : fechaProgramada;
