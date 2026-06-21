@@ -4371,6 +4371,7 @@ function buildPedidoProveedorDoc(pedido, items) {
   html += '<div class="comp-datos">' +
     '<div><span>Proveedor</span><strong>' + pedido.proveedor + '</strong></div>' +
     '<div><span>Estado</span><strong>' + estadoLabel + '</strong></div>' +
+    (pedido.fecha_enviado ? '<div><span>Fecha de envío</span><strong>' + new Date(pedido.fecha_enviado+'T00:00:00').toLocaleDateString('es-AR') + '</strong></div>' : '') +
     '</div>';
   html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
   items.forEach(item => {
@@ -4600,7 +4601,9 @@ async function savePedidoProveedor() {
 
 async function updateEstadoPedidoProveedor(id, estado) {
   try {
-    await api('pedidos_proveedor', 'PATCH', { estado }, `?id=eq.${id}`);
+    const data = { estado };
+    if (estado === 'enviado') data.fecha_enviado = new Date().toISOString().split('T')[0];
+    await api('pedidos_proveedor', 'PATCH', data, `?id=eq.${id}`);
     toast('Estado actualizado');
     loadPedidosProveedor();
   } catch(e) { toast('Error', 'error'); }
