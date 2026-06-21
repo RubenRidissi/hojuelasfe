@@ -566,7 +566,7 @@ function showSection(name) {
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>Cliente</th><th>Fecha</th><th>Total</th><th>Pago</th><th id="thVentaVendedor" style="display:none">Vendedor</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>N°</th><th>Cliente</th><th>Facturación / Entrega</th><th>Total</th><th>Pago</th><th id="thVentaVendedor" style="display:none">Vendedor</th><th>Acciones</th></tr></thead>
             <tbody id="tablaVentas"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
@@ -1037,6 +1037,7 @@ function showSection(name) {
     <h3 class="modal-title" id="modalFechaEntregaTitle">Fecha de entrega</h3>
     <input type="hidden" id="fechaEntregaPedidoId">
     <input type="hidden" id="fechaEntregaModo">
+    <input type="hidden" id="fechaEntregaTabla">
     <div class="form-group">
       <label id="modalFechaEntregaLabel">¿Qué fecha se entregó el pedido?</label>
       <input type="date" id="fechaEntregaInput">
@@ -2295,7 +2296,7 @@ async function updateEstadoPedido(id, estado) {
   if (estado === 'entregado') {
     // Abrir modal para pedir la fecha real de entrega antes de confirmar el cambio de estado
     const pedido = cachedPedidos.find(p => p.id === id);
-    abrirModalFechaEntrega(id, pedido?.fecha_entrega_real || '', 'estado');
+    abrirModalFechaEntrega(id, pedido?.fecha_entrega_real || '', 'estado', 'pedidos');
     return;
   }
   try {
@@ -2306,12 +2307,17 @@ async function updateEstadoPedido(id, estado) {
 }
 
 function editarFechaEntregaReal(id, fechaActual) {
-  abrirModalFechaEntrega(id, fechaActual || '', 'editar');
+  abrirModalFechaEntrega(id, fechaActual || '', 'editar', 'pedidos');
 }
 
-function abrirModalFechaEntrega(pedidoId, fechaActual, modo) {
-  document.getElementById('fechaEntregaPedidoId').value = pedidoId;
+function editarFechaEntregaVenta(id, fechaActual) {
+  abrirModalFechaEntrega(id, fechaActual || '', 'editar', 'ventas');
+}
+
+function abrirModalFechaEntrega(registroId, fechaActual, modo, tabla) {
+  document.getElementById('fechaEntregaPedidoId').value = registroId;
   document.getElementById('fechaEntregaModo').value = modo;
+  document.getElementById('fechaEntregaTabla').value = tabla;
   document.getElementById('fechaEntregaInput').value = fechaActual || new Date().toISOString().split('T')[0];
   document.getElementById('modalFechaEntregaTitle').textContent = modo === 'estado' ? 'Marcar como entregado' : 'Editar fecha de entrega';
   document.getElementById('modalFechaEntregaLabel').textContent = modo === 'estado' ? '¿Qué fecha se entregó el pedido?' : 'Fecha real de entrega';
@@ -2320,22 +2326,24 @@ function abrirModalFechaEntrega(pedidoId, fechaActual, modo) {
 }
 
 function cancelarModalFechaEntrega() {
+  const tabla = document.getElementById('fechaEntregaTabla').value;
   document.getElementById('modalFechaEntrega').classList.remove('open');
-  loadPedidos(); // refresca para revertir cualquier selector que haya cambiado visualmente
+  if (tabla === 'ventas') loadVentas(); else loadPedidos();
 }
 
 async function confirmarFechaEntrega(borrar) {
   const id = document.getElementById('fechaEntregaPedidoId').value;
   const modo = document.getElementById('fechaEntregaModo').value;
+  const tabla = document.getElementById('fechaEntregaTabla').value;
   const fecha = borrar ? null : document.getElementById('fechaEntregaInput').value;
   if (!borrar && !fecha) { toast('Elegí una fecha', 'error'); return; }
   try {
     const data = { fecha_entrega_real: fecha };
-    if (modo === 'estado') data.estado = 'entregado';
-    await api('pedidos', 'PATCH', data, `?id=eq.${id}`);
+    if (modo === 'estado' && tabla === 'pedidos') data.estado = 'entregado';
+    await api(tabla, 'PATCH', data, `?id=eq.${id}`);
     toast(borrar ? 'Fecha de entrega borrada' : 'Fecha de entrega guardada');
     document.getElementById('modalFechaEntrega').classList.remove('open');
-    loadPedidos();
+    if (tabla === 'ventas') loadVentas(); else loadPedidos();
   } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
@@ -2601,9 +2609,10 @@ async function loadVentas() {
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('ventaFiltroVendedor')?.value || '')
       : currentUser;
-    let q = `?select=id,fecha,total,estado_pago,vendedor_id,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    let q = `?select=id,fecha,fecha_entrega_real,total,estado_pago,vendedor_id,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
     const ventas = await api('ventas', 'GET', null, q);
+    cachedVentas = ventas;
     const isAdmin = currentRol === 'admin';
     // Mostrar/ocultar columna vendedor y filtro (solo admin)
     const thVendedor = document.getElementById('thVentaVendedor');
@@ -2621,7 +2630,13 @@ async function loadVentas() {
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(i+1).padStart(3,'0')}</td>
         <td>${v.clientes ? nombreCliente(v.clientes) : '—'}</td>
-        <td>${v.fecha}</td>
+        <td style="font-size:12px">
+          <div>🧾 ${v.fecha}</div>
+          <div style="color:${v.fecha_entrega_real ? 'var(--success)' : 'var(--muted)'};display:flex;align-items:center;gap:4px">
+            ${v.fecha_entrega_real ? '✓ Entregado: ' + v.fecha_entrega_real : 'Sin entregar'}
+            <span style="cursor:pointer" onclick="editarFechaEntregaVenta('${v.id}','${v.fecha_entrega_real||''}')" title="Editar fecha real de entrega">✏</span>
+          </div>
+        </td>
         <td>$${parseFloat(v.total||0).toLocaleString('es-AR')}</td>
         <td>${badgePago(v.estado_pago)}</td>
         ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
@@ -3178,6 +3193,7 @@ let SUPABASE_KEY = localStorage.getItem('sb_key') || '';
 
 let cachedClientes = [];
 let cachedPedidos = [];
+let cachedVentas = [];
 let cachedVendedores = []; // { user_id, nombre }
 
 // Formato de nombre de cliente: "Razón Social (Fantasía)" o solo "Razón Social"
@@ -4292,7 +4308,7 @@ async function verComprobante(tipo, id) {
   try {
     let html = '';
     if (tipo === 'venta') {
-      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,total,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,fecha_entrega_real,total,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
       if (!v) { toast('No se encontró la venta', 'error'); return; }
       document.getElementById('compModalTitle').textContent = 'Comprobante de Venta';
       html = buildComprobanteVenta(v);
@@ -4339,7 +4355,13 @@ function buildComprobanteVenta(v) {
   const descMatch = (v.notas || '').match(/Descuento aplicado: ([\d.]+)/);
   const descPct = descMatch ? parseFloat(descMatch[1]) : 0;
   let html = buildHeader('VENTA', compNumVenta++, v.fecha);
-  html += buildClienteInfo(v.clientes, 'Estado de pago', v.estado_pago === 'pagado' ? '✓ Pagado' : 'Pendiente', 'Descuento', descPct > 0 ? descPct + '%' : '—');
+  const fechaFacturacion = new Date(v.fecha+'T00:00:00').toLocaleDateString('es-AR');
+  const entregaTxt = v.fecha_entrega_real
+    ? `<span style="color:#15803D;font-weight:600">✓ ${new Date(v.fecha_entrega_real+'T00:00:00').toLocaleDateString('es-AR')}</span>`
+    : '<span style="color:#A8A29E">Sin entregar</span>';
+  html += buildClienteInfo(v.clientes, 'Fecha facturación', fechaFacturacion, 'Fecha de entrega', entregaTxt);
+  html += '<div class="comp-datos" style="margin-top:-8px"><div><span>Estado de pago</span><strong>' + (v.estado_pago === 'pagado' ? '✓ Pagado' : 'Pendiente') + '</strong></div>' +
+    '<div><span>Descuento</span><strong>' + (descPct > 0 ? descPct + '%' : '—') + '</strong></div></div>';
   html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
   items.forEach(item => {
     const bonifTxt = item.bonificado > 0 ? ` <span style="color:#15803D;font-size:11px">+${item.bonificado} 🎁</span>` : '';
@@ -4565,6 +4587,7 @@ async function exportarExcel(seccion) {
           'Total': v.total || 0,
           'Estado pago': v.estado_pago || '',
           'Fecha de pago': v.fecha_pago ? new Date(v.fecha_pago).toLocaleDateString('es-AR') : '',
+          'Fecha de entrega': v.fecha_entrega_real ? new Date(v.fecha_entrega_real).toLocaleDateString('es-AR') : '',
           'Vendedor': cachedVendedores.find(vv => vv.user_id === v.vendedor_id)?.nombre || ''
         };
       });
