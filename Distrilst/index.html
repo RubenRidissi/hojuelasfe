@@ -2341,6 +2341,26 @@ async function confirmarFechaEntrega(borrar) {
     const data = { fecha_entrega_real: fecha };
     if (modo === 'estado' && tabla === 'pedidos') data.estado = 'entregado';
     await api(tabla, 'PATCH', data, `?id=eq.${id}`);
+
+    // Sincronizar la fecha con el registro relacionado (pedido <-> venta convertida)
+    if (tabla === 'ventas') {
+      try {
+        const pedidoOrigen = await api('pedidos', 'GET', null, `?convertido_venta_id=eq.${id}&select=id`);
+        if (pedidoOrigen.length) {
+          const dataPedido = { fecha_entrega_real: fecha };
+          if (fecha) dataPedido.estado = 'entregado';
+          await api('pedidos', 'PATCH', dataPedido, `?id=eq.${pedidoOrigen[0].id}`);
+        }
+      } catch(e) { console.error('No se pudo sincronizar el pedido origen:', e.message); }
+    } else if (tabla === 'pedidos') {
+      try {
+        const pedido = cachedPedidos.find(p => p.id === id);
+        if (pedido?.convertido_venta_id) {
+          await api('ventas', 'PATCH', { fecha_entrega_real: fecha }, `?id=eq.${pedido.convertido_venta_id}`);
+        }
+      } catch(e) { console.error('No se pudo sincronizar la venta relacionada:', e.message); }
+    }
+
     toast(borrar ? 'Fecha de entrega borrada' : 'Fecha de entrega guardada');
     document.getElementById('modalFechaEntrega').classList.remove('open');
     if (tabla === 'ventas') loadVentas(); else loadPedidos();
