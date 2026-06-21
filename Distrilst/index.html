@@ -1031,6 +1031,65 @@ function showSection(name) {
   </div>
 </div>
 
+<!-- MODAL FECHA ENTREGA -->
+<div class="modal-backdrop" id="modalFechaEntrega">
+  <div class="modal" style="max-width:380px">
+    <h3 class="modal-title" id="modalFechaEntregaTitle">Fecha de entrega</h3>
+    <input type="hidden" id="fechaEntregaPedidoId">
+    <input type="hidden" id="fechaEntregaModo">
+    <div class="form-group">
+      <label id="modalFechaEntregaLabel">¿Qué fecha se entregó el pedido?</label>
+      <input type="date" id="fechaEntregaInput">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="cancelarModalFechaEntrega()">Cancelar</button>
+      <button class="btn btn-secondary" id="btnBorrarFechaEntrega" style="display:none" onclick="confirmarFechaEntrega(true)">Borrar fecha</button>
+      <button class="btn btn-primary" onclick="confirmarFechaEntrega(false)">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONVERTIR PEDIDO EN VENTA -->
+<div class="modal-backdrop" id="modalConvertirVenta">
+  <div class="modal" style="max-width:420px">
+    <h3 class="modal-title">🧾 Convertir pedido en venta</h3>
+    <input type="hidden" id="convertirPedidoId">
+    <div id="convertirResumen" style="margin-bottom:14px;padding:10px 12px;background:var(--bg);border-radius:8px;font-size:13px"></div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Esto va a descontar stock y generar una venta con fecha de hoy.</p>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal">
+        <input type="checkbox" id="convertirYaEntregado" onchange="toggleConvertirFecha()">
+        Ya se entregó la mercadería
+      </label>
+    </div>
+    <div class="form-group" id="convertirFechaWrap" style="display:none">
+      <label>Fecha de entrega</label>
+      <input type="date" id="convertirFechaInput">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalConvertirVenta')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarConvertirPedidoEnVenta()">Convertir en venta</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL MARCAR PAGADO -->
+<div class="modal-backdrop" id="modalMarcarPagado">
+  <div class="modal" style="max-width:380px">
+    <h3 class="modal-title">💰 Confirmar cobro</h3>
+    <input type="hidden" id="pagadoVentaId">
+    <div id="pagadoResumen" style="margin-bottom:14px;padding:10px 12px;background:var(--bg);border-radius:8px;font-size:13px"></div>
+    <div class="form-group">
+      <label>Fecha de pago</label>
+      <input type="date" id="pagadoFechaInput">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalMarcarPagado')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarMarcarPagado()">Confirmar cobro</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL PRODUCTO -->
 <div class="modal-backdrop" id="modalProducto">
   <div class="modal">
@@ -2233,44 +2292,82 @@ async function loadPedidos() {
 }
 
 async function updateEstadoPedido(id, estado) {
+  if (estado === 'entregado') {
+    // Abrir modal para pedir la fecha real de entrega antes de confirmar el cambio de estado
+    const pedido = cachedPedidos.find(p => p.id === id);
+    abrirModalFechaEntrega(id, pedido?.fecha_entrega_real || '', 'estado');
+    return;
+  }
   try {
-    const data = { estado };
-    if (estado === 'entregado') {
-      const pedido = cachedPedidos.find(p => p.id === id);
-      const fechaSugerida = pedido?.fecha_entrega_real || new Date().toISOString().split('T')[0];
-      const fecha = prompt('¿Qué fecha se entregó el pedido?', fechaSugerida);
-      if (fecha === null) { loadPedidos(); return; } // canceló, refresca para revertir el select
-      if (fecha) data.fecha_entrega_real = fecha;
-    }
-    await api('pedidos', 'PATCH', data, `?id=eq.${id}`);
+    await api('pedidos', 'PATCH', { estado }, `?id=eq.${id}`);
     toast('Estado actualizado');
     loadPedidos();
   } catch(e) { toast('Error', 'error'); }
 }
 
-async function editarFechaEntregaReal(id, fechaActual) {
-  const fecha = prompt('Fecha real de entrega (dejá vacío para borrarla):', fechaActual || new Date().toISOString().split('T')[0]);
-  if (fecha === null) return; // canceló
+function editarFechaEntregaReal(id, fechaActual) {
+  abrirModalFechaEntrega(id, fechaActual || '', 'editar');
+}
+
+function abrirModalFechaEntrega(pedidoId, fechaActual, modo) {
+  document.getElementById('fechaEntregaPedidoId').value = pedidoId;
+  document.getElementById('fechaEntregaModo').value = modo;
+  document.getElementById('fechaEntregaInput').value = fechaActual || new Date().toISOString().split('T')[0];
+  document.getElementById('modalFechaEntregaTitle').textContent = modo === 'estado' ? 'Marcar como entregado' : 'Editar fecha de entrega';
+  document.getElementById('modalFechaEntregaLabel').textContent = modo === 'estado' ? '¿Qué fecha se entregó el pedido?' : 'Fecha real de entrega';
+  document.getElementById('btnBorrarFechaEntrega').style.display = modo === 'editar' && fechaActual ? '' : 'none';
+  document.getElementById('modalFechaEntrega').classList.add('open');
+}
+
+function cancelarModalFechaEntrega() {
+  document.getElementById('modalFechaEntrega').classList.remove('open');
+  loadPedidos(); // refresca para revertir cualquier selector que haya cambiado visualmente
+}
+
+async function confirmarFechaEntrega(borrar) {
+  const id = document.getElementById('fechaEntregaPedidoId').value;
+  const modo = document.getElementById('fechaEntregaModo').value;
+  const fecha = borrar ? null : document.getElementById('fechaEntregaInput').value;
+  if (!borrar && !fecha) { toast('Elegí una fecha', 'error'); return; }
   try {
-    await api('pedidos', 'PATCH', { fecha_entrega_real: fecha || null }, `?id=eq.${id}`);
-    toast(fecha ? 'Fecha de entrega actualizada' : 'Fecha de entrega borrada');
+    const data = { fecha_entrega_real: fecha };
+    if (modo === 'estado') data.estado = 'entregado';
+    await api('pedidos', 'PATCH', data, `?id=eq.${id}`);
+    toast(borrar ? 'Fecha de entrega borrada' : 'Fecha de entrega guardada');
+    document.getElementById('modalFechaEntrega').classList.remove('open');
     loadPedidos();
   } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
-async function convertirPedidoEnVenta(pedidoId) {
+function convertirPedidoEnVenta(pedidoId) {
   const pedido = cachedPedidos.find(p => p.id === pedidoId);
   if (!pedido) { toast('Pedido no encontrado', 'error'); return; }
   if (pedido.convertido_venta_id) { toast('Este pedido ya fue convertido', 'error'); return; }
 
-  if (!confirm(`¿Convertir este pedido en venta?\n\nCliente: ${nombreCliente(pedido.clientes)}\nTotal: $${parseFloat(pedido.total||0).toLocaleString('es-AR')}\n\nEsto va a descontar stock y generar una venta con fecha de hoy.`)) return;
+  document.getElementById('convertirPedidoId').value = pedidoId;
+  document.getElementById('convertirResumen').innerHTML =
+    `<strong>${nombreCliente(pedido.clientes)}</strong><br>Total: $${parseFloat(pedido.total||0).toLocaleString('es-AR')}`;
 
-  // Si todavía no tiene fecha real de entrega, preguntar (opcional, puede dejarse vacío)
-  let fechaEntregaReal = pedido.fecha_entrega_real || null;
-  if (!fechaEntregaReal) {
-    const resp = prompt('¿Ya se entregó la mercadería? Si es así, ingresá la fecha (o dejá vacío si todavía no se entregó):', '');
-    if (resp) fechaEntregaReal = resp;
-  }
+  const yaTieneFecha = !!pedido.fecha_entrega_real;
+  document.getElementById('convertirYaEntregado').checked = yaTieneFecha;
+  document.getElementById('convertirFechaInput').value = pedido.fecha_entrega_real || new Date().toISOString().split('T')[0];
+  document.getElementById('convertirFechaWrap').style.display = yaTieneFecha ? '' : 'none';
+
+  openModal('modalConvertirVenta');
+}
+
+function toggleConvertirFecha() {
+  document.getElementById('convertirFechaWrap').style.display = document.getElementById('convertirYaEntregado').checked ? '' : 'none';
+}
+
+async function confirmarConvertirPedidoEnVenta() {
+  const pedidoId = document.getElementById('convertirPedidoId').value;
+  const pedido = cachedPedidos.find(p => p.id === pedidoId);
+  if (!pedido) { toast('Pedido no encontrado', 'error'); return; }
+
+  const yaEntregado = document.getElementById('convertirYaEntregado').checked;
+  const fechaEntregaReal = yaEntregado ? document.getElementById('convertirFechaInput').value : null;
+  if (yaEntregado && !fechaEntregaReal) { toast('Elegí la fecha de entrega', 'error'); return; }
 
   try {
     // Traer los ítems del pedido
@@ -2306,6 +2403,7 @@ async function convertirPedidoEnVenta(pedidoId) {
     await api('pedidos', 'PATCH', patchPedido, `?id=eq.${pedidoId}`);
 
     toast('Pedido convertido en venta ✓');
+    closeModal('modalConvertirVenta');
     loadPedidos();
     loadDashboard();
   } catch(e) {
@@ -2662,16 +2760,25 @@ async function saveVenta() {
   } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
-async function marcarPagado(id, nombreCliente, total) {
-  const confirmado = confirm('Confirmar cobro?\n\nCliente: ' + nombreCliente + '\nTotal: $' + parseFloat(total).toLocaleString('es-AR') + '\n\nEsta accion no se puede deshacer.');
-  if (!confirmado) return;
+function marcarPagado(id, nombreCliente, total) {
+  document.getElementById('pagadoVentaId').value = id;
+  document.getElementById('pagadoResumen').innerHTML = `<strong>${nombreCliente}</strong><br>Total: $${parseFloat(total).toLocaleString('es-AR')}`;
+  document.getElementById('pagadoFechaInput').value = new Date().toISOString().split('T')[0];
+  openModal('modalMarcarPagado');
+}
+
+async function confirmarMarcarPagado() {
+  const id = document.getElementById('pagadoVentaId').value;
+  const fechaPago = document.getElementById('pagadoFechaInput').value;
+  if (!fechaPago) { toast('Elegí la fecha de pago', 'error'); return; }
   try {
-    await api('ventas', 'PATCH', { estado_pago: 'pagado' }, `?id=eq.${id}`);
+    await api('ventas', 'PATCH', { estado_pago: 'pagado', fecha_pago: fechaPago }, `?id=eq.${id}`);
     toast('Venta marcada como pagada');
+    closeModal('modalMarcarPagado');
     loadVentas();
     loadDashboard();
     setTimeout(applyTableRolRestrictions, 100);
-  } catch(e) { toast('Error', 'error'); }
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
 // ==================== PAGOS ====================
@@ -4455,6 +4562,7 @@ async function exportarExcel(seccion) {
           'Fecha': v.fecha ? new Date(v.fecha).toLocaleDateString('es-AR') : '',
           'Total': v.total || 0,
           'Estado pago': v.estado_pago || '',
+          'Fecha de pago': v.fecha_pago ? new Date(v.fecha_pago).toLocaleDateString('es-AR') : '',
           'Vendedor': cachedVendedores.find(vv => vv.user_id === v.vendedor_id)?.nombre || ''
         };
       });
