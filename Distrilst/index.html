@@ -248,6 +248,7 @@ function showSection(name) {
     if (typeof loadPagos === 'function' && name === 'pagos') loadPagos();
     if (typeof loadStock === 'function' && name === 'stock') loadStock();
     if (name === 'proveedor') loadPedidosProveedor();
+    if (name === 'recepciones') loadRecepciones();
     if (name === 'mapa') loadMapa();
     if (name === 'reportes') {
       if (currentRol === 'admin') { if (typeof initReportes === 'function') initReportes(); }
@@ -324,6 +325,9 @@ function showSection(name) {
       </div>
       <div class="nav-item admin-only" onclick="showSection('proveedor')">
         <span class="nav-icon">🏭</span><span>Pedidos Proveedor</span>
+      </div>
+      <div class="nav-item admin-only" onclick="showSection('recepciones')">
+        <span class="nav-icon">📥</span><span>Recepciones</span>
       </div>
       <div class="nav-item" onclick="showSection('stock')">
         <span class="nav-icon">📦</span><span>Stock</span>
@@ -635,6 +639,24 @@ function showSection(name) {
           <table>
             <thead><tr><th>N°</th><th>Proveedor</th><th>Fecha</th><th>Estado</th><th>Total estimado</th><th></th></tr></thead>
             <tbody id="tablaPedidosProveedor"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECEPCIONES -->
+    <div id="sec-recepciones" class="section">
+      <div class="page-header">
+        <h1 class="page-title">📥 Recepciones de Mercadería</h1>
+        <div class="page-header-actions" style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="abrirNuevaRecepcion()">+ Nueva recepción</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>N°</th><th>Fecha</th><th>Pedido asociado</th><th>Remito proveedor</th><th>Total</th><th></th></tr></thead>
+            <tbody id="tablaRecepciones"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1192,6 +1214,48 @@ function showSection(name) {
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalPedidoProveedor')">Cancelar</button>
       <button class="btn btn-primary" onclick="savePedidoProveedor()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RECEPCIÓN DE MERCADERÍA -->
+<div class="modal-backdrop" id="modalRecepcion">
+  <div class="modal" style="max-width:700px">
+    <h3 class="modal-title">📥 Registrar recepción de mercadería</h3>
+    <input type="hidden" id="recepPedidoId">
+    <div class="form-row">
+      <div class="form-group"><label>Pedido asociado</label><div id="recepPedidoInfo" style="padding:8px 10px;background:var(--bg);border-radius:7px;font-size:13px;color:var(--muted)">Sin pedido asociado (recepción suelta)</div></div>
+      <div class="form-group"><label>Fecha</label><input type="date" id="recepFecha"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Remito del proveedor</label><input id="recepRemitoProveedor" placeholder="Número de remito (opcional)"></div>
+      <div class="form-group"><label>Notas</label><input id="recepNotas" placeholder="Observaciones opcionales..."></div>
+    </div>
+
+    <div id="recepFaltantesWrap" style="display:none;border-top:1px solid var(--border);margin:14px 0;padding-top:14px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">Pendiente de este pedido</div>
+      <div id="recepFaltantesTabla" style="font-size:13px"></div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:14px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">Productos recibidos</div>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-group" style="flex:2"><label>Producto</label><select id="recepProductoSel"></select></div>
+        <div class="form-group" style="flex:1"><label>Cantidad</label><input id="recepCantidadInput" type="number" min="1" step="1" placeholder="0"></div>
+        <button class="btn btn-secondary" style="margin-bottom:14px" onclick="addItemRecepcion()">+ Agregar</button>
+      </div>
+      <div class="table-wrap" style="max-height:240px;overflow-y:auto">
+        <table>
+          <thead><tr><th>Producto</th><th style="text-align:center">Cantidad</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Subtotal</th><th></th></tr></thead>
+          <tbody id="recepItemsTabla"></tbody>
+        </table>
+      </div>
+      <div style="text-align:right;margin-top:10px;font-size:15px;font-weight:600">Total: <span id="recepTotal">$0</span></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalRecepcion')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveRecepcion()">Registrar recepción</button>
     </div>
   </div>
 </div>
@@ -4350,6 +4414,179 @@ function renderMapa() {
   if (bounds.length) mapaInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
 }
 
+// ==================== RECEPCIONES DE MERCADERÍA ====================
+let recepItems = [];
+
+async function loadRecepciones() {
+  if (!SUPABASE_URL) return;
+  try {
+    const recepciones = await api('recepciones', 'GET', null, '?select=*,pedidos_proveedor(numero)&order=created_at.desc');
+    const tbody = document.getElementById('tablaRecepciones');
+    if (!recepciones.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">📥</div><p>No hay recepciones registradas todavía</p></div></td></tr>'; return; }
+    tbody.innerHTML = recepciones.map(r => `
+      <tr>
+        <td style="color:var(--muted);font-size:12px">#${String(r.numero).padStart(4,'0')}</td>
+        <td style="font-size:12px">${new Date(r.fecha+'T00:00:00').toLocaleDateString('es-AR')}</td>
+        <td>${r.pedidos_proveedor ? `Pedido #${String(r.pedidos_proveedor.numero).padStart(4,'0')}` : '<span style="color:var(--muted)">Suelta (sin pedido)</span>'}</td>
+        <td style="font-size:12px">${r.remito_proveedor || '—'}</td>
+        <td>$${parseFloat(r.total||0).toLocaleString('es-AR')}</td>
+        <td><button class="btn btn-sm btn-secondary" onclick="verRecepcion('${r.id}')" title="Ver detalle">👁 Ver</button></td>
+      </tr>`).join('');
+  } catch(e) { console.error(e); toast('Error cargando recepciones', 'error'); }
+}
+
+async function abrirNuevaRecepcion(pedidoProveedorId) {
+  recepItems = [];
+  document.getElementById('recepPedidoId').value = pedidoProveedorId || '';
+  document.getElementById('recepFecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('recepRemitoProveedor').value = '';
+  document.getElementById('recepNotas').value = '';
+  await ensureCache();
+  poblarSelectProductosRecepcion();
+  renderRecepItems();
+
+  if (pedidoProveedorId) {
+    try {
+      const [pedido] = await api('pedidos_proveedor', 'GET', null, `?id=eq.${pedidoProveedorId}&select=numero,proveedor`);
+      document.getElementById('recepPedidoInfo').textContent = `Pedido #${String(pedido.numero).padStart(4,'0')} — ${pedido.proveedor}`;
+
+      // Calcular cuánto falta recibir por producto: pedido - suma de recepciones previas de este pedido
+      const itemsPedido = await api('pedido_proveedor_items', 'GET', null, `?pedido_proveedor_id=eq.${pedidoProveedorId}&select=producto_id,cantidad,productos(nombre)`);
+      const recepcionesPrevias = await api('recepciones', 'GET', null, `?pedido_proveedor_id=eq.${pedidoProveedorId}&select=id`);
+      let recibidoPorProducto = {};
+      if (recepcionesPrevias.length) {
+        const recepIds = recepcionesPrevias.map(r => r.id);
+        const itemsRecibidos = await api('recepcion_items', 'GET', null, `?recepcion_id=in.(${recepIds.join(',')})&select=producto_id,cantidad`);
+        itemsRecibidos.forEach(i => { recibidoPorProducto[i.producto_id] = (recibidoPorProducto[i.producto_id] || 0) + i.cantidad; });
+      }
+
+      const faltantesWrap = document.getElementById('recepFaltantesWrap');
+      const faltantesTabla = document.getElementById('recepFaltantesTabla');
+      const filas = itemsPedido.map(item => {
+        const recibido = recibidoPorProducto[item.producto_id] || 0;
+        const falta = item.cantidad - recibido;
+        return { nombre: item.productos?.nombre || '—', pedido: item.cantidad, recibido, falta };
+      });
+      if (filas.length) {
+        faltantesWrap.style.display = '';
+        faltantesTabla.innerHTML = '<table style="width:100%"><thead><tr><th style="text-align:left;font-size:12px;color:var(--muted)">Producto</th><th style="text-align:center;font-size:12px;color:var(--muted)">Pedido</th><th style="text-align:center;font-size:12px;color:var(--muted)">Recibido</th><th style="text-align:center;font-size:12px;color:var(--muted)">Falta</th></tr></thead><tbody>' +
+          filas.map(f => `<tr><td>${f.nombre}</td><td style="text-align:center">${f.pedido}</td><td style="text-align:center">${f.recibido}</td><td style="text-align:center;font-weight:600;color:${f.falta>0?'#B91C1C':'#15803D'}">${f.falta>0?f.falta:'✓ completo'}</td></tr>`).join('') +
+          '</tbody></table>';
+      } else {
+        faltantesWrap.style.display = 'none';
+      }
+    } catch(e) { console.error('Error calculando faltantes:', e.message); }
+  } else {
+    document.getElementById('recepPedidoInfo').textContent = 'Sin pedido asociado (recepción suelta)';
+    document.getElementById('recepFaltantesWrap').style.display = 'none';
+  }
+
+  openModal('modalRecepcion');
+}
+
+function poblarSelectProductosRecepcion() {
+  const sel = document.getElementById('recepProductoSel');
+  sel.innerHTML = '<option value="">Elegí un producto</option>' + cachedProductos.map(p =>
+    `<option value="${p.id}" data-costo="${p.costo||0}">${p.codigo ? p.codigo+' — ' : ''}${p.nombre}</option>`).join('');
+}
+
+function addItemRecepcion() {
+  const sel = document.getElementById('recepProductoSel');
+  const pid = sel.value;
+  const cant = parseInt(document.getElementById('recepCantidadInput').value);
+  if (!pid) { toast('Elegí un producto', 'error'); return; }
+  if (!cant || cant <= 0) { toast('Ingresá una cantidad válida', 'error'); return; }
+  const opt = sel.selectedOptions[0];
+  const costo = parseFloat(opt.dataset.costo) || 0;
+  const nombre = opt.textContent;
+  const existing = recepItems.find(i => i.producto_id === pid);
+  if (existing) existing.cantidad += cant;
+  else recepItems.push({ producto_id: pid, nombre, cantidad: cant, costo_unitario: costo });
+  renderRecepItems();
+  sel.value = '';
+  document.getElementById('recepCantidadInput').value = '';
+}
+
+function removeItemRecepcion(pid) {
+  recepItems = recepItems.filter(i => i.producto_id !== pid);
+  renderRecepItems();
+}
+
+function updateCantidadRecepItem(pid, val) {
+  const item = recepItems.find(i => i.producto_id === pid);
+  if (item) item.cantidad = parseInt(val) || 1;
+  renderRecepItems();
+}
+
+function renderRecepItems() {
+  const tbody = document.getElementById('recepItemsTabla');
+  if (!recepItems.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:14px;color:var(--muted);font-size:13px">Sin productos agregados</td></tr>'; }
+  else {
+    tbody.innerHTML = recepItems.map(i => `
+      <tr>
+        <td style="font-size:13px">${i.nombre}</td>
+        <td style="text-align:center"><input type="number" value="${i.cantidad}" min="1" style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" onchange="updateCantidadRecepItem('${i.producto_id}',this.value)"></td>
+        <td style="text-align:right;font-size:13px">$${i.costo_unitario.toLocaleString('es-AR')}</td>
+        <td style="text-align:right;font-size:13px">$${(i.cantidad*i.costo_unitario).toLocaleString('es-AR')}</td>
+        <td><button class="btn btn-sm btn-danger" onclick="removeItemRecepcion('${i.producto_id}')">✕</button></td>
+      </tr>`).join('');
+  }
+  const total = recepItems.reduce((s, i) => s + i.cantidad * i.costo_unitario, 0);
+  document.getElementById('recepTotal').textContent = '$' + total.toLocaleString('es-AR');
+}
+
+async function saveRecepcion() {
+  const pedidoProveedorId = document.getElementById('recepPedidoId').value || null;
+  const fecha = document.getElementById('recepFecha').value;
+  const remitoProveedor = document.getElementById('recepRemitoProveedor').value.trim();
+  const notas = document.getElementById('recepNotas').value.trim();
+  if (!recepItems.length) { toast('Agregá al menos un producto recibido', 'error'); return; }
+  const total = recepItems.reduce((s, i) => s + i.cantidad * i.costo_unitario, 0);
+  try {
+    const [recepcion] = await api('recepciones', 'POST', {
+      pedido_proveedor_id: pedidoProveedorId, fecha, remito_proveedor: remitoProveedor || null, notas, total
+    });
+    await Promise.all(recepItems.map(item => Promise.all([
+      api('recepcion_items', 'POST', { recepcion_id: recepcion.id, producto_id: item.producto_id, cantidad: item.cantidad, costo_unitario: item.costo_unitario }),
+      api('stock_movimientos', 'POST', { producto_id: item.producto_id, tipo: 'entrada', origen: 'recepcion_proveedor', cantidad: item.cantidad, referencia_id: recepcion.id, notas: `Recepción #${String(recepcion.numero).padStart(4,'0')}${remitoProveedor ? ' (remito '+remitoProveedor+')' : ''}`, fecha })
+    ])));
+    toast('Recepción registrada y stock actualizado ✓');
+    closeModal('modalRecepcion');
+    loadRecepciones();
+    if (typeof loadPedidosProveedor === 'function') loadPedidosProveedor();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function verRecepcion(id) {
+  try {
+    const [r] = await api('recepciones', 'GET', null, `?id=eq.${id}&select=*,pedidos_proveedor(numero,proveedor)`);
+    if (!r) { toast('Recepción no encontrada', 'error'); return; }
+    const items = await api('recepcion_items', 'GET', null, `?recepcion_id=eq.${id}&select=cantidad,costo_unitario,productos(nombre,codigo,unidad)`);
+    document.getElementById('compModalTitle').textContent = 'Recepción de Mercadería';
+    document.getElementById('compContenido').innerHTML = buildRecepcionDoc(r, items);
+    document.getElementById('modalComprobante').classList.add('open');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+function buildRecepcionDoc(r, items) {
+  let html = buildHeader('RECEPCION', r.numero, r.fecha);
+  html += '<div class="comp-datos">' +
+    '<div><span>Pedido asociado</span><strong>' + (r.pedidos_proveedor ? `#${String(r.pedidos_proveedor.numero).padStart(4,'0')} — ${r.pedidos_proveedor.proveedor}` : 'Sin pedido (suelta)') + '</strong></div>' +
+    '<div><span>Remito proveedor</span><strong>' + (r.remito_proveedor || '—') + '</strong></div>' +
+    '</div>';
+  html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
+  items.forEach(item => {
+    html += '<tr><td style="color:#78716C;font-size:12px">' + (item.productos?.codigo || '—') + '</td>' +
+      '<td>' + (item.productos?.nombre || '—') + '</td>' +
+      '<td style="text-align:center">' + item.cantidad + ' ' + (item.productos?.unidad || '') + '</td>' +
+      '<td style="text-align:right">$' + parseFloat(item.costo_unitario||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
+      '<td style="text-align:right">$' + (item.cantidad * (item.costo_unitario||0)).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
+  });
+  html += '</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$' + parseFloat(r.total||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr></tfoot></table>';
+  html += buildFooter(r.notas);
+  return html;
+}
+
 // ==================== PEDIDOS A PROVEEDOR ====================
 let provItems = [];
 
@@ -4407,6 +4644,7 @@ async function loadPedidosProveedor() {
           ${p.estado === 'borrador' || p.estado === 'pendiente' ? `<button class="btn btn-sm btn-secondary" onclick="editarPedidoProveedor('${p.id}')" title="Editar">✏</button>` : ''}
           ${p.estado === 'borrador' || p.estado === 'pendiente' ? `<button class="btn btn-sm btn-success" onclick="updateEstadoPedidoProveedor('${p.id}','confirmado')" title="Confirmar pedido">✓ Confirmar</button>` : ''}
           ${p.estado === 'confirmado' ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="updateEstadoPedidoProveedor('${p.id}','enviado')" title="Marcar como enviado al proveedor">📤 Enviar al proveedor</button>` : ''}
+          ${['confirmado','enviado'].includes(p.estado) ? `<button class="btn btn-sm btn-success" onclick="abrirNuevaRecepcion('${p.id}')" title="Registrar recepción">📥 Recibir</button>` : ''}
           ${['confirmado','enviado','cancelado'].includes(p.estado) ? `<button class="btn btn-sm btn-secondary" onclick="verPedidoProveedor('${p.id}')" title="Ver pedido">👁 Ver</button>` : ''}
           ${p.estado !== 'cancelado' ? `<button class="btn btn-sm btn-danger" onclick="deletePedidoProveedor('${p.id}')">Borrar</button>` : ''}
         </td>
@@ -4884,8 +5122,8 @@ function buildComprobantePedido(p) {
 }
 
 function buildHeader(tipo, num, fecha) {
-  const tipoBadgeClass = tipo === 'REMITO' ? 'remito' : tipo === 'PEDIDO' ? 'pedido' : tipo === 'PEDIDO PROV.' ? 'pedido' : 'venta';
-  const tipoLabel = tipo === 'REMITO' ? 'Remito de Entrega' : tipo === 'PEDIDO' ? 'Comprobante de Pedido' : tipo === 'PEDIDO PROV.' ? 'Pedido a Proveedor' : 'Comprobante de Venta';
+  const tipoBadgeClass = tipo === 'REMITO' ? 'remito' : tipo === 'PEDIDO' ? 'pedido' : (tipo === 'PEDIDO PROV.' || tipo === 'RECEPCION') ? 'pedido' : 'venta';
+  const tipoLabel = tipo === 'REMITO' ? 'Remito de Entrega' : tipo === 'PEDIDO' ? 'Comprobante de Pedido' : tipo === 'PEDIDO PROV.' ? 'Pedido a Proveedor' : tipo === 'RECEPCION' ? 'Recepción de Mercadería' : 'Comprobante de Venta';
   const fechaStr = new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric'});
   return '<div class="comp-wrap"><div class="comp-header"><img src="' + LOGO_URL + '" class="comp-logo" alt="Hojuelas" onerror="this.style.display=\'none\'">' +
     '<div class="comp-empresa"><h2>' + EMPRESA.nombre + '</h2><p>' + EMPRESA.razon + '</p><p>' + EMPRESA.direccion + '</p><p>' + EMPRESA.rep + ' · ' + EMPRESA.tel + '</p><p>' + EMPRESA.web + '</p></div></div>' +
