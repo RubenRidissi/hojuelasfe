@@ -2289,11 +2289,10 @@ async function loadPedidos() {
           ${puedeConvertir ? `<button class="btn btn-sm btn-success" style="margin-left:4px" onclick="convertirPedidoEnVenta('${p.id}')" title="Convertir en venta">🧾 Convertir</button>` : ''}
           ${p.estado === 'pendiente' && !yaConvertido ? `<button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="editPedido('${p.id}')" title="Editar pedido">✏</button>` : ''}
           <button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="verComprobante('pedido','${p.id}')" title="Ver comprobante">📋</button>
-          ${!p.fecha_entrega_real ? (
-            p.remito_generado
-              ? `<button class="btn btn-sm" style="margin-left:4px;background:#F3F4F6;color:#374151" onclick="verRemito('pedido','${p.id}')" title="Ver remito generado">👁 Remito</button>`
-              : `<button class="btn btn-sm" style="margin-left:4px;background:#FEF3C7;color:#92400E" onclick="imprimirRemito('pedido','${p.id}')" title="Imprimir remito de entrega">🚚</button>`
-          ) : ''}
+          ${p.remito_generado
+            ? `<button class="btn btn-sm" style="margin-left:4px;background:#F3F4F6;color:#374151" onclick="verRemito('pedido','${p.id}')" title="Ver remito generado">👁 Remito</button>`
+            : `<button class="btn btn-sm" style="margin-left:4px;background:#FEF3C7;color:#92400E" onclick="imprimirRemito('pedido','${p.id}')" title="Imprimir remito de entrega">🚚</button>`
+          }
           ${isAdmin ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
       </tr>`;
@@ -2721,11 +2720,10 @@ async function loadVentas() {
           ${v.estado_pago !== 'pagado' ? `<button class="btn btn-sm btn-success" onclick="marcarPagado('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}',${v.total})">Cobrar</button>` : '<span class="badge badge-green">Pagado</span>'}
           ${!v.fecha_entrega_real ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="editarFechaEntregaVenta('${v.id}','')" title="Marcar como entregado">📦 Entregar</button>` : ''}
           <button class="btn btn-sm btn-secondary" onclick="verComprobante('venta','${v.id}')" title="Ver comprobante">🧾</button>
-          ${!v.fecha_entrega_real ? (
-            v.remito_generado
-              ? `<button class="btn btn-sm" style="background:#F3F4F6;color:#374151" onclick="verRemito('venta','${v.id}')" title="Ver remito generado">👁 Remito</button>`
-              : `<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E" onclick="imprimirRemito('venta','${v.id}')" title="Imprimir remito de entrega">🚚</button>`
-          ) : ''}
+          ${v.remito_generado
+            ? `<button class="btn btn-sm" style="background:#F3F4F6;color:#374151" onclick="verRemito('venta','${v.id}')" title="Ver remito generado">👁 Remito</button>`
+            : `<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E" onclick="imprimirRemito('venta','${v.id}')" title="Imprimir remito de entrega">🚚</button>`
+          }
           ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="deleteVenta('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
       </tr>`;
