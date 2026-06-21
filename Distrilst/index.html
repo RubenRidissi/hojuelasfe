@@ -2476,11 +2476,13 @@ async function deletePedido(id, nombreCliente) {
     if (pedido?.convertido_venta_id) {
       if (!confirm(`Este pedido ya fue convertido en venta.\n\nCliente: ${nombreCliente}\n\n¿Borrar AMBOS (el pedido y la venta asociada)? Esto revierte el stock. No se puede deshacer.`)) return;
       const ventaId = pedido.convertido_venta_id;
+      // Primero borrar el pedido (y sus ítems), porque tiene una FK apuntando a la venta
+      await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
+      await api('pedidos', 'DELETE', null, `?id=eq.${id}`);
+      // Ahora sí, borrar la venta sin que la FK lo bloquee
       await api('stock_movimientos', 'DELETE', null, `?referencia_id=eq.${ventaId}&origen=eq.venta`);
       await api('venta_items', 'DELETE', null, `?venta_id=eq.${ventaId}`);
       await api('ventas', 'DELETE', null, `?id=eq.${ventaId}`);
-      await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
-      await api('pedidos', 'DELETE', null, `?id=eq.${id}`);
       toast('Pedido y venta eliminados, stock revertido');
     } else {
       if (!confirm('Borrar este pedido?\n\nCliente: ' + nombreCliente + '\n\nSe eliminarán también los ítems asociados. Esta acción no se puede deshacer.')) return;
