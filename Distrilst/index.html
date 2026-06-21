@@ -217,6 +217,7 @@
 .comp-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
 .comp-badge.remito { background: #DBEAFE; color: #1D4ED8; }
 .comp-badge.venta { background: #DCFCE7; color: #15803D; }
+.comp-badge.pedido { background: #FEF9C3; color: #92400E; }
 .ayuda-tab { padding:6px 12px;border:1px solid var(--border);border-radius:20px;font-size:12px;background:var(--surface);cursor:pointer;color:var(--muted);transition:all .15s }
 .ayuda-tab.active { background:var(--honey);color:#fff;border-color:var(--honey);font-weight:600 }
 .ayuda-tab:hover:not(.active) { border-color:var(--honey);color:var(--honey-dark) }
@@ -2287,7 +2288,8 @@ async function loadPedidos() {
               </select>`}
           ${puedeConvertir ? `<button class="btn btn-sm btn-success" style="margin-left:4px" onclick="convertirPedidoEnVenta('${p.id}')" title="Convertir en venta">🧾 Convertir</button>` : ''}
           ${p.estado === 'pendiente' && !yaConvertido ? `<button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="editPedido('${p.id}')" title="Editar pedido">✏</button>` : ''}
-          <button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="verComprobante('pedido','${p.id}')">📋</button>
+          <button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="verComprobante('pedido','${p.id}')" title="Ver comprobante">📋</button>
+          ${!p.fecha_entrega_real ? `<button class="btn btn-sm" style="margin-left:4px;background:#FEF3C7;color:#92400E" onclick="imprimirRemito('pedido','${p.id}')" title="Imprimir remito de entrega">🚚</button>` : ''}
           ${isAdmin ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
       </tr>`;
@@ -2709,7 +2711,8 @@ async function loadVentas() {
         <td style="white-space:nowrap">
           ${v.estado_pago !== 'pagado' ? `<button class="btn btn-sm btn-success" onclick="marcarPagado('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}',${v.total})">Cobrar</button>` : '<span class="badge badge-green">Pagado</span>'}
           ${!v.fecha_entrega_real ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="editarFechaEntregaVenta('${v.id}','')" title="Marcar como entregado">📦 Entregar</button>` : ''}
-          <button class="btn btn-sm btn-secondary" onclick="verComprobante('venta','${v.id}')">🧾</button>
+          <button class="btn btn-sm btn-secondary" onclick="verComprobante('venta','${v.id}')" title="Ver comprobante">🧾</button>
+          ${!v.fecha_entrega_real ? `<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E" onclick="imprimirRemito('venta','${v.id}')" title="Imprimir remito de entrega">🚚</button>` : ''}
           ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="deleteVenta('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
       </tr>`;
@@ -4382,17 +4385,44 @@ async function verComprobante(tipo, id) {
     } else {
       const [p] = await api('pedidos', 'GET', null, '?select=id,fecha,fecha_entrega,fecha_entrega_real,estado,notas,total,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
       if (!p) { toast('No se encontró el pedido', 'error'); return; }
-      document.getElementById('compModalTitle').textContent = 'Remito de Pedido';
-      html = buildRemitoPedido(p);
+      document.getElementById('compModalTitle').textContent = 'Comprobante de Pedido';
+      html = buildComprobantePedido(p);
     }
     document.getElementById('compContenido').innerHTML = html;
     document.getElementById('modalComprobante').classList.add('open');
   } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
+function buildComprobantePedido(p) {
+  const items = p.pedido_items || [];
+  const descMatch = (p.notas || '').match(/Descuento aplicado: ([\d.]+)/);
+  const descPct = descMatch ? parseFloat(descMatch[1]) : 0;
+  let html = buildHeader('PEDIDO', compNumPedido++, p.fecha);
+  const fechaProgramada = p.fecha_entrega ? new Date(p.fecha_entrega+'T00:00:00').toLocaleDateString('es-AR') : 'A confirmar';
+  html += buildClienteInfo(p.clientes, 'Fecha de entrega', fechaProgramada, 'Estado', p.estado.charAt(0).toUpperCase() + p.estado.slice(1));
+  html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
+  items.forEach(item => {
+    const bonifTxt = item.bonificado > 0 ? ` <span style="color:#15803D;font-size:11px">+${item.bonificado} 🎁</span>` : '';
+    html += '<tr><td style="color:#78716C;font-size:12px">' + (item.productos?.codigo || '—') + '</td>' +
+      '<td>' + (item.productos?.nombre || '—') + '</td>' +
+      '<td style="text-align:center">' + item.cantidad + bonifTxt + ' ' + (item.productos?.unidad || '') + '</td>' +
+      '<td style="text-align:right">$' + parseFloat(item.precio_unitario).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
+      '<td style="text-align:right">$' + (item.cantidad * item.precio_unitario).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
+  });
+  const hasBonif = (p.notas || '').includes('bonificadas por promo');
+  html += '</tbody>';
+  if (hasBonif) {
+    html += '<tr style="background:#F0FDF4"><td colspan="5" style="font-size:12px;color:#15803D;padding:6px 10px">🎁 Este pedido incluye unidades bonificadas por promo de volumen.</td></tr>';
+  }
+  html += '<tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$' + parseFloat(p.total).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr></tfoot></table>';
+  const notaLimpia = (p.notas || '').split('|').map(s => s.trim()).filter(s => s && !s.includes('Descuento aplicado') && !s.includes('bonificadas')).join(' | ');
+  html += buildFooter(notaLimpia);
+  return html;
+}
+
 function buildHeader(tipo, num, fecha) {
-  const tipoBadgeClass = tipo === 'REMITO' ? 'remito' : 'venta';
-  const tipoLabel = tipo === 'REMITO' ? 'Remito de Entrega' : 'Comprobante de Venta';
+  const tipoBadgeClass = tipo === 'REMITO' ? 'remito' : tipo === 'PEDIDO' ? 'pedido' : 'venta';
+  const tipoLabel = tipo === 'REMITO' ? 'Remito de Entrega' : tipo === 'PEDIDO' ? 'Comprobante de Pedido' : 'Comprobante de Venta';
   const fechaStr = new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric'});
   return '<div class="comp-wrap"><div class="comp-header"><img src="' + LOGO_URL + '" class="comp-logo" alt="Hojuelas" onerror="this.style.display=\'none\'">' +
     '<div class="comp-empresa"><h2>' + EMPRESA.nombre + '</h2><p>' + EMPRESA.razon + '</p><p>' + EMPRESA.direccion + '</p><p>' + EMPRESA.rep + ' · ' + EMPRESA.tel + '</p><p>' + EMPRESA.web + '</p></div></div>' +
@@ -4449,13 +4479,31 @@ function buildComprobanteVenta(v) {
   return html;
 }
 
-function buildRemitoPedido(p) {
-  const items = p.pedido_items || [];
-  let html = buildHeader('REMITO', compNumPedido++, p.fecha);
-  const fechaProgramada = p.fecha_entrega ? new Date(p.fecha_entrega+'T00:00:00').toLocaleDateString('es-AR') : 'A confirmar';
-  const fechaReal = p.fecha_entrega_real ? new Date(p.fecha_entrega_real+'T00:00:00').toLocaleDateString('es-AR') : null;
+async function imprimirRemito(tipo, id) {
+  try {
+    let datos;
+    if (tipo === 'venta') {
+      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,fecha_entrega_real,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      if (!v) { toast('No se encontró la venta', 'error'); return; }
+      datos = { fecha_entrega: v.fecha, fecha_entrega_real: v.fecha_entrega_real, estado: v.estado_pago === 'pagado' ? 'Facturada y pagada' : 'Facturada', notas: v.notas, clientes: v.clientes, items: v.venta_items };
+    } else {
+      const [p] = await api('pedidos', 'GET', null, '?select=id,fecha_entrega,fecha_entrega_real,estado,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      if (!p) { toast('No se encontró el pedido', 'error'); return; }
+      datos = { fecha_entrega: p.fecha_entrega, fecha_entrega_real: p.fecha_entrega_real, estado: p.estado.charAt(0).toUpperCase() + p.estado.slice(1), notas: p.notas, clientes: p.clientes, items: p.pedido_items };
+    }
+    document.getElementById('compModalTitle').textContent = 'Remito de Entrega';
+    document.getElementById('compContenido').innerHTML = buildRemitoEntrega(datos);
+    document.getElementById('modalComprobante').classList.add('open');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+function buildRemitoEntrega(datos) {
+  const items = datos.items || [];
+  let html = buildHeader('REMITO', compNumPedido++, new Date().toISOString().split('T')[0]);
+  const fechaProgramada = datos.fecha_entrega ? new Date(datos.fecha_entrega+'T00:00:00').toLocaleDateString('es-AR') : 'A confirmar';
+  const fechaReal = datos.fecha_entrega_real ? new Date(datos.fecha_entrega_real+'T00:00:00').toLocaleDateString('es-AR') : null;
   const fechaEntLabel = fechaReal ? `${fechaProgramada} <span style="color:#15803D;font-weight:600">(✓ entregado: ${fechaReal})</span>` : fechaProgramada;
-  html += buildClienteInfo(p.clientes, 'Fecha programada', fechaEntLabel, 'Estado', p.estado.charAt(0).toUpperCase() + p.estado.slice(1));
+  html += buildClienteInfo(datos.clientes, 'Fecha programada', fechaEntLabel, 'Estado', datos.estado);
   html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:center">Unidad</th><th style="text-align:center">Recibido ✓</th></tr></thead><tbody>';
   let totalBultos = 0;
   items.forEach(item => {
@@ -4472,7 +4520,7 @@ function buildRemitoPedido(p) {
   html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:32px;font-size:12px;color:#78716C">' +
     '<div style="text-align:center"><div style="border-top:1px solid #1C1917;padding-top:6px;margin-top:40px">Firma receptor</div></div>' +
     '<div style="text-align:center"><div style="border-top:1px solid #1C1917;padding-top:6px;margin-top:40px">Firma transportista</div></div></div>';
-  html += buildFooter(p.notas);
+  html += buildFooter(datos.notas);
   return html;
 }
 
