@@ -1310,6 +1310,7 @@ function showSection(name) {
     </div>
     <div class="form-group"><label>Nombre *</label><input id="productoNombre" placeholder="Ej: Lactal Blanco mediano 18 fetas"></div>
     <div class="form-group"><label>Descripción</label><input id="productoDesc" placeholder="Ej: 455 grs."></div>
+    <div id="productoCostoPromoAviso" style="display:none;background:#FEF3C7;color:#92400E;font-size:12px;padding:8px 10px;border-radius:7px;margin-bottom:10px">📉 Este producto tiene un costo promocional activo. Si cambiás el costo acá, se va a perder el costo normal guardado para restaurar.</div>
     <div class="form-row">
       <div class="form-group"><label>Costo *</label><input id="productoCosto" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcPrecioProducto()"></div>
       <div class="form-group"><label>Margen % *</label><input id="productoMargen" type="number" min="0" step="0.1" placeholder="Ej: 35" oninput="calcPrecioProducto()"></div>
@@ -1578,6 +1579,24 @@ function showSection(name) {
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalListaPrecios')">Cancelar</button>
       <button class="btn btn-primary" onclick="generarListaPrecios()">📄 Generar PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL COSTO PROMOCIONAL -->
+<div class="modal-backdrop" id="modalCostoPromo">
+  <div class="modal" style="max-width:420px">
+    <h3 class="modal-title">📉 Aplicar costo promocional</h3>
+    <input type="hidden" id="costoPromoProductoId">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px" id="costoPromoInfo"></p>
+    <div class="form-group">
+      <label>Nuevo costo (temporal)</label>
+      <input type="number" id="costoPromoNuevoValor" min="0" step="0.01" placeholder="0.00" oninput="previewCostoPromo()">
+    </div>
+    <div id="costoPromoPreview" style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px;display:none"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalCostoPromo')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarCostoPromo()">Aplicar</button>
     </div>
   </div>
 </div>
@@ -2246,7 +2265,7 @@ function renderProductos(list) {
         <code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px;font-weight:600">${p.codigo||'—'}</code>
         ${p.codigo_viejo ? `<span style="font-size:11px;color:var(--muted);margin-left:4px">(${p.codigo_viejo})</span>` : ''}
       </td>
-      <td><strong>${p.nombre}</strong>${p.descripcion ? `<br><span style="color:var(--muted);font-size:12px">${p.descripcion}</span>` : ''}</td>
+      <td><strong>${p.nombre}</strong>${p.promo_costo_activa ? ' <span style="background:#FEF3C7;color:#92400E;font-size:10px;padding:2px 6px;border-radius:10px">📉 Costo promo</span>' : ''}${p.descripcion ? `<br><span style="color:var(--muted);font-size:12px">${p.descripcion}</span>` : ''}</td>
       <td>${p.familia ? `<span class="badge badge-blue">${p.familia}</span>` : '—'}${p.variante ? `<br><span style="font-size:11px;color:var(--muted)">${p.variante}</span>` : ''}</td>
       <td>$${precio.toLocaleString('es-AR')}</td>
       <td style="color:var(--info)">$${(precio * 1.21).toLocaleString('es-AR', {maximumFractionDigits:2})}</td>
@@ -2256,6 +2275,9 @@ function renderProductos(list) {
       <td style="white-space:nowrap">
         ${currentRol === 'admin' ? `
           <button class="btn btn-sm btn-secondary" onclick="editProducto('${p.id}')">Editar</button>
+          ${p.promo_costo_activa
+            ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="restaurarCostoNormal('${p.id}')" title="Volver al costo normal">↩ Restaurar</button>`
+            : `<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E" onclick="abrirCostoPromo('${p.id}')" title="Aplicar costo promocional">📉 Promo costo</button>`}
           <button class="btn btn-sm btn-danger" onclick="deleteProducto('${p.id}')">Borrar</button>
         ` : '<span style="font-size:11px;color:var(--muted)">—</span>'}
       </td>
@@ -2326,6 +2348,7 @@ function editProducto(id) {
   document.getElementById('productoDesc').value = p.descripcion || '';
   document.getElementById('productoCosto').value = p.costo || 0;
   document.getElementById('productoMargen').value = p.margen_pct || '';
+  document.getElementById('productoCostoPromoAviso').style.display = p.promo_costo_activa ? '' : 'none';
   document.getElementById('productoUnidad').value = p.unidad || '';
   document.getElementById('productoStock').value = p.stock || 0;
   document.getElementById('productoStockMin').value = p.stock_minimo || 0;
@@ -2358,7 +2381,71 @@ function clearProductoForm() {
   document.getElementById('productoPrecioPreview').textContent = '—';
   document.getElementById('productoTienePromo').checked = false;
   document.getElementById('productoPromoWrap').style.display = 'none';
+  document.getElementById('productoCostoPromoAviso').style.display = 'none';
   document.getElementById('modalProductoTitle').textContent = 'Nuevo producto';
+}
+
+// ==================== COSTO PROMOCIONAL ====================
+function abrirCostoPromo(productoId) {
+  const p = cachedProductos.find(x => x.id === productoId);
+  if (!p) return;
+  document.getElementById('costoPromoProductoId').value = productoId;
+  document.getElementById('costoPromoInfo').textContent = `${p.nombre} — Costo normal actual: $${parseFloat(p.costo||0).toLocaleString('es-AR')} (margen ${p.margen_pct||0}%)`;
+  document.getElementById('costoPromoNuevoValor').value = '';
+  document.getElementById('costoPromoPreview').style.display = 'none';
+  openModal('modalCostoPromo');
+}
+
+function previewCostoPromo() {
+  const productoId = document.getElementById('costoPromoProductoId').value;
+  const p = cachedProductos.find(x => x.id === productoId);
+  const nuevoCosto = parseFloat(document.getElementById('costoPromoNuevoValor').value) || 0;
+  const preview = document.getElementById('costoPromoPreview');
+  if (!p || nuevoCosto <= 0) { preview.style.display = 'none'; return; }
+  const margen = p.margen_pct || 0;
+  const nuevoPrecio = margen > 0 ? nuevoCosto / (1 - margen / 100) : nuevoCosto;
+  preview.style.display = '';
+  preview.innerHTML = `Nuevo precio de venta: <strong>$${nuevoPrecio.toLocaleString('es-AR',{maximumFractionDigits:2})}</strong> (mismo margen ${margen}%)`;
+}
+
+async function confirmarCostoPromo() {
+  const productoId = document.getElementById('costoPromoProductoId').value;
+  const p = cachedProductos.find(x => x.id === productoId);
+  if (!p) { toast('Producto no encontrado', 'error'); return; }
+  const nuevoCosto = parseFloat(document.getElementById('costoPromoNuevoValor').value);
+  if (!nuevoCosto || nuevoCosto <= 0) { toast('Ingresá el nuevo costo', 'error'); return; }
+  const margen = p.margen_pct || 0;
+  const nuevoPrecio = margen > 0 ? nuevoCosto / (1 - margen / 100) : nuevoCosto;
+  try {
+    await api('productos', 'PATCH', {
+      costo_normal: p.costo_normal || p.costo, // guarda el costo normal solo si no había uno ya guardado
+      costo: nuevoCosto,
+      precio: Math.round(nuevoPrecio * 100) / 100,
+      promo_costo_activa: true
+    }, `?id=eq.${productoId}`);
+    toast('Costo promocional aplicado ✓');
+    closeModal('modalCostoPromo');
+    loadProductos();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function restaurarCostoNormal(productoId) {
+  const p = cachedProductos.find(x => x.id === productoId);
+  if (!p) { toast('Producto no encontrado', 'error'); return; }
+  if (p.costo_normal == null) { toast('No hay un costo normal guardado para restaurar', 'error'); return; }
+  if (!confirm(`¿Restaurar el costo normal de "${p.nombre}" a $${parseFloat(p.costo_normal).toLocaleString('es-AR')}?`)) return;
+  const margen = p.margen_pct || 0;
+  const precioNormal = margen > 0 ? p.costo_normal / (1 - margen / 100) : p.costo_normal;
+  try {
+    await api('productos', 'PATCH', {
+      costo: p.costo_normal,
+      precio: Math.round(precioNormal * 100) / 100,
+      costo_normal: null,
+      promo_costo_activa: false
+    }, `?id=eq.${productoId}`);
+    toast('Costo normal restaurado ✓');
+    loadProductos();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
 // ==================== ACTUALIZACIÓN MASIVA DE PRECIOS ====================
