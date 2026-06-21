@@ -4896,11 +4896,26 @@ async function updateEstadoPedidoProveedor(id, estado) {
 }
 
 async function deletePedidoProveedor(id) {
-  if (!confirm('¿Borrar este pedido a proveedor? Esta acción no se puede deshacer.')) return;
   try {
+    const recepciones = await api('recepciones', 'GET', null, `?pedido_proveedor_id=eq.${id}&select=id,numero`);
+    let mensaje = '¿Borrar este pedido a proveedor? Esta acción no se puede deshacer.';
+    if (recepciones.length) {
+      mensaje = `Este pedido ya tiene ${recepciones.length} recepción(es) asociada(s).\n\n¿Borrar TODO (pedido + recepciones) y revertir el stock recibido? Esta acción no se puede deshacer.`;
+    }
+    if (!confirm(mensaje)) return;
+
+    if (recepciones.length) {
+      const recepIds = recepciones.map(r => r.id);
+      // Revertir stock: borrar los movimientos de stock generados por estas recepciones
+      await api('stock_movimientos', 'DELETE', null, `?referencia_id=in.(${recepIds.join(',')})&origen=eq.reposicion`);
+      // Borrar ítems y luego las recepciones
+      await api('recepcion_items', 'DELETE', null, `?recepcion_id=in.(${recepIds.join(',')})`);
+      await api('recepciones', 'DELETE', null, `?pedido_proveedor_id=eq.${id}`);
+    }
+
     await api('pedido_proveedor_items', 'DELETE', null, `?pedido_proveedor_id=eq.${id}`);
     await api('pedidos_proveedor', 'DELETE', null, `?id=eq.${id}`);
-    toast('Pedido eliminado');
+    toast(recepciones.length ? 'Pedido, recepciones y stock revertido ✓' : 'Pedido eliminado');
     loadPedidosProveedor();
   } catch(e) { toast('Error al eliminar: ' + e.message, 'error'); }
 }
