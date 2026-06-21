@@ -4353,6 +4353,38 @@ function renderMapa() {
 // ==================== PEDIDOS A PROVEEDOR ====================
 let provItems = [];
 
+async function verPedidoProveedor(id) {
+  try {
+    const [pedido] = await api('pedidos_proveedor', 'GET', null, `?id=eq.${id}&select=*`);
+    if (!pedido) { toast('Pedido no encontrado', 'error'); return; }
+    const items = await api('pedido_proveedor_items', 'GET', null, `?pedido_proveedor_id=eq.${id}&select=cantidad,costo_unitario,productos(nombre,codigo,unidad)`);
+
+    document.getElementById('compModalTitle').textContent = 'Pedido a Proveedor';
+    document.getElementById('compContenido').innerHTML = buildPedidoProveedorDoc(pedido, items);
+    document.getElementById('modalComprobante').classList.add('open');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+function buildPedidoProveedorDoc(pedido, items) {
+  const estadoLabel = pedido.estado.charAt(0).toUpperCase() + pedido.estado.slice(1);
+  let html = buildHeader('PEDIDO PROV.', pedido.numero, pedido.fecha);
+  html += '<div class="comp-datos">' +
+    '<div><span>Proveedor</span><strong>' + pedido.proveedor + '</strong></div>' +
+    '<div><span>Estado</span><strong>' + estadoLabel + '</strong></div>' +
+    '</div>';
+  html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
+  items.forEach(item => {
+    html += '<tr><td style="color:#78716C;font-size:12px">' + (item.productos?.codigo || '—') + '</td>' +
+      '<td>' + (item.productos?.nombre || '—') + '</td>' +
+      '<td style="text-align:center">' + item.cantidad + ' ' + (item.productos?.unidad || '') + '</td>' +
+      '<td style="text-align:right">$' + parseFloat(item.costo_unitario||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
+      '<td style="text-align:right">$' + (item.cantidad * (item.costo_unitario||0)).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
+  });
+  html += '</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL ESTIMADO</td><td style="text-align:right">$' + parseFloat(pedido.total_estimado||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr></tfoot></table>';
+  html += buildFooter(pedido.notas);
+  return html;
+}
+
 async function loadPedidosProveedor() {
   if (!SUPABASE_URL) return;
   try {
@@ -4374,6 +4406,7 @@ async function loadPedidosProveedor() {
           ${p.estado === 'borrador' || p.estado === 'pendiente' ? `<button class="btn btn-sm btn-secondary" onclick="editarPedidoProveedor('${p.id}')" title="Editar">✏</button>` : ''}
           ${p.estado === 'borrador' || p.estado === 'pendiente' ? `<button class="btn btn-sm btn-success" onclick="updateEstadoPedidoProveedor('${p.id}','confirmado')" title="Confirmar pedido">✓ Confirmar</button>` : ''}
           ${p.estado === 'confirmado' ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="updateEstadoPedidoProveedor('${p.id}','enviado')" title="Marcar como enviado al proveedor">📤 Enviar al proveedor</button>` : ''}
+          ${['confirmado','enviado','cancelado'].includes(p.estado) ? `<button class="btn btn-sm btn-secondary" onclick="verPedidoProveedor('${p.id}')" title="Ver pedido">👁 Ver</button>` : ''}
           ${p.estado !== 'cancelado' ? `<button class="btn btn-sm btn-danger" onclick="deletePedidoProveedor('${p.id}')">Borrar</button>` : ''}
         </td>
       </tr>`).join('');
@@ -4848,8 +4881,8 @@ function buildComprobantePedido(p) {
 }
 
 function buildHeader(tipo, num, fecha) {
-  const tipoBadgeClass = tipo === 'REMITO' ? 'remito' : tipo === 'PEDIDO' ? 'pedido' : 'venta';
-  const tipoLabel = tipo === 'REMITO' ? 'Remito de Entrega' : tipo === 'PEDIDO' ? 'Comprobante de Pedido' : 'Comprobante de Venta';
+  const tipoBadgeClass = tipo === 'REMITO' ? 'remito' : tipo === 'PEDIDO' ? 'pedido' : tipo === 'PEDIDO PROV.' ? 'pedido' : 'venta';
+  const tipoLabel = tipo === 'REMITO' ? 'Remito de Entrega' : tipo === 'PEDIDO' ? 'Comprobante de Pedido' : tipo === 'PEDIDO PROV.' ? 'Pedido a Proveedor' : 'Comprobante de Venta';
   const fechaStr = new Date(fecha + 'T00:00:00').toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric'});
   return '<div class="comp-wrap"><div class="comp-header"><img src="' + LOGO_URL + '" class="comp-logo" alt="Hojuelas" onerror="this.style.display=\'none\'">' +
     '<div class="comp-empresa"><h2>' + EMPRESA.nombre + '</h2><p>' + EMPRESA.razon + '</p><p>' + EMPRESA.direccion + '</p><p>' + EMPRESA.rep + ' · ' + EMPRESA.tel + '</p><p>' + EMPRESA.web + '</p></div></div>' +
