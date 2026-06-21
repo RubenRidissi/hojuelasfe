@@ -2246,7 +2246,7 @@ async function loadPedidos() {
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('pedidoFiltroVendedor')?.value || '')
       : currentUser;
-    let q = `?select=id,fecha,fecha_entrega,fecha_entrega_real,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    let q = `?select=id,fecha,fecha_entrega,fecha_entrega_real,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,remito_generado,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
     if (estado) q += `&estado=eq.${estado}`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
     const pedidos = await api('pedidos', 'GET', null, q);
@@ -2289,7 +2289,11 @@ async function loadPedidos() {
           ${puedeConvertir ? `<button class="btn btn-sm btn-success" style="margin-left:4px" onclick="convertirPedidoEnVenta('${p.id}')" title="Convertir en venta">🧾 Convertir</button>` : ''}
           ${p.estado === 'pendiente' && !yaConvertido ? `<button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="editPedido('${p.id}')" title="Editar pedido">✏</button>` : ''}
           <button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="verComprobante('pedido','${p.id}')" title="Ver comprobante">📋</button>
-          ${!p.fecha_entrega_real ? `<button class="btn btn-sm" style="margin-left:4px;background:#FEF3C7;color:#92400E" onclick="imprimirRemito('pedido','${p.id}')" title="Imprimir remito de entrega">🚚</button>` : ''}
+          ${!p.fecha_entrega_real ? (
+            p.remito_generado
+              ? `<button class="btn btn-sm" style="margin-left:4px;background:#F3F4F6;color:#374151" onclick="verRemito('pedido','${p.id}')" title="Ver remito generado">👁 Remito</button>`
+              : `<button class="btn btn-sm" style="margin-left:4px;background:#FEF3C7;color:#92400E" onclick="imprimirRemito('pedido','${p.id}')" title="Imprimir remito de entrega">🚚</button>`
+          ) : ''}
           ${isAdmin ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
       </tr>`;
@@ -2605,6 +2609,12 @@ async function editPedido(id) {
   if (pedido.estado !== 'pendiente') { toast('Solo se pueden editar pedidos en estado Pendiente', 'error'); return; }
   try {
     const items = await api('pedido_items', 'GET', null, `?pedido_id=eq.${id}&select=producto_id,cantidad,bonificado,precio_unitario,productos(nombre,promo)`);
+    // Abrir el modal primero y esperar a que el select de clientes/productos se pueble,
+    // recién después asignar los valores (si no, openModal repuebla el select de forma async y pisa la selección)
+    document.getElementById('modalPedido').classList.add('open');
+    await ensureCache();
+    populateSelects();
+
     document.getElementById('pedidoId').value = id;
     document.getElementById('modalPedidoTitle').textContent = 'Editar pedido';
     document.getElementById('pedidoCliente').value = pedido.cliente_id;
@@ -2622,7 +2632,6 @@ async function editPedido(id) {
       promo: item.productos?.promo || ''
     }));
     renderPedidoItems();
-    openModal('modalPedido');
   } catch(e) { toast('Error al cargar el pedido: ' + e.message, 'error'); }
 }
 
@@ -2677,7 +2686,7 @@ async function loadVentas() {
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('ventaFiltroVendedor')?.value || '')
       : currentUser;
-    let q = `?select=id,fecha,fecha_entrega_real,total,estado_pago,vendedor_id,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    let q = `?select=id,fecha,fecha_entrega_real,total,estado_pago,vendedor_id,remito_generado,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
     const ventas = await api('ventas', 'GET', null, q);
     cachedVentas = ventas;
@@ -2712,7 +2721,11 @@ async function loadVentas() {
           ${v.estado_pago !== 'pagado' ? `<button class="btn btn-sm btn-success" onclick="marcarPagado('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}',${v.total})">Cobrar</button>` : '<span class="badge badge-green">Pagado</span>'}
           ${!v.fecha_entrega_real ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="editarFechaEntregaVenta('${v.id}','')" title="Marcar como entregado">📦 Entregar</button>` : ''}
           <button class="btn btn-sm btn-secondary" onclick="verComprobante('venta','${v.id}')" title="Ver comprobante">🧾</button>
-          ${!v.fecha_entrega_real ? `<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E" onclick="imprimirRemito('venta','${v.id}')" title="Imprimir remito de entrega">🚚</button>` : ''}
+          ${!v.fecha_entrega_real ? (
+            v.remito_generado
+              ? `<button class="btn btn-sm" style="background:#F3F4F6;color:#374151" onclick="verRemito('venta','${v.id}')" title="Ver remito generado">👁 Remito</button>`
+              : `<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E" onclick="imprimirRemito('venta','${v.id}')" title="Imprimir remito de entrega">🚚</button>`
+          ) : ''}
           ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="deleteVenta('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
       </tr>`;
@@ -4479,7 +4492,7 @@ function buildComprobanteVenta(v) {
   return html;
 }
 
-async function imprimirRemito(tipo, id) {
+async function verRemito(tipo, id) {
   try {
     let datos;
     if (tipo === 'venta') {
@@ -4494,6 +4507,27 @@ async function imprimirRemito(tipo, id) {
     document.getElementById('compModalTitle').textContent = 'Remito de Entrega';
     document.getElementById('compContenido').innerHTML = buildRemitoEntrega(datos);
     document.getElementById('modalComprobante').classList.add('open');
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function imprimirRemito(tipo, id) {
+  try {
+    let datos;
+    if (tipo === 'venta') {
+      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,fecha_entrega_real,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      if (!v) { toast('No se encontró la venta', 'error'); return; }
+      datos = { fecha_entrega: v.fecha, fecha_entrega_real: v.fecha_entrega_real, estado: v.estado_pago === 'pagado' ? 'Facturada y pagada' : 'Facturada', notas: v.notas, clientes: v.clientes, items: v.venta_items };
+      await api('ventas', 'PATCH', { remito_generado: true }, `?id=eq.${id}`);
+    } else {
+      const [p] = await api('pedidos', 'GET', null, '?select=id,fecha_entrega,fecha_entrega_real,estado,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      if (!p) { toast('No se encontró el pedido', 'error'); return; }
+      datos = { fecha_entrega: p.fecha_entrega, fecha_entrega_real: p.fecha_entrega_real, estado: p.estado.charAt(0).toUpperCase() + p.estado.slice(1), notas: p.notas, clientes: p.clientes, items: p.pedido_items };
+      await api('pedidos', 'PATCH', { remito_generado: true }, `?id=eq.${id}`);
+    }
+    document.getElementById('compModalTitle').textContent = 'Remito de Entrega';
+    document.getElementById('compContenido').innerHTML = buildRemitoEntrega(datos);
+    document.getElementById('modalComprobante').classList.add('open');
+    if (tipo === 'venta') loadVentas(); else loadPedidos();
   } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
