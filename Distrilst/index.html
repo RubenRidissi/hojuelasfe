@@ -2546,7 +2546,7 @@ async function loadPedidos() {
             ? `<button class="btn btn-sm" style="margin-left:4px;background:#F3F4F6;color:#374151" onclick="verRemito('pedido','${p.id}')" title="Ver remito generado">👁 Remito</button>`
             : (puedeRemitir ? `<button class="btn btn-sm" style="margin-left:4px;background:#FEF3C7;color:#92400E" onclick="imprimirRemito('pedido','${p.id}')" title="Imprimir remito de entrega">🚚</button>` : '')
           }
-          ${isAdmin ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
+          ${isAdmin && !yaConvertido ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
       </tr>`;
     }).join('');
@@ -2898,6 +2898,11 @@ function clearPedidoForm() {
 
 // ==================== DELETE VENTA / PEDIDO ====================
 async function deleteVenta(id, nombreCliente) {
+  const venta = cachedVentas.find(v => v.id === id);
+  if (venta?.estado_pago === 'pagado') {
+    toast('No se puede borrar una venta ya cobrada. Si hubo un error, contactá al administrador del sistema.', 'error');
+    return;
+  }
   if (!confirm('Borrar esta venta?\n\nCliente: ' + nombreCliente + '\n\nSe eliminarán también los ítems asociados. Esta acción no se puede deshacer.')) return;
   try {
     await api('stock_movimientos', 'DELETE', null, `?referencia_id=eq.${id}&origen=eq.venta`);
@@ -2911,24 +2916,15 @@ async function deleteVenta(id, nombreCliente) {
 
 async function deletePedido(id, nombreCliente) {
   const pedido = cachedPedidos.find(p => p.id === id);
+  if (pedido?.convertido_venta_id) {
+    toast('Este pedido ya fue facturado y no se puede borrar. Si hubo un error, anulá la venta asociada desde la sección Ventas.', 'error');
+    return;
+  }
+  if (!confirm('Borrar este pedido?\n\nCliente: ' + nombreCliente + '\n\nSe eliminarán también los ítems asociados. Esta acción no se puede deshacer.')) return;
   try {
-    if (pedido?.convertido_venta_id) {
-      if (!confirm(`Este pedido ya fue convertido en venta.\n\nCliente: ${nombreCliente}\n\n¿Borrar AMBOS (el pedido y la venta asociada)? Esto revierte el stock. No se puede deshacer.`)) return;
-      const ventaId = pedido.convertido_venta_id;
-      // Primero borrar el pedido (y sus ítems), porque tiene una FK apuntando a la venta
-      await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
-      await api('pedidos', 'DELETE', null, `?id=eq.${id}`);
-      // Ahora sí, borrar la venta sin que la FK lo bloquee
-      await api('stock_movimientos', 'DELETE', null, `?referencia_id=eq.${ventaId}&origen=eq.venta`);
-      await api('venta_items', 'DELETE', null, `?venta_id=eq.${ventaId}`);
-      await api('ventas', 'DELETE', null, `?id=eq.${ventaId}`);
-      toast('Pedido y venta eliminados, stock revertido');
-    } else {
-      if (!confirm('Borrar este pedido?\n\nCliente: ' + nombreCliente + '\n\nSe eliminarán también los ítems asociados. Esta acción no se puede deshacer.')) return;
-      await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
-      await api('pedidos', 'DELETE', null, `?id=eq.${id}`);
-      toast('Pedido eliminado');
-    }
+    await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
+    await api('pedidos', 'DELETE', null, `?id=eq.${id}`);
+    toast('Pedido eliminado');
     loadPedidos();
     loadDashboard();
   } catch(e) { toast('Error al eliminar: ' + e.message, 'error'); }
@@ -2989,7 +2985,7 @@ async function loadVentas() {
             ? `<button class="btn btn-sm" style="background:#F3F4F6;color:#374151" onclick="verRemito('venta','${v.id}')" title="Ver remito generado">👁 Remito</button>`
             : `<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E" onclick="imprimirRemito('venta','${v.id}')" title="Imprimir remito de entrega">🚚</button>`
           }
-          ${isAdmin ? `<button class="btn btn-sm btn-danger" onclick="deleteVenta('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
+          ${isAdmin && v.estado_pago !== 'pagado' ? `<button class="btn btn-sm btn-danger" onclick="deleteVenta('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
       </tr>`;
     }).join('');
@@ -4694,7 +4690,7 @@ async function loadPedidosProveedor() {
           ${p.estado === 'confirmado' ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="updateEstadoPedidoProveedor('${p.id}','enviado')" title="Marcar como enviado al proveedor">📤 Enviar al proveedor</button>` : ''}
           ${['confirmado','enviado','recibido_incompleto'].includes(p.estado) ? `<button class="btn btn-sm btn-success" onclick="abrirNuevaRecepcion('${p.id}')" title="Registrar recepción">📥 Recibir</button>` : ''}
           ${['confirmado','enviado','recibido_completo','recibido_incompleto','cancelado'].includes(p.estado) ? `<button class="btn btn-sm btn-secondary" onclick="verPedidoProveedor('${p.id}')" title="Ver pedido">👁 Ver</button>` : ''}
-          ${p.estado !== 'cancelado' ? `<button class="btn btn-sm btn-danger" onclick="deletePedidoProveedor('${p.id}')">Borrar</button>` : ''}
+          ${!['cancelado','recibido_completo','recibido_incompleto'].includes(p.estado) ? `<button class="btn btn-sm btn-danger" onclick="deletePedidoProveedor('${p.id}')">Borrar</button>` : ''}
         </td>
       </tr>`).join('');
   } catch(e) { console.error(e); toast('Error cargando pedidos a proveedor', 'error'); }
@@ -4897,25 +4893,15 @@ async function updateEstadoPedidoProveedor(id, estado) {
 
 async function deletePedidoProveedor(id) {
   try {
-    const recepciones = await api('recepciones', 'GET', null, `?pedido_proveedor_id=eq.${id}&select=id,numero`);
-    let mensaje = '¿Borrar este pedido a proveedor? Esta acción no se puede deshacer.';
+    const recepciones = await api('recepciones', 'GET', null, `?pedido_proveedor_id=eq.${id}&select=id`);
     if (recepciones.length) {
-      mensaje = `Este pedido ya tiene ${recepciones.length} recepción(es) asociada(s).\n\n¿Borrar TODO (pedido + recepciones) y revertir el stock recibido? Esta acción no se puede deshacer.`;
+      toast('Este pedido ya tiene mercadería recibida y no se puede borrar. El historial queda registrado en Recepciones.', 'error');
+      return;
     }
-    if (!confirm(mensaje)) return;
-
-    if (recepciones.length) {
-      const recepIds = recepciones.map(r => r.id);
-      // Revertir stock: borrar los movimientos de stock generados por estas recepciones
-      await api('stock_movimientos', 'DELETE', null, `?referencia_id=in.(${recepIds.join(',')})&origen=eq.reposicion`);
-      // Borrar ítems y luego las recepciones
-      await api('recepcion_items', 'DELETE', null, `?recepcion_id=in.(${recepIds.join(',')})`);
-      await api('recepciones', 'DELETE', null, `?pedido_proveedor_id=eq.${id}`);
-    }
-
+    if (!confirm('¿Borrar este pedido a proveedor? Esta acción no se puede deshacer.')) return;
     await api('pedido_proveedor_items', 'DELETE', null, `?pedido_proveedor_id=eq.${id}`);
     await api('pedidos_proveedor', 'DELETE', null, `?id=eq.${id}`);
-    toast(recepciones.length ? 'Pedido, recepciones y stock revertido ✓' : 'Pedido eliminado');
+    toast('Pedido eliminado');
     loadPedidosProveedor();
   } catch(e) { toast('Error al eliminar: ' + e.message, 'error'); }
 }
