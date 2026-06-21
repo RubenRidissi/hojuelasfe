@@ -626,6 +626,7 @@ function showSection(name) {
           <option value="borrador">Borrador</option>
           <option value="pendiente">Pendiente</option>
           <option value="confirmado">Confirmado</option>
+          <option value="enviado">Enviado</option>
           <option value="cancelado">Cancelado</option>
         </select>
       </div>
@@ -4361,7 +4362,7 @@ async function loadPedidosProveedor() {
     const pedidos = await api('pedidos_proveedor', 'GET', null, q);
     const tbody = document.getElementById('tablaPedidosProveedor');
     if (!pedidos.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">🏭</div><p>No hay pedidos a proveedor todavía</p></div></td></tr>'; return; }
-    const estadoBadge = { borrador: 'badge-gray', pendiente: 'badge-yellow', confirmado: 'badge-green', cancelado: 'badge-red' };
+    const estadoBadge = { borrador: 'badge-gray', pendiente: 'badge-yellow', confirmado: 'badge-green', enviado: 'badge-blue', cancelado: 'badge-red' };
     tbody.innerHTML = pedidos.map(p => `
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(p.numero).padStart(4,'0')}</td>
@@ -4370,8 +4371,9 @@ async function loadPedidosProveedor() {
         <td><span class="badge ${estadoBadge[p.estado]||'badge-gray'}">${p.estado.charAt(0).toUpperCase()+p.estado.slice(1)}</span></td>
         <td>$${parseFloat(p.total_estimado||0).toLocaleString('es-AR')}</td>
         <td style="white-space:nowrap">
-          ${p.estado !== 'cancelado' ? `<button class="btn btn-sm btn-secondary" onclick="editarPedidoProveedor('${p.id}')" title="Editar">✏</button>` : ''}
+          ${p.estado === 'borrador' || p.estado === 'pendiente' ? `<button class="btn btn-sm btn-secondary" onclick="editarPedidoProveedor('${p.id}')" title="Editar">✏</button>` : ''}
           ${p.estado === 'borrador' || p.estado === 'pendiente' ? `<button class="btn btn-sm btn-success" onclick="updateEstadoPedidoProveedor('${p.id}','confirmado')" title="Confirmar pedido">✓ Confirmar</button>` : ''}
+          ${p.estado === 'confirmado' ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="updateEstadoPedidoProveedor('${p.id}','enviado')" title="Marcar como enviado al proveedor">📤 Enviar al proveedor</button>` : ''}
           ${p.estado !== 'cancelado' ? `<button class="btn btn-sm btn-danger" onclick="deletePedidoProveedor('${p.id}')">Borrar</button>` : ''}
         </td>
       </tr>`).join('');
@@ -4468,6 +4470,10 @@ async function editarPedidoProveedor(id) {
   try {
     const [pedido] = await api('pedidos_proveedor', 'GET', null, `?id=eq.${id}&select=*`);
     if (!pedido) { toast('Pedido no encontrado', 'error'); return; }
+    if (pedido.estado !== 'borrador' && pedido.estado !== 'pendiente') {
+      toast('Solo se pueden editar pedidos en Borrador o Pendiente', 'error');
+      return;
+    }
     const items = await api('pedido_proveedor_items', 'GET', null, `?pedido_proveedor_id=eq.${id}&select=producto_id,cantidad,costo_unitario,productos(nombre)`);
     await ensureCache();
     document.getElementById('provPedidoId').value = id;
