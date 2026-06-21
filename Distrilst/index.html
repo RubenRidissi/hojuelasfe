@@ -1138,7 +1138,8 @@ function showSection(name) {
 <!-- MODAL PEDIDO -->
 <div class="modal-backdrop" id="modalPedido">
   <div class="modal" style="max-width:580px">
-    <h3 class="modal-title">Nuevo pedido</h3>
+    <h3 class="modal-title" id="modalPedidoTitle">Nuevo pedido</h3>
+    <input type="hidden" id="pedidoId">
     <div class="form-row">
       <div class="form-group"><label>Cliente *</label><select id="pedidoCliente" onchange="renderPedidoItems()"><option value="">Seleccioná un cliente</option></select></div>
       <div class="form-group"><label>Fecha de entrega</label><input id="pedidoFechaEntrega" type="date"></div>
@@ -1564,6 +1565,8 @@ function openModal(id) {
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
   if (id === 'modalPedido') { 
+    document.getElementById('pedidoId').value = '';
+    document.getElementById('modalPedidoTitle').textContent = 'Nuevo pedido';
     pedidoItems = []; renderPedidoItems(); 
     document.getElementById('pedidoPromoInfo').style.display='none';
     const s = document.getElementById('pedidoClienteSearch'); if(s) s.value='';
@@ -2283,6 +2286,7 @@ async function loadPedidos() {
                 ${['pendiente','confirmado','entregado','cancelado'].map(e => `<option value="${e}" ${p.estado===e?'selected':''}>${e.charAt(0).toUpperCase()+e.slice(1)}</option>`).join('')}
               </select>`}
           ${puedeConvertir ? `<button class="btn btn-sm btn-success" style="margin-left:4px" onclick="convertirPedidoEnVenta('${p.id}')" title="Convertir en venta">🧾 Convertir</button>` : ''}
+          ${p.estado === 'pendiente' && !yaConvertido ? `<button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="editPedido('${p.id}')" title="Editar pedido">✏</button>` : ''}
           <button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="verComprobante('pedido','${p.id}')">📋</button>
           ${isAdmin ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
@@ -2561,6 +2565,7 @@ function removePedidoItem(idx) {
 }
 
 async function savePedido() {
+  const id = document.getElementById('pedidoId').value;
   const clienteId = document.getElementById('pedidoCliente').value;
   const fechaEntrega = document.getElementById('pedidoFechaEntrega').value;
   const notas = document.getElementById('pedidoNotas').value;
@@ -2571,16 +2576,57 @@ async function savePedido() {
   const total = pedidoItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100), 0);
   const notaFinal = [notas, descPct > 0 ? 'Descuento aplicado: ' + descPct + '%' : '', pedidoItems.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : ''].filter(Boolean).join(' | ');
   try {
-    const [pedido] = await api('pedidos', 'POST', { cliente_id: clienteId, fecha_entrega: fechaEntrega || null, notas: notaFinal, total, vendedor_id: currentUser });
+    let pedidoId = id;
+    if (id) {
+      // Editar: actualizar pedido y reemplazar sus ítems
+      await api('pedidos', 'PATCH', { cliente_id: clienteId, fecha_entrega: fechaEntrega || null, notas: notaFinal, total }, `?id=eq.${id}`);
+      await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
+    } else {
+      const [pedido] = await api('pedidos', 'POST', { cliente_id: clienteId, fecha_entrega: fechaEntrega || null, notas: notaFinal, total, vendedor_id: currentUser });
+      pedidoId = pedido.id;
+    }
     await Promise.all(pedidoItems.map(item => {
       const precioConDesc = item.precio_unitario * (1 - descPct / 100);
-      return api('pedido_items', 'POST', { pedido_id: pedido.id, producto_id: item.producto_id, cantidad: item.cantidad, bonificado: item.bonificado || 0, precio_unitario: precioConDesc });
+      return api('pedido_items', 'POST', { pedido_id: pedidoId, producto_id: item.producto_id, cantidad: item.cantidad, bonificado: item.bonificado || 0, precio_unitario: precioConDesc });
     }));
-    toast('Pedido creado');
+    toast(id ? 'Pedido actualizado' : 'Pedido creado');
     closeModal('modalPedido');
+    clearPedidoForm();
     loadPedidos();
     loadDashboard();
   } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function editPedido(id) {
+  const pedido = cachedPedidos.find(p => p.id === id);
+  if (!pedido) { toast('Pedido no encontrado', 'error'); return; }
+  if (pedido.estado !== 'pendiente') { toast('Solo se pueden editar pedidos en estado Pendiente', 'error'); return; }
+  try {
+    const items = await api('pedido_items', 'GET', null, `?pedido_id=eq.${id}&select=producto_id,cantidad,bonificado,precio_unitario,productos(nombre,promo)`);
+    document.getElementById('pedidoId').value = id;
+    document.getElementById('modalPedidoTitle').textContent = 'Editar pedido';
+    document.getElementById('pedidoCliente').value = pedido.cliente_id;
+    document.getElementById('pedidoFechaEntrega').value = pedido.fecha_entrega || '';
+    // Limpiar la nota de los textos auto-generados (descuento/promo) para no duplicarlos al re-guardar
+    const notaLimpia = (pedido.notas || '').split('|').map(s => s.trim()).filter(s => s && !s.includes('Descuento aplicado') && !s.includes('bonificadas')).join(' | ');
+    document.getElementById('pedidoNotas').value = notaLimpia;
+    pedidoItems = items.map(item => ({
+      producto_id: item.producto_id,
+      nombre: item.productos?.nombre || '—',
+      cantidad: item.cantidad,
+      bonificado: item.bonificado || 0,
+      precio_unitario: parseFloat(item.precio_unitario),
+      subtotal: item.cantidad * parseFloat(item.precio_unitario),
+      promo: item.productos?.promo || ''
+    }));
+    renderPedidoItems();
+    openModal('modalPedido');
+  } catch(e) { toast('Error al cargar el pedido: ' + e.message, 'error'); }
+}
+
+function clearPedidoForm() {
+  document.getElementById('pedidoId').value = '';
+  document.getElementById('modalPedidoTitle').textContent = 'Nuevo pedido';
 }
 
 // ==================== DELETE VENTA / PEDIDO ====================
