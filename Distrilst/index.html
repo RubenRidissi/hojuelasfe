@@ -247,6 +247,7 @@ function showSection(name) {
     if (name === 'remitos') loadRemitos();
     if (typeof loadPagos === 'function' && name === 'pagos') loadPagos();
     if (typeof loadStock === 'function' && name === 'stock') loadStock();
+    if (name === 'proveedor') loadPedidosProveedor();
     if (name === 'mapa') loadMapa();
     if (name === 'reportes') {
       if (currentRol === 'admin') { if (typeof initReportes === 'function') initReportes(); }
@@ -320,6 +321,9 @@ function showSection(name) {
       </div>
       <div class="nav-item" onclick="showSection('pagos')">
         <span class="nav-icon">💰</span><span>Pagos</span>
+      </div>
+      <div class="nav-item admin-only" onclick="showSection('proveedor')">
+        <span class="nav-icon">🏭</span><span>Pedidos Proveedor</span>
       </div>
       <div class="nav-item" onclick="showSection('stock')">
         <span class="nav-icon">📦</span><span>Stock</span>
@@ -602,6 +606,34 @@ function showSection(name) {
           <table>
             <thead><tr><th>N° Remito</th><th>Cliente</th><th>Origen</th><th>Fecha generado</th><th>Entrega real</th><th>Total</th><th id="thRemitoVendedor" style="display:none">Vendedor</th><th></th></tr></thead>
             <tbody id="tablaRemitos"><tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- PEDIDOS A PROVEEDOR -->
+    <div id="sec-proveedor" class="section">
+      <div class="page-header">
+        <h1 class="page-title">🏭 Pedidos a Proveedor</h1>
+        <div class="page-header-actions" style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="abrirGenerarBorrador()">✨ Generar borrador</button>
+          <button class="btn btn-primary" onclick="abrirNuevoPedidoProveedor()">+ Nuevo pedido</button>
+        </div>
+      </div>
+      <div class="search-bar">
+        <select id="provFiltroEstado" onchange="loadPedidosProveedor()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+          <option value="">Todos los estados</option>
+          <option value="borrador">Borrador</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="confirmado">Confirmado</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>N°</th><th>Proveedor</th><th>Fecha</th><th>Estado</th><th>Total estimado</th><th></th></tr></thead>
+            <tbody id="tablaPedidosProveedor"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1104,6 +1136,61 @@ function showSection(name) {
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalConvertirVenta')">Cancelar</button>
       <button class="btn btn-primary" onclick="confirmarConvertirPedidoEnVenta()">Convertir en venta</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GENERAR BORRADOR PROVEEDOR -->
+<div class="modal-backdrop" id="modalGenerarBorrador">
+  <div class="modal" style="max-width:420px">
+    <h3 class="modal-title">✨ Generar borrador de pedido</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Se va a calcular cuánto pedir de cada producto según los pedidos de clientes pendientes y el stock actual.</p>
+    <div class="form-group">
+      <label>Considerar pedidos con entrega en los próximos</label>
+      <select id="borradorDias">
+        <option value="3">3 días</option>
+        <option value="7" selected>7 días</option>
+        <option value="15">15 días</option>
+        <option value="30">30 días</option>
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalGenerarBorrador')">Cancelar</button>
+      <button class="btn btn-primary" onclick="generarBorradorPedidoProveedor()">Generar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PEDIDO PROVEEDOR -->
+<div class="modal-backdrop" id="modalPedidoProveedor">
+  <div class="modal" style="max-width:680px">
+    <h3 class="modal-title" id="modalPedidoProveedorTitle">Nuevo pedido a proveedor</h3>
+    <input type="hidden" id="provPedidoId">
+    <div class="form-row">
+      <div class="form-group"><label>Proveedor</label><input id="provProveedor" value="Hojuelas Tucumán"></div>
+      <div class="form-group"><label>Fecha</label><input type="date" id="provFecha"></div>
+    </div>
+    <div class="form-group"><label>Notas</label><textarea id="provNotas" placeholder="Observaciones opcionales..."></textarea></div>
+
+    <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:14px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">Productos</div>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-group" style="flex:2"><label>Producto</label><select id="provProductoSel"></select></div>
+        <div class="form-group" style="flex:1"><label>Cantidad</label><input id="provCantidadInput" type="number" min="1" step="1" placeholder="0"></div>
+        <button class="btn btn-secondary" style="margin-bottom:14px" onclick="addItemPedidoProveedor()">+ Agregar</button>
+      </div>
+      <div class="table-wrap" style="max-height:260px;overflow-y:auto">
+        <table>
+          <thead><tr><th>Producto</th><th style="text-align:center">Cantidad</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Subtotal</th><th></th></tr></thead>
+          <tbody id="provItemsTabla"></tbody>
+        </table>
+      </div>
+      <div style="text-align:right;margin-top:10px;font-size:15px;font-weight:600">Total estimado: <span id="provTotalEstimado">$0</span></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalPedidoProveedor')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePedidoProveedor()">Guardar</button>
     </div>
   </div>
 </div>
@@ -4260,6 +4347,234 @@ function renderMapa() {
 
   // Ajustar vista a los marcadores
   if (bounds.length) mapaInstance.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+}
+
+// ==================== PEDIDOS A PROVEEDOR ====================
+let provItems = [];
+
+async function loadPedidosProveedor() {
+  if (!SUPABASE_URL) return;
+  try {
+    const estado = document.getElementById('provFiltroEstado')?.value || '';
+    let q = '?select=*&order=created_at.desc';
+    if (estado) q += `&estado=eq.${estado}`;
+    const pedidos = await api('pedidos_proveedor', 'GET', null, q);
+    const tbody = document.getElementById('tablaPedidosProveedor');
+    if (!pedidos.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">🏭</div><p>No hay pedidos a proveedor todavía</p></div></td></tr>'; return; }
+    const estadoBadge = { borrador: 'badge-gray', pendiente: 'badge-yellow', confirmado: 'badge-green', cancelado: 'badge-red' };
+    tbody.innerHTML = pedidos.map(p => `
+      <tr>
+        <td style="color:var(--muted);font-size:12px">#${String(p.numero).padStart(4,'0')}</td>
+        <td>${p.proveedor}</td>
+        <td style="font-size:12px">${new Date(p.fecha+'T00:00:00').toLocaleDateString('es-AR')}</td>
+        <td><span class="badge ${estadoBadge[p.estado]||'badge-gray'}">${p.estado.charAt(0).toUpperCase()+p.estado.slice(1)}</span></td>
+        <td>$${parseFloat(p.total_estimado||0).toLocaleString('es-AR')}</td>
+        <td style="white-space:nowrap">
+          ${p.estado !== 'cancelado' ? `<button class="btn btn-sm btn-secondary" onclick="editarPedidoProveedor('${p.id}')" title="Editar">✏</button>` : ''}
+          ${p.estado === 'borrador' || p.estado === 'pendiente' ? `<button class="btn btn-sm btn-success" onclick="updateEstadoPedidoProveedor('${p.id}','confirmado')" title="Confirmar pedido">✓ Confirmar</button>` : ''}
+          ${p.estado !== 'cancelado' ? `<button class="btn btn-sm btn-danger" onclick="deletePedidoProveedor('${p.id}')">Borrar</button>` : ''}
+        </td>
+      </tr>`).join('');
+  } catch(e) { console.error(e); toast('Error cargando pedidos a proveedor', 'error'); }
+}
+
+function abrirGenerarBorrador() {
+  openModal('modalGenerarBorrador');
+}
+
+async function generarBorradorPedidoProveedor() {
+  const dias = parseInt(document.getElementById('borradorDias').value);
+  try {
+    await ensureCache();
+    const hoy = new Date();
+    const limite = new Date(hoy); limite.setDate(limite.getDate() + dias);
+    const hoyStr = hoy.toISOString().split('T')[0];
+    const limiteStr = limite.toISOString().split('T')[0];
+
+    // Pedidos de clientes pendientes/confirmados con entrega dentro del rango
+    const pedidosClientes = await api('pedidos', 'GET', null,
+      `?estado=in.(pendiente,confirmado)&fecha_entrega=gte.${hoyStr}&fecha_entrega=lte.${limiteStr}&select=id`);
+
+    if (!pedidosClientes.length) {
+      toast('No hay pedidos de clientes en ese rango de fechas', 'error');
+      closeModal('modalGenerarBorrador');
+      return;
+    }
+
+    const pedidoIds = pedidosClientes.map(p => p.id);
+    const items = await api('pedido_items', 'GET', null,
+      `?pedido_id=in.(${pedidoIds.join(',')})&select=producto_id,cantidad,bonificado`);
+
+    // Sumar demanda por producto (cantidad pagada + bonificada, porque ambas salen del stock)
+    const demandaPorProducto = {};
+    items.forEach(item => {
+      const total = item.cantidad + (item.bonificado || 0);
+      demandaPorProducto[item.producto_id] = (demandaPorProducto[item.producto_id] || 0) + total;
+    });
+
+    // Traer stock actual de todos los productos relevantes
+    const stockActual = await api('stock_actual', 'GET', null, '?select=id,stock');
+    const stockPorProducto = {};
+    stockActual.forEach(s => { stockPorProducto[s.id] = s.stock; });
+
+    // Calcular faltante: demanda + stock_minimo - stock_actual
+    const itemsBorrador = [];
+    Object.entries(demandaPorProducto).forEach(([productoId, demanda]) => {
+      const producto = cachedProductos.find(p => p.id === productoId);
+      if (!producto) return;
+      const stockHoy = stockPorProducto[productoId] || 0;
+      const stockMin = producto.stock_minimo || 0;
+      const faltante = demanda + stockMin - stockHoy;
+      if (faltante > 0) {
+        itemsBorrador.push({ producto_id: productoId, nombre: producto.nombre, cantidad: Math.ceil(faltante), costo_unitario: producto.costo || 0 });
+      }
+    });
+
+    if (!itemsBorrador.length) {
+      toast('No hay faltantes — el stock actual cubre la demanda', 'error');
+      closeModal('modalGenerarBorrador');
+      return;
+    }
+
+    const total = itemsBorrador.reduce((s, i) => s + i.cantidad * i.costo_unitario, 0);
+    const [pedido] = await api('pedidos_proveedor', 'POST', {
+      proveedor: 'Hojuelas Tucumán', estado: 'borrador', fecha: hoyStr,
+      notas: `Generado automáticamente (demanda a ${dias} días)`, total_estimado: total
+    });
+    await Promise.all(itemsBorrador.map(item =>
+      api('pedido_proveedor_items', 'POST', { pedido_proveedor_id: pedido.id, producto_id: item.producto_id, cantidad: item.cantidad, costo_unitario: item.costo_unitario })
+    ));
+
+    toast(`Borrador generado con ${itemsBorrador.length} producto(s) ✓`);
+    closeModal('modalGenerarBorrador');
+    loadPedidosProveedor();
+    editarPedidoProveedor(pedido.id);
+  } catch(e) { toast('Error al generar borrador: ' + e.message, 'error'); }
+}
+
+function abrirNuevoPedidoProveedor() {
+  document.getElementById('provPedidoId').value = '';
+  document.getElementById('modalPedidoProveedorTitle').textContent = 'Nuevo pedido a proveedor';
+  document.getElementById('provProveedor').value = 'Hojuelas Tucumán';
+  document.getElementById('provFecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('provNotas').value = '';
+  provItems = [];
+  renderProvItems();
+  poblarSelectProductosProveedor();
+  openModal('modalPedidoProveedor');
+}
+
+async function editarPedidoProveedor(id) {
+  try {
+    const [pedido] = await api('pedidos_proveedor', 'GET', null, `?id=eq.${id}&select=*`);
+    if (!pedido) { toast('Pedido no encontrado', 'error'); return; }
+    const items = await api('pedido_proveedor_items', 'GET', null, `?pedido_proveedor_id=eq.${id}&select=producto_id,cantidad,costo_unitario,productos(nombre)`);
+    await ensureCache();
+    document.getElementById('provPedidoId').value = id;
+    document.getElementById('modalPedidoProveedorTitle').textContent = 'Editar pedido a proveedor';
+    document.getElementById('provProveedor').value = pedido.proveedor;
+    document.getElementById('provFecha').value = pedido.fecha;
+    document.getElementById('provNotas').value = pedido.notas || '';
+    provItems = items.map(i => ({ producto_id: i.producto_id, nombre: i.productos?.nombre || '—', cantidad: i.cantidad, costo_unitario: parseFloat(i.costo_unitario || 0) }));
+    renderProvItems();
+    poblarSelectProductosProveedor();
+    openModal('modalPedidoProveedor');
+  } catch(e) { toast('Error al cargar: ' + e.message, 'error'); }
+}
+
+function poblarSelectProductosProveedor() {
+  const sel = document.getElementById('provProductoSel');
+  sel.innerHTML = '<option value="">Elegí un producto</option>' + cachedProductos.map(p =>
+    `<option value="${p.id}" data-costo="${p.costo||0}">${p.codigo ? p.codigo+' — ' : ''}${p.nombre}</option>`).join('');
+}
+
+function addItemPedidoProveedor() {
+  const sel = document.getElementById('provProductoSel');
+  const pid = sel.value;
+  const cant = parseInt(document.getElementById('provCantidadInput').value);
+  if (!pid) { toast('Elegí un producto', 'error'); return; }
+  if (!cant || cant <= 0) { toast('Ingresá una cantidad válida', 'error'); return; }
+  const opt = sel.selectedOptions[0];
+  const costo = parseFloat(opt.dataset.costo) || 0;
+  const nombre = opt.textContent;
+  const existing = provItems.find(i => i.producto_id === pid);
+  if (existing) existing.cantidad += cant;
+  else provItems.push({ producto_id: pid, nombre, cantidad: cant, costo_unitario: costo });
+  renderProvItems();
+  sel.value = '';
+  document.getElementById('provCantidadInput').value = '';
+}
+
+function removeItemPedidoProveedor(pid) {
+  provItems = provItems.filter(i => i.producto_id !== pid);
+  renderProvItems();
+}
+
+function renderProvItems() {
+  const tbody = document.getElementById('provItemsTabla');
+  if (!provItems.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:14px;color:var(--muted);font-size:13px">Sin productos agregados</td></tr>'; }
+  else {
+    tbody.innerHTML = provItems.map(i => `
+      <tr>
+        <td style="font-size:13px">${i.nombre}</td>
+        <td style="text-align:center"><input type="number" value="${i.cantidad}" min="1" style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" onchange="updateCantidadProvItem('${i.producto_id}',this.value)"></td>
+        <td style="text-align:right;font-size:13px">$${i.costo_unitario.toLocaleString('es-AR')}</td>
+        <td style="text-align:right;font-size:13px">$${(i.cantidad*i.costo_unitario).toLocaleString('es-AR')}</td>
+        <td><button class="btn btn-sm btn-danger" onclick="removeItemPedidoProveedor('${i.producto_id}')">✕</button></td>
+      </tr>`).join('');
+  }
+  const total = provItems.reduce((s, i) => s + i.cantidad * i.costo_unitario, 0);
+  document.getElementById('provTotalEstimado').textContent = '$' + total.toLocaleString('es-AR');
+}
+
+function updateCantidadProvItem(pid, val) {
+  const item = provItems.find(i => i.producto_id === pid);
+  if (item) item.cantidad = parseInt(val) || 1;
+  renderProvItems();
+}
+
+async function savePedidoProveedor() {
+  const id = document.getElementById('provPedidoId').value;
+  const proveedor = document.getElementById('provProveedor').value.trim();
+  const fecha = document.getElementById('provFecha').value;
+  const notas = document.getElementById('provNotas').value.trim();
+  if (!proveedor) { toast('Ingresá el proveedor', 'error'); return; }
+  if (!provItems.length) { toast('Agregá al menos un producto', 'error'); return; }
+  const total = provItems.reduce((s, i) => s + i.cantidad * i.costo_unitario, 0);
+  try {
+    let pedidoId = id;
+    if (id) {
+      await api('pedidos_proveedor', 'PATCH', { proveedor, fecha, notas, total_estimado: total }, `?id=eq.${id}`);
+      await api('pedido_proveedor_items', 'DELETE', null, `?pedido_proveedor_id=eq.${id}`);
+    } else {
+      const [pedido] = await api('pedidos_proveedor', 'POST', { proveedor, fecha, notas, total_estimado: total, estado: 'pendiente' });
+      pedidoId = pedido.id;
+    }
+    await Promise.all(provItems.map(item =>
+      api('pedido_proveedor_items', 'POST', { pedido_proveedor_id: pedidoId, producto_id: item.producto_id, cantidad: item.cantidad, costo_unitario: item.costo_unitario })
+    ));
+    toast(id ? 'Pedido actualizado' : 'Pedido creado');
+    closeModal('modalPedidoProveedor');
+    loadPedidosProveedor();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function updateEstadoPedidoProveedor(id, estado) {
+  try {
+    await api('pedidos_proveedor', 'PATCH', { estado }, `?id=eq.${id}`);
+    toast('Estado actualizado');
+    loadPedidosProveedor();
+  } catch(e) { toast('Error', 'error'); }
+}
+
+async function deletePedidoProveedor(id) {
+  if (!confirm('¿Borrar este pedido a proveedor? Esta acción no se puede deshacer.')) return;
+  try {
+    await api('pedido_proveedor_items', 'DELETE', null, `?pedido_proveedor_id=eq.${id}`);
+    await api('pedidos_proveedor', 'DELETE', null, `?id=eq.${id}`);
+    toast('Pedido eliminado');
+    loadPedidosProveedor();
+  } catch(e) { toast('Error al eliminar: ' + e.message, 'error'); }
 }
 
 // ==================== AYUDA ====================
