@@ -2224,7 +2224,7 @@ async function loadPedidos() {
               </select>`}
           ${puedeConvertir ? `<button class="btn btn-sm btn-success" style="margin-left:4px" onclick="convertirPedidoEnVenta('${p.id}')" title="Convertir en venta">🧾 Convertir</button>` : ''}
           <button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="verComprobante('pedido','${p.id}')">📋</button>
-          ${isAdmin && !yaConvertido ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
+          ${isAdmin ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
         </td>
       </tr>`;
     }).join('');
@@ -2472,15 +2472,22 @@ async function deleteVenta(id, nombreCliente) {
 
 async function deletePedido(id, nombreCliente) {
   const pedido = cachedPedidos.find(p => p.id === id);
-  if (pedido?.convertido_venta_id) {
-    toast('Este pedido ya fue facturado y no se puede borrar. Borrá la venta asociada si corresponde.', 'error');
-    return;
-  }
-  if (!confirm('Borrar este pedido?\n\nCliente: ' + nombreCliente + '\n\nSe eliminarán también los ítems asociados. Esta acción no se puede deshacer.')) return;
   try {
-    await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
-    await api('pedidos', 'DELETE', null, `?id=eq.${id}`);
-    toast('Pedido eliminado');
+    if (pedido?.convertido_venta_id) {
+      if (!confirm(`Este pedido ya fue convertido en venta.\n\nCliente: ${nombreCliente}\n\n¿Borrar AMBOS (el pedido y la venta asociada)? Esto revierte el stock. No se puede deshacer.`)) return;
+      const ventaId = pedido.convertido_venta_id;
+      await api('stock_movimientos', 'DELETE', null, `?referencia_id=eq.${ventaId}&origen=eq.venta`);
+      await api('venta_items', 'DELETE', null, `?venta_id=eq.${ventaId}`);
+      await api('ventas', 'DELETE', null, `?id=eq.${ventaId}`);
+      await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
+      await api('pedidos', 'DELETE', null, `?id=eq.${id}`);
+      toast('Pedido y venta eliminados, stock revertido');
+    } else {
+      if (!confirm('Borrar este pedido?\n\nCliente: ' + nombreCliente + '\n\nSe eliminarán también los ítems asociados. Esta acción no se puede deshacer.')) return;
+      await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
+      await api('pedidos', 'DELETE', null, `?id=eq.${id}`);
+      toast('Pedido eliminado');
+    }
     loadPedidos();
     loadDashboard();
   } catch(e) { toast('Error al eliminar: ' + e.message, 'error'); }
