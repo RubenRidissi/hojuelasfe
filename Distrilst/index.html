@@ -332,6 +332,9 @@ function showSection(name) {
       <div class="nav-item" onclick="showSection('stock')">
         <span class="nav-icon">📦</span><span>Stock</span>
       </div>
+      <div class="nav-item admin-only" onclick="showSection('finanzas')">
+        <span class="nav-icon">💵</span><span>Finanzas</span>
+      </div>
       <div class="nav-item" onclick="showSection('reportes')">
         <span class="nav-icon">📊</span><span>Reportes</span>
       </div>
@@ -738,6 +741,71 @@ function showSection(name) {
     </div>
 
     <!-- REPORTES -->
+    <!-- FINANZAS -->
+    <div id="sec-finanzas" class="section">
+      <div class="page-header">
+        <h1 class="page-title">💵 Finanzas</h1>
+        <button class="btn btn-secondary" onclick="loadFinanzas()">🔄 Actualizar</button>
+      </div>
+
+      <!-- POSICIÓN DEL DÍA -->
+      <div class="card" style="margin-bottom:16px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">📅 Posición del período</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px" id="finPosicion">
+          <div style="text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">COBRADO HOY</div>
+            <div style="font-size:20px;font-weight:700;color:var(--success)" id="finCobradoHoy">—</div>
+          </div>
+          <div style="text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">COBRADO ESTE MES</div>
+            <div style="font-size:20px;font-weight:700;color:var(--success)" id="finCobradoMes">—</div>
+          </div>
+          <div style="text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">PAGADO A PROVEEDOR HOY</div>
+            <div style="font-size:20px;font-weight:700;color:#DC2626" id="finPagadoProvHoy">—</div>
+          </div>
+          <div style="text-align:center;padding:12px;background:var(--bg);border-radius:8px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">PAGADO A PROVEEDOR MES</div>
+            <div style="font-size:20px;font-weight:700;color:#DC2626" id="finPagadoProvMes">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CUENTAS A COBRAR -->
+      <div class="card" style="margin-bottom:16px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">📥 Cuentas a cobrar (clientes)</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Por vendedor</div>
+            <div id="finCobroPorVendedor"></div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:8px">Top clientes con mayor saldo</div>
+            <div id="finTopClientes"></div>
+          </div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13px;color:var(--muted)">Total a cobrar</span>
+          <span style="font-size:18px;font-weight:700;color:#DC2626" id="finTotalCobrar">—</span>
+        </div>
+      </div>
+
+      <!-- CUENTAS A PAGAR -->
+      <div class="card">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">📤 Cuentas a pagar (Hojuelas Tucumán)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Recepción</th><th>Fecha</th><th>Remito</th><th style="text-align:right">Total</th><th style="text-align:right">Pagado</th><th style="text-align:right">Saldo</th><th>Estado</th></tr></thead>
+            <tbody id="finCuentasPagar"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:13px;color:var(--muted)">Total a pagar al proveedor</span>
+          <span style="font-size:18px;font-weight:700;color:#DC2626" id="finTotalPagar">—</span>
+        </div>
+      </div>
+    </div>
+
     <div id="sec-reportes" class="section">
       <div class="page-header">
         <h1 class="page-title">Reportes</h1>
@@ -3940,6 +4008,7 @@ function mobileNav(name) {
   if (name === 'stock') loadStock();
   if (name === 'reportes') initReportes();
   if (name === 'ctacte') initCtaCte();
+  if (name === 'finanzas') loadFinanzas();
 }
 
 function toggleMoreDrawer() {
@@ -5733,6 +5802,94 @@ function switchAyuda(seccion, btn) {
   document.querySelectorAll('.ayuda-tab').forEach(b => b.classList.remove('active'));
   document.getElementById('ayuda-' + seccion).style.display = '';
   btn.classList.add('active');
+}
+
+// ==================== FINANZAS ====================
+async function loadFinanzas() {
+  if (!SUPABASE_URL) return;
+  const hoy = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const mesDesde = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+  const mesHasta = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${new Date(now.getFullYear(),now.getMonth()+1,0).getDate()}`;
+
+  try {
+    await loadVendedores();
+
+    // 1. POSICIÓN DEL PERÍODO
+    const [cobrosHoy, cobrosMes, pagProvHoy, pagProvMes] = await Promise.all([
+      api('pagos', 'GET', null, `?fecha=eq.${hoy}&select=monto`),
+      api('pagos', 'GET', null, `?fecha=gte.${mesDesde}&fecha=lte.${mesHasta}&select=monto`),
+      api('pagos_proveedor', 'GET', null, `?fecha=eq.${hoy}&select=monto`),
+      api('pagos_proveedor', 'GET', null, `?fecha=gte.${mesDesde}&fecha=lte.${mesHasta}&select=monto`)
+    ]);
+    const fmt = n => '$' + parseFloat(n||0).toLocaleString('es-AR',{maximumFractionDigits:0});
+    const sum = arr => arr.reduce((s,x) => s + parseFloat(x.monto||0), 0);
+    document.getElementById('finCobradoHoy').textContent = fmt(sum(cobrosHoy));
+    document.getElementById('finCobradoMes').textContent = fmt(sum(cobrosMes));
+    document.getElementById('finPagadoProvHoy').textContent = fmt(sum(pagProvHoy));
+    document.getElementById('finPagadoProvMes').textContent = fmt(sum(pagProvMes));
+
+    // 2. CUENTAS A COBRAR
+    const ventasPend = await api('ventas', 'GET', null,
+      `?estado_pago=neq.pagado&select=total,monto_pagado,vendedor_id,clientes(nombre,nombre_fantasia)`);
+
+    // Por vendedor
+    const porVendedor = {};
+    ventasPend.forEach(v => {
+      const vid = v.vendedor_id || 'sin_asignar';
+      if (!porVendedor[vid]) porVendedor[vid] = 0;
+      porVendedor[vid] += parseFloat(v.total||0) - parseFloat(v.monto_pagado||0);
+    });
+    document.getElementById('finCobroPorVendedor').innerHTML = Object.entries(porVendedor)
+      .sort((a,b) => b[1]-a[1])
+      .map(([vid, saldo]) => {
+        const nombre = cachedVendedores.find(v => v.user_id === vid)?.nombre || 'Sin asignar';
+        return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+          <span>${nombre}</span><strong style="color:#DC2626">${fmt(saldo)}</strong>
+        </div>`;
+      }).join('') || '<p style="color:var(--muted);font-size:13px">Sin deudas pendientes</p>';
+
+    // Top clientes
+    const porCliente = {};
+    ventasPend.forEach(v => {
+      const nombre = v.clientes?.nombre_fantasia || v.clientes?.nombre || 'Sin nombre';
+      if (!porCliente[nombre]) porCliente[nombre] = 0;
+      porCliente[nombre] += parseFloat(v.total||0) - parseFloat(v.monto_pagado||0);
+    });
+    document.getElementById('finTopClientes').innerHTML = Object.entries(porCliente)
+      .sort((a,b) => b[1]-a[1]).slice(0,6)
+      .map(([nombre, saldo]) => `
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+          <span>${nombre}</span><strong style="color:#DC2626">${fmt(saldo)}</strong>
+        </div>`).join('') || '<p style="color:var(--muted);font-size:13px">Sin deudas pendientes</p>';
+
+    const totalCobrar = ventasPend.reduce((s,v) => s + parseFloat(v.total||0) - parseFloat(v.monto_pagado||0), 0);
+    document.getElementById('finTotalCobrar').textContent = fmt(totalCobrar);
+
+    // 3. CUENTAS A PAGAR AL PROVEEDOR
+    const recepDeuda = await api('recepciones', 'GET', null,
+      `?estado_pago_prov=neq.pagado&estado=eq.confirmada&select=numero,fecha_recepcion_real,remito_proveedor,total,monto_pagado_prov,estado_pago_prov&order=fecha_recepcion_real.asc`);
+
+    const estadoColors = { pendiente: '#DC2626', parcial: '#D97706' };
+    document.getElementById('finCuentasPagar').innerHTML = recepDeuda.length
+      ? recepDeuda.map(r => {
+          const saldo = parseFloat(r.total||0) - parseFloat(r.monto_pagado_prov||0);
+          return `<tr>
+            <td style="font-size:12px;color:var(--muted)">#${String(r.numero).padStart(4,'0')}</td>
+            <td style="font-size:12px">${r.fecha_recepcion_real ? new Date(r.fecha_recepcion_real+'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
+            <td style="font-size:12px">${r.remito_proveedor || '—'}</td>
+            <td style="text-align:right">$${parseFloat(r.total||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</td>
+            <td style="text-align:right;color:var(--success)">$${parseFloat(r.monto_pagado_prov||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</td>
+            <td style="text-align:right;font-weight:600;color:#DC2626">$${saldo.toLocaleString('es-AR',{maximumFractionDigits:0})}</td>
+            <td><span style="font-size:11px;font-weight:600;color:${estadoColors[r.estado_pago_prov]||'#DC2626'}">${r.estado_pago_prov}</span></td>
+          </tr>`;
+        }).join('')
+      : '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--muted)">Sin deudas con el proveedor</td></tr>';
+
+    const totalPagar = recepDeuda.reduce((s,r) => s + parseFloat(r.total||0) - parseFloat(r.monto_pagado_prov||0), 0);
+    document.getElementById('finTotalPagar').textContent = fmt(totalPagar);
+
+  } catch(e) { console.error(e); toast('Error cargando finanzas', 'error'); }
 }
 
 // ==================== REPORTES VENDEDOR ====================
