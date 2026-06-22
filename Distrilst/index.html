@@ -896,30 +896,59 @@ function showSection(name) {
 
 <!-- Panel muestras -->
       <div class="card" style="margin-top:16px">
-        <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Muestras entregadas en el período</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-          <!-- Por producto -->
-          <div>
-            <h4 style="font-size:13px;font-weight:500;color:var(--muted);margin-bottom:10px">Por producto</h4>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Producto</th><th style="text-align:center">Unidades</th><th style="text-align:right">Costo estimado</th></tr></thead>
-                <tbody id="repMuestrasProducto"></tbody>
-              </table>
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">Muestras y bonificados entregados en el período</h3>
+
+        <!-- BLOQUE 1: Muestras sin cargo (precio $0) -->
+        <div style="margin-bottom:20px">
+          <h4 style="font-size:13px;font-weight:600;color:var(--honey-dark);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">🎁 Muestras sin cargo (precio $0)</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <p style="font-size:11px;color:var(--muted);margin-bottom:8px">POR PRODUCTO</p>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Producto</th><th style="text-align:center">Unidades</th><th style="text-align:right">Costo est.</th></tr></thead>
+                  <tbody id="repMuestrasProducto"></tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <p style="font-size:11px;color:var(--muted);margin-bottom:8px">POR CLIENTE</p>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Cliente</th><th style="text-align:center">Unidades</th></tr></thead>
+                  <tbody id="repMuestrasCliente"></tbody>
+                </table>
+              </div>
             </div>
           </div>
-          <!-- Por cliente -->
-          <div>
-            <h4 style="font-size:13px;font-weight:500;color:var(--muted);margin-bottom:10px">Por cliente</h4>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Cliente</th><th style="text-align:center">Unidades</th></tr></thead>
-                <tbody id="repMuestrasCliente"></tbody>
-              </table>
-            </div>
-          </div>
+          <div id="repMuestrasTotal" style="margin-top:10px;padding:8px 14px;background:var(--honey-light);border-radius:8px;font-size:13px"></div>
         </div>
-        <div id="repMuestrasTotal" style="margin-top:12px;padding:10px 14px;background:var(--honey-light);border-radius:8px;font-size:13px"></div>
+
+        <!-- BLOQUE 2: Bonificados por promo de volumen -->
+        <div>
+          <h4 style="font-size:13px;font-weight:600;color:var(--honey-dark);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)">📦 Bonificados por promo de volumen</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <p style="font-size:11px;color:var(--muted);margin-bottom:8px">POR PRODUCTO</p>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Producto</th><th style="text-align:center">Unidades</th><th style="text-align:right">Costo est.</th></tr></thead>
+                  <tbody id="repBonifProducto"></tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <p style="font-size:11px;color:var(--muted);margin-bottom:8px">POR CLIENTE</p>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Cliente</th><th style="text-align:center">Unidades</th></tr></thead>
+                  <tbody id="repBonifCliente"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div id="repBonifTotal" style="margin-top:10px;padding:8px 14px;background:var(--honey-light);border-radius:8px;font-size:13px"></div>
+        </div>
       </div>
     </div>
 
@@ -6371,34 +6400,78 @@ async function loadReportes() {
   } catch(e) { console.error(e); toast('Error cargando reportes', 'error'); }
 
   try {
-    const movsMuestras = await api('stock_movimientos', 'GET', null,
-      `?select=cantidad,fecha,productos(nombre,codigo,costo),clientes(nombre,nombre_fantasia)&origen=eq.muestra&fecha=gte.${desde}&fecha=lte.${hasta}`);
-    const porProducto = {}, porCliente = {};
-    movsMuestras.forEach(m => {
-      const keyP = m.productos?.codigo || m.productos?.nombre || '—';
-      const cant = Math.abs(parseFloat(m.cantidad || 0));
-      if (!porProducto[keyP]) porProducto[keyP] = { nombre: m.productos?.nombre||'—', codigo: m.productos?.codigo||'', costo: parseFloat(m.productos?.costo||0), cantidad: 0 };
-      porProducto[keyP].cantidad += cant;
-      if (m.clientes) {
-        const keyC = m.clientes.nombre;
-        const nomC = m.clientes.nombre_fantasia ? m.clientes.nombre + ' (' + m.clientes.nombre_fantasia + ')' : m.clientes.nombre;
-        if (!porCliente[keyC]) porCliente[keyC] = { nombre: nomC, cantidad: 0 };
-        porCliente[keyC].cantidad += cant;
-      }
+    // Buscar venta_items del período con precio $0 o bonificado > 0
+    const ventasMuestras = await api('ventas', 'GET', null,
+      `?select=id,clientes(nombre,nombre_fantasia),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,costo))&fecha=gte.${desde}&fecha=lte.${hasta}&order=fecha.asc`);
+
+    const mProd = {}, mCli = {}, bProd = {}, bCli = {};
+
+    ventasMuestras.forEach(v => {
+      const nomCli = v.clientes?.nombre_fantasia || v.clientes?.nombre || '—';
+      (v.venta_items || []).forEach(item => {
+        const precio = parseFloat(item.precio_unitario);
+        const bonif = item.bonificado || 0;
+        const costo = parseFloat(item.productos?.costo || 0);
+        const key = item.productos?.codigo || item.productos?.nombre || '—';
+        const nomProd = item.productos?.nombre || '—';
+        const codProd = item.productos?.codigo || '';
+
+        // BLOQUE 1: unidades con precio $0
+        if (precio === 0 && item.cantidad > 0) {
+          if (!mProd[key]) mProd[key] = { nombre: nomProd, codigo: codProd, costo, cantidad: 0 };
+          mProd[key].cantidad += item.cantidad;
+          if (!mCli[nomCli]) mCli[nomCli] = { cantidad: 0 };
+          mCli[nomCli].cantidad += item.cantidad;
+        }
+
+        // BLOQUE 2: unidades bonificadas (precio > 0 pero unidades extra gratis)
+        if (bonif > 0) {
+          if (!bProd[key]) bProd[key] = { nombre: nomProd, codigo: codProd, costo, cantidad: 0 };
+          bProd[key].cantidad += bonif;
+          if (!bCli[nomCli]) bCli[nomCli] = { cantidad: 0 };
+          bCli[nomCli].cantidad += bonif;
+        }
+      });
     });
-    const prodEntries = Object.values(porProducto).sort((a,b) => b.cantidad - a.cantidad);
-    const cliEntries = Object.values(porCliente).sort((a,b) => b.cantidad - a.cantidad);
-    document.getElementById('repMuestrasProducto').innerHTML = prodEntries.length
-      ? prodEntries.map(p => `<tr><td>${p.codigo ? `<code style="font-size:11px">${p.codigo}</code> ` : ''}<span style="font-size:12px">${p.nombre}</span></td><td style="text-align:center;font-weight:500">${p.cantidad}</td><td style="text-align:right;color:var(--muted)">$${(p.cantidad * p.costo).toLocaleString('es-AR',{maximumFractionDigits:0})}</td></tr>`).join('')
-      : '<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--muted)">Sin muestras</td></tr>';
-    document.getElementById('repMuestrasCliente').innerHTML = cliEntries.length
-      ? cliEntries.map(c => `<tr><td>${c.nombre}</td><td style="text-align:center;font-weight:500">${c.cantidad}</td></tr>`).join('')
-      : '<tr><td colspan="2" style="text-align:center;padding:16px;color:var(--muted)">Sin muestras asignadas</td></tr>';
-    const totalU = prodEntries.reduce((s,p) => s + p.cantidad, 0);
-    const totalC = prodEntries.reduce((s,p) => s + p.cantidad * p.costo, 0);
-    document.getElementById('repMuestrasTotal').innerHTML = totalU > 0
-      ? `<strong>Total período:</strong> ${totalU} unidades · Costo estimado: <strong>$${totalC.toLocaleString('es-AR',{maximumFractionDigits:0})}</strong>`
-      : '<span style="color:var(--muted)">Sin muestras en este período</span>';
+
+    const fmt = arr => Object.values(arr).sort((a,b) => b.cantidad - a.cantidad);
+    const renderProd = (entries, tbodyId) => {
+      document.getElementById(tbodyId).innerHTML = entries.length
+        ? entries.map(p => `<tr>
+            <td>${p.codigo ? `<code style="font-size:11px">${p.codigo}</code> ` : ''}<span style="font-size:12px">${p.nombre}</span></td>
+            <td style="text-align:center;font-weight:500">${p.cantidad}</td>
+            <td style="text-align:right;color:var(--muted)">$${(p.cantidad * p.costo).toLocaleString('es-AR',{maximumFractionDigits:0})}</td>
+          </tr>`).join('')
+        : '<tr><td colspan="3" style="text-align:center;padding:12px;color:var(--muted)">Sin registros</td></tr>';
+    };
+    const renderCli = (entries, tbodyId) => {
+      document.getElementById(tbodyId).innerHTML = entries.length
+        ? entries.map(c => `<tr><td>${c.nombre || c}</td><td style="text-align:center;font-weight:500">${c.cantidad}</td></tr>`).join('')
+        : '<tr><td colspan="2" style="text-align:center;padding:12px;color:var(--muted)">Sin registros</td></tr>';
+    };
+
+    // Render bloque 1 — muestras
+    const mProdArr = fmt(mProd);
+    const mCliArr = Object.entries(mCli).map(([n,v]) => ({nombre:n,...v})).sort((a,b)=>b.cantidad-a.cantidad);
+    renderProd(mProdArr, 'repMuestrasProducto');
+    renderCli(mCliArr, 'repMuestrasCliente');
+    const mTotal = mProdArr.reduce((s,p) => s + p.cantidad, 0);
+    const mCosto = mProdArr.reduce((s,p) => s + p.cantidad * p.costo, 0);
+    document.getElementById('repMuestrasTotal').innerHTML = mTotal > 0
+      ? `<strong>Total:</strong> ${mTotal} unidades · Costo estimado: <strong>$${mCosto.toLocaleString('es-AR',{maximumFractionDigits:0})}</strong>`
+      : '<span style="color:var(--muted)">Sin muestras sin cargo en este período</span>';
+
+    // Render bloque 2 — bonificados
+    const bProdArr = fmt(bProd);
+    const bCliArr = Object.entries(bCli).map(([n,v]) => ({nombre:n,...v})).sort((a,b)=>b.cantidad-a.cantidad);
+    renderProd(bProdArr, 'repBonifProducto');
+    renderCli(bCliArr, 'repBonifCliente');
+    const bTotal = bProdArr.reduce((s,p) => s + p.cantidad, 0);
+    const bCosto = bProdArr.reduce((s,p) => s + p.cantidad * p.costo, 0);
+    document.getElementById('repBonifTotal').innerHTML = bTotal > 0
+      ? `<strong>Total:</strong> ${bTotal} unidades · Costo estimado: <strong>$${bCosto.toLocaleString('es-AR',{maximumFractionDigits:0})}</strong>`
+      : '<span style="color:var(--muted)">Sin bonificados en este período</span>';
+
   } catch(e) { console.error('Error muestras:', e); }
 }
 
