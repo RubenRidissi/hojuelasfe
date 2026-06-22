@@ -36,6 +36,14 @@
   .brand-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
   .nav { padding: 8px 0; flex: 1; }
   .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; color: var(--muted); font-size: 13px; border-left: 3px solid transparent; transition: all 0.15s; }
+  .nav-group-header { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; color: var(--muted); font-size: 13px; border-left: 3px solid transparent; transition: all 0.15s; user-select: none; }
+  .nav-group-header:hover { background: var(--honey-light); color: var(--honey-dark); }
+  .nav-group-header.active { background: var(--honey-light); color: var(--honey-dark); border-left-color: var(--honey); }
+  .nav-group-header .nav-arrow { margin-left: auto; font-size: 10px; transition: transform 0.2s; }
+  .nav-group-header.open .nav-arrow { transform: rotate(180deg); }
+  .nav-submenu { display: none; background: rgba(0,0,0,0.02); }
+  .nav-submenu.open { display: block; }
+  .nav-submenu .nav-item { padding-left: 36px; font-size: 12px; }
   .nav-item:hover { background: var(--honey-light); color: var(--honey-dark); }
   .nav-item.active { background: var(--honey-light); color: var(--honey-dark); border-left-color: var(--honey); font-weight: 500; }
   .nav-icon { font-size: 16px; width: 18px; text-align: center; }
@@ -230,6 +238,26 @@
 
 <script>
 // showSection - handles nav and data loading
+function toggleNavGroup(group) {
+  const grpId = 'navGrp' + group.charAt(0).toUpperCase() + group.slice(1);
+  const subId = 'navSub' + group.charAt(0).toUpperCase() + group.slice(1);
+  const header = document.getElementById(grpId);
+  const sub = document.getElementById(subId);
+  if (!header || !sub) return;
+  const isOpen = sub.classList.contains('open');
+  header.classList.toggle('open', !isOpen);
+  sub.classList.toggle('open', !isOpen);
+}
+
+function openNavGroup(section) {
+  const grupos = { pedidos: 'Operaciones', ventas: 'Operaciones', remitos: 'Operaciones', pagos: 'Cobros', ctacte: 'Cobros' };
+  const grupo = grupos[section];
+  if (grupo) {
+    document.getElementById('navGrp' + grupo)?.classList.add('open');
+    document.getElementById('navSub' + grupo)?.classList.add('open');
+  }
+}
+
 function showSection(name) {
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -238,6 +266,8 @@ function showSection(name) {
   const sec = document.getElementById('sec-' + secName);
   if (sec) sec.classList.add('active');
   if (event && event.currentTarget) event.currentTarget.classList.add('active');
+  // Auto-abrir grupo correspondiente
+  openNavGroup(name);
   try {
     if (typeof loadDashboard === 'function' && name === 'dashboard') loadDashboard();
     if (typeof loadClientes === 'function' && name === 'clientes') loadClientes();
@@ -248,13 +278,14 @@ function showSection(name) {
     if (typeof loadPagos === 'function' && name === 'pagos') loadPagos();
     if (typeof loadStock === 'function' && name === 'stock') loadStock();
     if (name === 'proveedor') loadPedidosProveedor();
-    if (name === 'recepciones') loadRecepciones();
+    if (name === 'recepciones') { loadRecepciones(); loadAjustesProveedor(); }
     if (name === 'mapa') loadMapa();
     if (name === 'reportes') {
       if (currentRol === 'admin') { if (typeof initReportes === 'function') initReportes(); }
       else { if (typeof initReportesVendedor === 'function') initReportesVendedor(); }
     }
     if (typeof initCtaCte === 'function' && name === 'ctacte') initCtaCte();
+    if (name === 'finanzas') loadFinanzas();
     if (name === 'config') loadObjetivosConfig();
   } catch(e) { console.error('showSection error:', e); }
 }
@@ -311,18 +342,36 @@ function showSection(name) {
       <div class="nav-item" onclick="showSection('productos')">
         <span class="nav-icon">📦</span><span>Productos</span>
       </div>
-      <div class="nav-item" onclick="showSection('pedidos')">
-        <span class="nav-icon">📋</span><span>Pedidos</span>
+
+      <!-- GRUPO OPERACIONES -->
+      <div class="nav-group-header" id="navGrpOperaciones" onclick="toggleNavGroup('operaciones')">
+        <span class="nav-icon">📋</span><span>Operaciones</span><span class="nav-arrow">▼</span>
       </div>
-      <div class="nav-item" onclick="showSection('ventas')">
-        <span class="nav-icon">🧾</span><span>Ventas</span>
+      <div class="nav-submenu" id="navSubOperaciones">
+        <div class="nav-item" onclick="showSection('pedidos')">
+          <span class="nav-icon">📋</span><span>Pedidos</span>
+        </div>
+        <div class="nav-item" onclick="showSection('ventas')">
+          <span class="nav-icon">🧾</span><span>Ventas</span>
+        </div>
+        <div class="nav-item" onclick="showSection('remitos')">
+          <span class="nav-icon">🚚</span><span>Remitos</span>
+        </div>
       </div>
-      <div class="nav-item" onclick="showSection('remitos')">
-        <span class="nav-icon">🚚</span><span>Remitos</span>
+
+      <!-- GRUPO COBROS -->
+      <div class="nav-group-header" id="navGrpCobros" onclick="toggleNavGroup('cobros')">
+        <span class="nav-icon">💰</span><span>Cobros</span><span class="nav-arrow">▼</span>
       </div>
-      <div class="nav-item" onclick="showSection('pagos')">
-        <span class="nav-icon">💰</span><span>Pagos</span>
+      <div class="nav-submenu" id="navSubCobros">
+        <div class="nav-item" onclick="showSection('pagos')">
+          <span class="nav-icon">💰</span><span>Pagos</span>
+        </div>
+        <div class="nav-item" onclick="showSection('ctacte')">
+          <span class="nav-icon">💳</span><span>Cta. Corriente</span>
+        </div>
       </div>
+
       <div class="nav-item admin-only" onclick="showSection('proveedor')">
         <span class="nav-icon">🏭</span><span>Pedidos Proveedor</span>
       </div>
@@ -337,9 +386,6 @@ function showSection(name) {
       </div>
       <div class="nav-item" onclick="showSection('reportes')">
         <span class="nav-icon">📊</span><span>Reportes</span>
-      </div>
-      <div class="nav-item" onclick="showSection('ctacte')">
-        <span class="nav-icon">💳</span><span>Cta. Corriente</span>
       </div>
       <div class="nav-item" onclick="showSection('config')">
         <span class="nav-icon">⚙️</span><span>Configuración</span>
