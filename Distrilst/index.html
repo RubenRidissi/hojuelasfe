@@ -2199,7 +2199,7 @@ async function loadDashboardAdmin() {
     document.getElementById('statDeuda').textContent = '$' + deuda.toLocaleString('es-AR');
 
     const ventasHoy = await api('ventas', 'GET', null,
-      `?select=total,venta_items(cantidad,precio_unitario,producto_id,productos(costo))&fecha=eq.${today}${vFiltro}`);
+      `?select=total,venta_items(cantidad,bonificado,precio_unitario,producto_id,productos(costo))&fecha=eq.${today}${vFiltro}`);
     let gananciaHoy = 0;
     ventasHoy.forEach(v => {
       (v.venta_items || []).forEach(item => {
@@ -6274,7 +6274,7 @@ async function loadReportes() {
 
   try {
     const ventas = await api('ventas', 'GET', null,
-      `?select=id,fecha,total,estado_pago,clientes(nombre,tipo,descuento_pct),venta_items(cantidad,precio_unitario,producto_id,productos(costo,nombre,codigo))&fecha=gte.${desde}&fecha=lte.${hasta}&order=fecha.asc${vFiltro}`);
+      `?select=id,fecha,total,estado_pago,clientes(nombre,tipo,descuento_pct),venta_items(cantidad,bonificado,precio_unitario,producto_id,productos(costo,nombre,codigo))&fecha=gte.${desde}&fecha=lte.${hasta}&order=fecha.asc${vFiltro}`);
     if (!ventas.length) {
       ['repTotalVentas','repCantVentas','repGanancia','repMargen'].forEach(id => document.getElementById(id).textContent = '—');
       ['repVentasSemana','repVentasTipo','repMargenSemana','repGananciaProd'].forEach(id => {
