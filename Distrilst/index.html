@@ -658,7 +658,7 @@ function showSection(name) {
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>Fecha real recepción</th><th>Pedido asociado</th><th>Remito proveedor</th><th>Total</th><th></th></tr></thead>
+            <thead><tr><th>N°</th><th>Fecha real recepción</th><th>Pedido asociado</th><th>Remito proveedor</th><th>Total</th><th>Estado</th><th></th></tr></thead>
             <tbody id="tablaRecepciones"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
@@ -4813,16 +4813,31 @@ async function loadRecepciones() {
   try {
     const recepciones = await api('recepciones', 'GET', null, '?select=*,pedidos_proveedor(numero)&order=created_at.desc');
     const tbody = document.getElementById('tablaRecepciones');
-    if (!recepciones.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">📥</div><p>No hay recepciones registradas todavía</p></div></td></tr>'; return; }
-    tbody.innerHTML = recepciones.map(r => `
+    if (!recepciones.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-icon">📥</div><p>No hay recepciones registradas todavía</p></div></td></tr>'; return; }
+    tbody.innerHTML = recepciones.map(r => {
+      const esBorrador = r.estado === 'borrador';
+      const estadoBadge = esBorrador
+        ? '<span class="badge badge-yellow">Borrador</span>'
+        : '<span class="badge badge-green">Confirmada</span>';
+      return `
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(r.numero).padStart(4,'0')}</td>
         <td style="font-size:12px">${r.fecha_recepcion_real ? new Date(r.fecha_recepcion_real+'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
-        <td>${r.pedidos_proveedor ? `Pedido #${String(r.pedidos_proveedor.numero).padStart(4,'0')}` : '<span style="color:var(--muted)">Suelta (sin pedido)</span>'}</td>
+        <td>${r.pedidos_proveedor ? `Pedido #${String(r.pedidos_proveedor.numero).padStart(4,'0')}` : '<span style="color:var(--muted)">Suelta</span>'}</td>
         <td style="font-size:12px">${r.remito_proveedor || '—'}</td>
         <td>$${parseFloat(r.total||0).toLocaleString('es-AR')}</td>
-        <td><button class="btn btn-sm btn-secondary" onclick="verRecepcion('${r.id}')" title="Ver detalle">👁 Ver</button></td>
-      </tr>`).join('');
+        <td>${estadoBadge}</td>
+        <td style="white-space:nowrap">
+          ${esBorrador ? `
+            <button class="btn btn-sm btn-success" onclick="confirmarRecepcion('${r.id}')" title="Confirmar y mover stock">✓ Confirmar</button>
+            <button class="btn btn-sm btn-secondary" onclick="editarRecepcion('${r.id}')" title="Editar borrador">✏ Editar</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteRecepcion('${r.id}')" title="Borrar borrador">✕</button>
+          ` : `
+            <button class="btn btn-sm btn-secondary" onclick="verRecepcion('${r.id}')" title="Ver detalle">👁 Ver</button>
+          `}
+        </td>
+      </tr>`;
+    }).join('');
   } catch(e) { console.error(e); toast('Error cargando recepciones', 'error'); }
 }
 
@@ -4839,6 +4854,9 @@ async function abrirNuevaRecepcion(pedidoProveedorId) {
   document.getElementById('recepAdicionalMonto').value = '';
   document.getElementById('recepAdicionalDescValor').value = '';
   document.getElementById('recepAdicionalNeto').textContent = '$0';
+  // Limpiar ID de edición
+  const editId = document.getElementById('recepEditandoId');
+  if (editId) editId.value = '';
   await ensureCache();
   poblarSelectProductosRecepcion();
   renderRecepItems();
@@ -5019,44 +5037,143 @@ async function confirmarGuardarRecepcion() {
     ? (adicionalDescTipo === 'pct' ? montoFlete * (1 - adicionalDescValor / 100) : Math.max(0, montoFlete - adicionalDescValor))
     : montoFlete;
   const total = subtotalProductos + fleteNeto;
+
+  const recepcionEditandoId = document.getElementById('recepEditandoId')?.value || null;
+
   try {
-    const [recepcion] = await api('recepciones', 'POST', {
-      pedido_proveedor_id: pedidoProveedorId, fecha, fecha_recepcion_real: fechaRecepcionReal,
-      remito_proveedor: remitoProveedor || null, notas, total,
-      costo_adicional_desc: adicionalDesc || null,
-      costo_adicional_monto: fleteNeto || 0,
-      costo_adicional_monto_bruto: montoFlete || 0
-    });
+    let recepcion;
+    if (recepcionEditandoId) {
+      // Edición de borrador: borrar ítems anteriores y reemplazar
+      await api('recepcion_items', 'DELETE', null, `?recepcion_id=eq.${recepcionEditandoId}`);
+      await api('recepciones', 'PATCH', {
+        pedido_proveedor_id: pedidoProveedorId, fecha, fecha_recepcion_real: fechaRecepcionReal,
+        remito_proveedor: remitoProveedor || null, notas, total,
+        costo_adicional_desc: adicionalDesc || null,
+        costo_adicional_monto: fleteNeto || 0,
+        costo_adicional_monto_bruto: montoFlete || 0
+      }, `?id=eq.${recepcionEditandoId}`);
+      recepcion = { id: recepcionEditandoId, numero: document.getElementById('recepEditandoNumero')?.value };
+    } else {
+      // Nueva recepción en estado borrador
+      const [r] = await api('recepciones', 'POST', {
+        pedido_proveedor_id: pedidoProveedorId, fecha, fecha_recepcion_real: fechaRecepcionReal,
+        remito_proveedor: remitoProveedor || null, notas, total,
+        costo_adicional_desc: adicionalDesc || null,
+        costo_adicional_monto: fleteNeto || 0,
+        costo_adicional_monto_bruto: montoFlete || 0,
+        estado: 'borrador'
+      });
+      recepcion = r;
+    }
+    // Guardar ítems (sin stock todavía)
     await Promise.all(recepItems.map(async item => {
       const bonif = item.bonificado || 0;
-      const cantFisica = item.cantidad; // cantidad ES el total físico recibido; bonificado es la parte no cobrada
-      const [recepItem] = await api('recepcion_items', 'POST', {
+      await api('recepcion_items', 'POST', {
         recepcion_id: recepcion.id, producto_id: item.producto_id,
         cantidad: item.cantidad, bonificado: bonif, costo_unitario: item.costo_unitario,
         costo_lista: item.costo_lista || item.costo_unitario,
         desc_label: item.desc_label || null
       });
-      // Stock: entra la cantidad física total recibida
+    }));
+    toast(recepcionEditandoId ? 'Borrador actualizado ✓' : 'Recepción guardada como borrador ✓ — confirmala para impactar el stock');
+    closeModal('modalFechaRecepcionReal');
+    closeModal('modalRecepcion');
+    loadRecepciones();
+    if (typeof loadPedidosProveedor === 'function') loadPedidosProveedor();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function confirmarRecepcion(id) {
+  if (!confirm('¿Confirmar esta recepción? Se va a impactar el stock y no podrás editarla después.')) return;
+  try {
+    const [r] = await api('recepciones', 'GET', null, `?id=eq.${id}&select=*`);
+    const items = await api('recepcion_items', 'GET', null, `?recepcion_id=eq.${id}&select=*`);
+    await Promise.all(items.map(async item => {
+      const bonif = item.bonificado || 0;
       await api('stock_movimientos', 'POST', {
-        producto_id: item.producto_id, tipo: 'entrada', origen: 'reposicion', cantidad: cantFisica,
-        referencia_id: recepcion.id,
-        notas: `Recepción #${String(recepcion.numero).padStart(4,'0')}${bonif > 0 ? ' ('+bonif+' bonif.)' : ''}${remitoProveedor ? ' (remito '+remitoProveedor+')' : ''}`,
-        fecha: fechaRecepcionReal
+        producto_id: item.producto_id, tipo: 'entrada', origen: 'reposicion', cantidad: item.cantidad,
+        referencia_id: id,
+        notas: `Recepción #${String(r.numero).padStart(4,'0')}${bonif > 0 ? ' ('+bonif+' bonif.)' : ''}${r.remito_proveedor ? ' (remito '+r.remito_proveedor+')' : ''}`,
+        fecha: r.fecha_recepcion_real || r.fecha
       });
-      // Si hay unidades bonificadas, crear lote de muestra por esa cantidad específica
       if (bonif > 0) {
         await api('lotes_muestra', 'POST', {
-          producto_id: item.producto_id, recepcion_item_id: recepItem.id,
-          cantidad_original: bonif, cantidad_disponible: bonif, fecha_ingreso: fechaRecepcionReal
+          producto_id: item.producto_id, recepcion_item_id: item.id,
+          cantidad_original: bonif, cantidad_disponible: bonif, fecha_ingreso: r.fecha_recepcion_real || r.fecha
         });
       }
     }));
-    toast('Recepción registrada y stock actualizado ✓');
-    closeModal('modalFechaRecepcionReal');
-    closeModal('modalRecepcion');
-    if (pedidoProveedorId) await recalcularEstadoPedidoProveedor(pedidoProveedorId);
+    await api('recepciones', 'PATCH', { estado: 'confirmada' }, `?id=eq.${id}`);
+    if (r.pedido_proveedor_id) await recalcularEstadoPedidoProveedor(r.pedido_proveedor_id);
+    toast('Recepción confirmada y stock actualizado ✓');
     loadRecepciones();
     if (typeof loadPedidosProveedor === 'function') loadPedidosProveedor();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function editarRecepcion(id) {
+  const [r] = await api('recepciones', 'GET', null, `?id=eq.${id}&select=*,pedidos_proveedor(numero,proveedor)`);
+  const items = await api('recepcion_items', 'GET', null, `?recepcion_id=eq.${id}&select=*,productos(nombre,codigo,costo)`);
+  await ensureCache();
+
+  recepItems = items.map(i => ({
+    producto_id: i.producto_id,
+    nombre: i.productos?.nombre || '—',
+    cantidad: i.cantidad,
+    bonificado: i.bonificado || 0,
+    costo_unitario: i.costo_unitario,
+    costo_lista: i.costo_lista || i.costo_unitario,
+    desc_label: i.desc_label || null
+  }));
+
+  document.getElementById('recepPedidoId').value = r.pedido_proveedor_id || '';
+  document.getElementById('recepFecha').value = r.fecha || '';
+  document.getElementById('recepRemitoProveedor').value = r.remito_proveedor || '';
+  document.getElementById('recepNotas').value = r.notas || '';
+  document.getElementById('recepAdicionalDesc').value = r.costo_adicional_desc || '';
+  document.getElementById('recepAdicionalMonto').value = r.costo_adicional_monto_bruto || '';
+  document.getElementById('recepAdicionalDescTipo').value = 'pct';
+  document.getElementById('recepAdicionalDescValor').value = '';
+  document.getElementById('recepAdicionalNeto').textContent = '$' + parseFloat(r.costo_adicional_monto || 0).toLocaleString('es-AR');
+  document.getElementById('recepDescTipo').value = 'pct';
+  document.getElementById('recepDescValor').value = '';
+  document.getElementById('recepCostoPreview').textContent = '—';
+
+  // Guardar ID del borrador que se está editando
+  if (!document.getElementById('recepEditandoId')) {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.id = 'recepEditandoId';
+    document.getElementById('modalRecepcion').appendChild(inp);
+  }
+  if (!document.getElementById('recepEditandoNumero')) {
+    const inp2 = document.createElement('input');
+    inp2.type = 'hidden'; inp2.id = 'recepEditandoNumero';
+    document.getElementById('modalRecepcion').appendChild(inp2);
+  }
+  document.getElementById('recepEditandoId').value = id;
+  document.getElementById('recepEditandoNumero').value = r.numero || '';
+
+  if (r.pedido_proveedor_id) {
+    document.getElementById('recepPedidoInfo').textContent = `Pedido #${String(r.pedidos_proveedor?.numero||0).padStart(4,'0')} — ${r.pedidos_proveedor?.proveedor||''}`;
+    document.getElementById('recepFaltantesWrap').style.display = 'none';
+  } else {
+    document.getElementById('recepPedidoInfo').textContent = 'Sin pedido asociado (recepción suelta)';
+    document.getElementById('recepFaltantesWrap').style.display = 'none';
+  }
+
+  poblarSelectProductosRecepcion();
+  renderRecepItems();
+  actualizarTotalRecep();
+  openModal('modalRecepcion');
+}
+
+async function deleteRecepcion(id) {
+  if (!confirm('¿Borrar este borrador de recepción?')) return;
+  try {
+    await api('recepcion_items', 'DELETE', null, `?recepcion_id=eq.${id}`);
+    await api('recepciones', 'DELETE', null, `?id=eq.${id}`);
+    toast('Borrador eliminado');
+    loadRecepciones();
   } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
