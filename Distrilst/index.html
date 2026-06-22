@@ -3161,7 +3161,8 @@ async function savePedido() {
       await api('pedidos', 'PATCH', { cliente_id: clienteId, fecha_entrega: fechaEntrega || null, notas: notaFinal, total }, `?id=eq.${id}`);
       await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
     } else {
-      const [pedido] = await api('pedidos', 'POST', { cliente_id: clienteId, fecha_entrega: fechaEntrega || null, notas: notaFinal, total, vendedor_id: currentUser });
+      const vendedorId = cliente?.vendedor_id || currentUser;
+      const [pedido] = await api('pedidos', 'POST', { cliente_id: clienteId, fecha_entrega: fechaEntrega || null, notas: notaFinal, total, vendedor_id: vendedorId });
       pedidoId = pedido.id;
     }
     await Promise.all(pedidoItems.map(item => {
@@ -3423,7 +3424,8 @@ async function saveVenta() {
   const total = ventaItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100), 0);
   const notaFinal = [notas, descPct > 0 ? `Descuento aplicado: ${descPct}%` : '', ventaItems.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : '', ventaItems.some(i => i.precio_unitario === 0) ? 'Incluye muestras sin cargo' : ''].filter(Boolean).join(' | ');
   try {
-    const [venta] = await api('ventas', 'POST', { cliente_id: clienteId, fecha: fecha || new Date().toISOString().split('T')[0], notas: notaFinal, total, vendedor_id: currentUser });
+    const vendedorId = cliente?.vendedor_id || currentUser;
+    const [venta] = await api('ventas', 'POST', { cliente_id: clienteId, fecha: fecha || new Date().toISOString().split('T')[0], notas: notaFinal, total, vendedor_id: vendedorId });
     await Promise.all(ventaItems.map(item => {
       const precioConDesc = item.precio_unitario * (1 - descPct / 100);
       const cantTotal = item.cantidad + (item.bonificado || 0);
@@ -3510,8 +3512,10 @@ async function savePago() {
   const notas = document.getElementById('pagoNotas').value;
   if (!clienteId) { toast('Seleccioná un cliente', 'error'); return; }
   if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'error'); return; }
+  const cliente = cachedClientes.find(c => c.id === clienteId);
   try {
-    await api('pagos', 'POST', { cliente_id: clienteId, fecha, monto, medio, notas, vendedor_id: currentUser });
+    const vendedorId = cliente?.vendedor_id || currentUser;
+    await api('pagos', 'POST', { cliente_id: clienteId, fecha, monto, medio, notas, vendedor_id: vendedorId });
     toast('Cobro registrado');
     closeModal('modalPago');
     loadPagos();
