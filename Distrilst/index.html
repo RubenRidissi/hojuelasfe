@@ -4934,7 +4934,7 @@ function renderRecepItems() {
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:14px;color:var(--muted);font-size:13px">Sin productos agregados</td></tr>';
   } else {
     tbody.innerHTML = recepItems.map(i => {
-      const totalFisico = i.cantidad + (i.bonificado || 0);
+      const totalFisico = i.cantidad; // cantidad ES el total físico; bonificado es la parte no cobrada
       const costoReal = i.costo_unitario * (i.cantidad - (i.bonificado || 0));
       const bonifTag = i.bonificado > 0 ? ` <span style="color:#15803D;font-size:11px">🎁 ${i.bonificado} bonif.</span>` : '';
       const descTag = i.desc_label ? `<span style="color:#DC2626;font-size:11px">${i.desc_label}</span>` : '—';
@@ -4991,18 +4991,18 @@ async function confirmarGuardarRecepcion() {
     });
     await Promise.all(recepItems.map(async item => {
       const bonif = item.bonificado || 0;
-      const cantFisica = item.cantidad + bonif;
+      const cantFisica = item.cantidad; // cantidad ES el total físico recibido; bonificado es la parte no cobrada
       const [recepItem] = await api('recepcion_items', 'POST', {
         recepcion_id: recepcion.id, producto_id: item.producto_id,
         cantidad: item.cantidad, bonificado: bonif, costo_unitario: item.costo_unitario,
         costo_lista: item.costo_lista || item.costo_unitario,
         desc_label: item.desc_label || null
       });
-      // Stock: entra la cantidad física total (facturada + bonificada)
+      // Stock: entra la cantidad física total recibida
       await api('stock_movimientos', 'POST', {
         producto_id: item.producto_id, tipo: 'entrada', origen: 'reposicion', cantidad: cantFisica,
         referencia_id: recepcion.id,
-        notas: `Recepción #${String(recepcion.numero).padStart(4,'0')}${bonif > 0 ? ' (incl. '+bonif+' bonif.)' : ''}${remitoProveedor ? ' (remito '+remitoProveedor+')' : ''}`,
+        notas: `Recepción #${String(recepcion.numero).padStart(4,'0')}${bonif > 0 ? ' ('+bonif+' bonif.)' : ''}${remitoProveedor ? ' (remito '+remitoProveedor+')' : ''}`,
         fecha: fechaRecepcionReal
       });
       // Si hay unidades bonificadas, crear lote de muestra por esa cantidad específica
@@ -5070,12 +5070,12 @@ function buildRecepcionDoc(r, items) {
 
   items.forEach(item => {
     const bonif = item.bonificado || 0;
-    const cantTotal = item.cantidad + bonif;
+    const cantTotal = item.cantidad; // cantidad YA es el total físico; bonificado es la parte no cobrada
     const costoLista = parseFloat(item.costo_lista || item.costo_unitario || 0);
     const costoConDcto = parseFloat(item.costo_unitario || 0);
     const montoBruto = costoLista * item.cantidad;
     const montoNeto = costoConDcto * (item.cantidad - bonif);
-    const accion = montoNeto - montoBruto; // negativo = descuento/bonificación
+    const accion = montoNeto - montoBruto;
 
     subtotalSinDcto += montoBruto;
     subtotalAccion += accion;
