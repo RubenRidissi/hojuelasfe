@@ -4768,6 +4768,7 @@ function renderMapa() {
 
 // ==================== RECEPCIONES DE MERCADERÍA ====================
 let recepItems = [];
+let recepFleteBruto = 0;
 
 async function loadRecepciones() {
   if (!SUPABASE_URL) return;
@@ -4957,6 +4958,7 @@ function renderRecepItems() {
 
 function abrirModalFechaRecepcionReal() {
   if (!recepItems.length) { toast('Agregá al menos un producto recibido', 'error'); return; }
+  recepFleteBruto = parseFloat(document.getElementById('recepAdicionalMonto').value) || 0;
   document.getElementById('fechaRecepcionRealInput').value = document.getElementById('recepFecha').value || new Date().toISOString().split('T')[0];
   openModal('modalFechaRecepcionReal');
 }
@@ -4971,7 +4973,7 @@ async function confirmarGuardarRecepcion() {
   const notas = document.getElementById('recepNotas').value.trim();
   if (!recepItems.length) { toast('Agregá al menos un producto recibido', 'error'); return; }
   const subtotalProductos = recepItems.reduce((s, i) => s + i.costo_unitario * (i.cantidad - (i.bonificado || 0)), 0);
-  const montoFlete = parseFloat(document.getElementById('recepAdicionalMonto').value) || 0;
+  const montoFlete = recepFleteBruto;
   const adicionalDesc = document.getElementById('recepAdicionalDesc').value.trim();
   const adicionalDescTipo = document.getElementById('recepAdicionalDescTipo').value;
   const adicionalDescValor = parseFloat(document.getElementById('recepAdicionalDescValor').value) || 0;
@@ -4984,7 +4986,8 @@ async function confirmarGuardarRecepcion() {
       pedido_proveedor_id: pedidoProveedorId, fecha, fecha_recepcion_real: fechaRecepcionReal,
       remito_proveedor: remitoProveedor || null, notas, total,
       costo_adicional_desc: adicionalDesc || null,
-      costo_adicional_monto: fleteNeto || 0
+      costo_adicional_monto: fleteNeto || 0,
+      costo_adicional_monto_bruto: montoFlete || 0
     });
     await Promise.all(recepItems.map(async item => {
       const bonif = item.bonificado || 0;
@@ -5097,21 +5100,34 @@ function buildRecepcionDoc(r, items) {
       '</tr>';
   });
 
-  // Fila de subtotales
+  // Fila de subtotales productos
   html += '<tr style="border-top:2px solid var(--border);font-size:12px;color:var(--muted)">' +
     '<td colspan="4" style="text-align:right">Subtotal productos</td>' +
     '<td style="text-align:right">$' + subtotalSinDcto.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
     '<td style="text-align:right;color:#15803D">$' + (subtotalAccion).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
     '<td style="text-align:right">$' + (subtotalSinDcto + subtotalAccion).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
-    '</tr></tbody></table>';
+    '</tr>';
 
-  // Flete / logística
-  const fletoMonto = parseFloat(r.costo_adicional_monto || 0);
+  // Fila de flete/logística como línea dentro de la tabla
+  const fleteBruto = parseFloat(r.costo_adicional_monto_bruto || r.costo_adicional_monto || 0);
+  const fleteNeto = parseFloat(r.costo_adicional_monto || 0);
   if (r.costo_adicional_desc) {
-    const fletoLabel = fletoMonto === 0 ? '🎁 Bonificado 100%' : '$' + fletoMonto.toLocaleString('es-AR',{maximumFractionDigits:2});
-    html += '<div style="text-align:right;margin-top:8px;font-size:13px;color:var(--muted)">' +
-      r.costo_adicional_desc + ': <strong>' + fletoLabel + '</strong></div>';
+    const fleteAccion = fleteNeto - fleteBruto;
+    const fleteAccionLabel = fleteAccion === 0 ? '—' :
+      fleteNeto === 0 ? '<span style="color:#15803D">🎁 Bonificado 100%</span>' :
+      '<span style="color:#15803D">$' + fleteAccion.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</span>';
+    html += '<tr style="border-top:1px dashed var(--border);background:#FAFAFA">' +
+      '<td style="color:#78716C;font-size:12px">—</td>' +
+      '<td style="font-style:italic">' + r.costo_adicional_desc + '</td>' +
+      '<td style="text-align:right">—</td>' +
+      '<td style="text-align:center">—</td>' +
+      '<td style="text-align:right">$' + fleteBruto.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
+      '<td style="text-align:right">' + fleteAccionLabel + '</td>' +
+      '<td style="text-align:right;font-weight:600">$' + fleteNeto.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
+      '</tr>';
   }
+
+  html += '</tbody></table>';
   html += '<div style="text-align:right;margin-top:6px;font-size:15px;font-weight:700">Costo real total: $' + parseFloat(r.total||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</div>';
   html += buildFooter(r.notas);
   return html;
