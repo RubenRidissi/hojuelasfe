@@ -4831,6 +4831,7 @@ async function loadRecepciones() {
           ${esBorrador ? `
             <button class="btn btn-sm btn-success" onclick="confirmarRecepcion('${r.id}')" title="Confirmar y mover stock">✓ Confirmar</button>
             <button class="btn btn-sm btn-secondary" onclick="editarRecepcion('${r.id}')" title="Editar borrador">✏ Editar</button>
+            <button class="btn btn-sm btn-secondary" onclick="verRecepcion('${r.id}')" title="Ver detalle">👁 Ver</button>
             <button class="btn btn-sm btn-danger" onclick="deleteRecepcion('${r.id}')" title="Borrar borrador">✕</button>
           ` : `
             <button class="btn btn-sm btn-secondary" onclick="verRecepcion('${r.id}')" title="Ver detalle">👁 Ver</button>
