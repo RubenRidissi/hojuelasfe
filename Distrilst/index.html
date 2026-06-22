@@ -6425,7 +6425,7 @@ async function loadReportes() {
         }
 
         // BLOQUE 2: unidades bonificadas (precio > 0 pero unidades extra gratis)
-        if (bonif > 0) {
+        if (bonif > 0 && precio > 0) {
           if (!bProd[key]) bProd[key] = { nombre: nomProd, codigo: codProd, costo, cantidad: 0 };
           bProd[key].cantidad += bonif;
           if (!bCli[nomCli]) bCli[nomCli] = { cantidad: 0 };
