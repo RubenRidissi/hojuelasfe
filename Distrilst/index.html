@@ -572,6 +572,7 @@ function showSection(name) {
         <h1 class="page-title">Ventas</h1>
         <div class="page-header-actions" style="display:flex;gap:8px">
           <button class="btn btn-secondary" onclick="exportarExcel('ventas')">📥 Excel</button>
+          <button class="btn btn-secondary admin-only" onclick="abrirAjusteCliente()">± NC/ND Cliente</button>
           <button class="btn btn-primary" onclick="openModal('modalVenta')">+ Nueva venta</button>
         </div>
       </div>
@@ -1366,6 +1367,39 @@ function showSection(name) {
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalRecepcion')">Cancelar</button>
       <button class="btn btn-primary" onclick="abrirModalFechaRecepcionReal()">Registrar recepción</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AJUSTE CLIENTE (NC/ND) -->
+<div class="modal-backdrop" id="modalAjusteCliente">
+  <div class="modal" style="max-width:480px">
+    <h3 class="modal-title" id="ajusteCliTitulo">Nueva Nota de Crédito</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Tipo</label>
+        <select id="ajusteCliTipo" onchange="document.getElementById('ajusteCliTitulo').textContent = this.value === 'NC' ? 'Nueva Nota de Crédito' : 'Nueva Nota de Débito'">
+          <option value="NC">NC — Nota de Crédito (reduce deuda del cliente)</option>
+          <option value="ND">ND — Nota de Débito (aumenta deuda del cliente)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Fecha *</label><input id="ajusteCliFecha" type="date"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Cliente *</label><select id="ajusteCliCliente" onchange="cargarVentasAjusteCliente()"><option value="">Seleccioná un cliente</option></select></div>
+      <div class="form-group"><label>N° Comprobante</label><input id="ajusteCliNumero" placeholder="Ej: NC-0001-00000001"></div>
+    </div>
+    <div class="form-group">
+      <label>Venta asociada *</label>
+      <select id="ajusteCliVenta"><option value="">Primero seleccioná un cliente</option></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Monto *</label><input id="ajusteCliMonto" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label>Concepto</label><input id="ajusteCliConcepto" placeholder="Motivo del ajuste..."></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalAjusteCliente')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAjusteCliente()">Registrar</button>
     </div>
   </div>
 </div>
@@ -4008,13 +4042,16 @@ async function loadCtaCte() {
   resumen.style.display = 'block';
   empty.style.display = 'none';
   try {
-    const [ventas, pagos] = await Promise.all([
+    const [ventas, pagos, ajustes] = await Promise.all([
       api('ventas', 'GET', null, `?select=id,fecha,total,estado_pago,notas&cliente_id=eq.${clienteId}&order=fecha.asc`),
-      api('pagos', 'GET', null, `?select=id,fecha,monto,medio,notas&cliente_id=eq.${clienteId}&order=fecha.asc`)
+      api('pagos', 'GET', null, `?select=id,fecha,monto,medio,notas&cliente_id=eq.${clienteId}&order=fecha.asc`),
+      api('ajustes_cliente', 'GET', null, `?select=id,fecha,tipo,monto,concepto,numero_comprobante&cliente_id=eq.${clienteId}&order=fecha.asc`)
     ]);
     const totalFacturado = ventas.reduce((s, v) => s + parseFloat(v.total || 0), 0);
     const totalCobrado = pagos.reduce((s, p) => s + parseFloat(p.monto || 0), 0);
-    const saldo = totalFacturado - totalCobrado;
+    const totalNC = ajustes.filter(a => a.tipo === 'NC').reduce((s,a) => s + parseFloat(a.monto||0), 0);
+    const totalND = ajustes.filter(a => a.tipo === 'ND').reduce((s,a) => s + parseFloat(a.monto||0), 0);
+    const saldo = totalFacturado - totalCobrado - totalNC + totalND;
     document.getElementById('ctaFacturado').textContent = '$' + totalFacturado.toLocaleString('es-AR', {maximumFractionDigits:0});
     document.getElementById('ctaCobrado').textContent = '$' + totalCobrado.toLocaleString('es-AR', {maximumFractionDigits:0});
     const saldoEl = document.getElementById('ctaSaldo');
@@ -4031,7 +4068,8 @@ async function loadCtaCte() {
     }
     const movs = [
       ...ventas.map(v => ({ fecha: v.fecha, tipo: 'venta', id: v.id, monto: parseFloat(v.total||0), estado: v.estado_pago, notas: v.notas })),
-      ...pagos.map(p => ({ fecha: p.fecha, tipo: 'pago', id: p.id, monto: parseFloat(p.monto||0), medio: p.medio, notas: p.notas }))
+      ...pagos.map(p => ({ fecha: p.fecha, tipo: 'pago', id: p.id, monto: parseFloat(p.monto||0), medio: p.medio, notas: p.notas })),
+      ...ajustes.map(a => ({ fecha: a.fecha, tipo: a.tipo === 'NC' ? 'nc' : 'nd', id: a.id, monto: parseFloat(a.monto||0), notas: a.concepto, numero: a.numero_comprobante }))
     ].sort((a, b) => a.fecha.localeCompare(b.fecha));
     if (movs.length) {
       document.getElementById('ctaUltima').textContent = new Date(movs[movs.length-1].fecha + 'T00:00:00').toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'});
@@ -4046,6 +4084,12 @@ async function loadCtaCte() {
         tipoBadge = m.estado === 'pagado' ? 'badge-green' : m.estado === 'parcial' ? 'badge-yellow' : 'badge-gray';
         tipoLabel = m.estado === 'pagado' ? 'Venta pagada' : m.estado === 'parcial' ? 'Venta parcial' : 'Venta';
         detalle = m.notas || '—';
+      } else if (m.tipo === 'nc') {
+        haber = m.monto; tipoBadge = 'badge-green'; tipoLabel = 'NC';
+        detalle = (m.numero ? m.numero + ' · ' : '') + (m.notas || '—');
+      } else if (m.tipo === 'nd') {
+        debe = m.monto; tipoBadge = 'badge-red'; tipoLabel = 'ND';
+        detalle = (m.numero ? m.numero + ' · ' : '') + (m.notas || '—');
       } else {
         haber = m.monto; tipoBadge = 'badge-blue'; tipoLabel = 'Cobro';
         detalle = m.medio + (m.notas ? ' · ' + m.notas : '');
@@ -5972,6 +6016,66 @@ function switchAyuda(seccion, btn) {
   btn.classList.add('active');
 }
 
+// ==================== AJUSTES CLIENTE (NC/ND) ====================
+async function abrirAjusteCliente(clienteIdPrefill, ventaIdPrefill) {
+  await ensureCache();
+  document.getElementById('ajusteCliTipo').value = 'NC';
+  document.getElementById('ajusteCliTitulo').textContent = 'Nueva Nota de Crédito';
+  document.getElementById('ajusteCliFecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('ajusteCliNumero').value = '';
+  document.getElementById('ajusteCliMonto').value = '';
+  document.getElementById('ajusteCliConcepto').value = '';
+  populateClienteSelect('ajusteCliCliente');
+  if (clienteIdPrefill) {
+    document.getElementById('ajusteCliCliente').value = clienteIdPrefill;
+    await cargarVentasAjusteCliente();
+    if (ventaIdPrefill) document.getElementById('ajusteCliVenta').value = ventaIdPrefill;
+  } else {
+    document.getElementById('ajusteCliVenta').innerHTML = '<option value="">Primero seleccioná un cliente</option>';
+  }
+  openModal('modalAjusteCliente');
+}
+
+async function cargarVentasAjusteCliente() {
+  const clienteId = document.getElementById('ajusteCliCliente').value;
+  const sel = document.getElementById('ajusteCliVenta');
+  if (!clienteId) { sel.innerHTML = '<option value="">Primero seleccioná un cliente</option>'; return; }
+  const ventas = await api('ventas', 'GET', null,
+    `?cliente_id=eq.${clienteId}&select=id,fecha,total,notas&order=fecha.desc`);
+  sel.innerHTML = '<option value="">Seleccioná una venta</option>' +
+    ventas.map(v => {
+      const fecha = new Date(v.fecha+'T00:00:00').toLocaleDateString('es-AR');
+      const desc = v.notas ? v.notas.split('|')[0].trim() : '';
+      return `<option value="${v.id}">${fecha} — $${parseFloat(v.total).toLocaleString('es-AR',{maximumFractionDigits:0})}${desc ? ' · '+desc : ''}</option>`;
+    }).join('');
+}
+
+async function saveAjusteCliente() {
+  const tipo = document.getElementById('ajusteCliTipo').value;
+  const clienteId = document.getElementById('ajusteCliCliente').value;
+  const ventaId = document.getElementById('ajusteCliVenta').value;
+  const fecha = document.getElementById('ajusteCliFecha').value;
+  const numero = document.getElementById('ajusteCliNumero').value.trim();
+  const monto = parseFloat(document.getElementById('ajusteCliMonto').value);
+  const concepto = document.getElementById('ajusteCliConcepto').value.trim();
+  if (!clienteId) { toast('Seleccioná un cliente', 'error'); return; }
+  if (!ventaId) { toast('Seleccioná una venta', 'error'); return; }
+  if (!fecha) { toast('Elegí la fecha', 'error'); return; }
+  if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'error'); return; }
+  try {
+    await api('ajustes_cliente', 'POST', {
+      tipo, cliente_id: clienteId, venta_id: ventaId,
+      fecha, numero_comprobante: numero || null,
+      monto, concepto: concepto || null
+    });
+    toast(`${tipo} registrada ✓`);
+    closeModal('modalAjusteCliente');
+    if (document.getElementById('sec-ventas').classList.contains('active')) loadVentas();
+    if (document.getElementById('sec-ctacte').classList.contains('active')) loadCtaCte();
+    if (document.getElementById('sec-finanzas').classList.contains('active')) loadFinanzas();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
 // ==================== FINANZAS ====================
 async function loadFinanzas() {
   if (!SUPABASE_URL) return;
@@ -6004,6 +6108,12 @@ async function loadFinanzas() {
     // 2. CUENTAS A COBRAR
     const ventasPend = await api('ventas', 'GET', null,
       `?estado_pago=neq.pagado&select=total,monto_pagado,vendedor_id,clientes(nombre,nombre_fantasia)`);
+    const ajustesClientes = await api('ajustes_cliente', 'GET', null, '?select=tipo,monto,cliente_id');
+    const ajustesPorCliente = {};
+    ajustesClientes.forEach(a => {
+      if (!ajustesPorCliente[a.cliente_id]) ajustesPorCliente[a.cliente_id] = 0;
+      ajustesPorCliente[a.cliente_id] += a.tipo === 'NC' ? -parseFloat(a.monto||0) : parseFloat(a.monto||0);
+    });
 
     // Por vendedor
     const porVendedor = {};
@@ -6035,7 +6145,8 @@ async function loadFinanzas() {
           <span>${nombre}</span><strong style="color:#DC2626">${fmt(saldo)}</strong>
         </div>`).join('') || '<p style="color:var(--muted);font-size:13px">Sin deudas pendientes</p>';
 
-    const totalCobrar = ventasPend.reduce((s,v) => s + parseFloat(v.total||0) - parseFloat(v.monto_pagado||0), 0);
+    const totalAjustes = Object.values(ajustesPorCliente).reduce((s,v) => s+v, 0);
+    const totalCobrar = ventasPend.reduce((s,v) => s + parseFloat(v.total||0) - parseFloat(v.monto_pagado||0), 0) + totalAjustes;
     document.getElementById('finTotalCobrar').textContent = fmt(totalCobrar);
 
     // 3. CUENTAS A PAGAR AL PROVEEDOR
