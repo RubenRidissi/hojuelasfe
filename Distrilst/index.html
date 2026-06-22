@@ -514,7 +514,6 @@ function showSection(name) {
         <h1 class="page-title">Productos</h1>
         <span id="btnNuevoProducto"></span>
         <button class="btn btn-secondary" onclick="exportarExcel('productos')">📥 Excel</button>
-        <button class="btn btn-secondary" id="btnImprimirProductos" onclick="imprimirProductos()">📄 Imprimir listado</button>
         <button class="btn btn-secondary" onclick="openModal('modalListaPrecios')">📄 Lista de precios</button>
         <button class="btn btn-secondary admin-only" onclick="abrirActualizacionMasiva()">💲 Actualizar precios</button>
         <button class="btn btn-secondary admin-only" onclick="abrirGuardarVersion()">📸 Guardar versión</button>
@@ -4006,10 +4005,12 @@ function applyRolRestrictions() {
   if (stockBtns) {
     stockBtns.innerHTML = isAdmin
       ? `<button class="btn btn-secondary" onclick="exportarExcel('stock')">📥 Excel</button>
+         <button class="btn btn-secondary" onclick="imprimirProductos()">📋 Listado interno</button>
          <button class="btn btn-primary" onclick="openModal('modalEntrada')">+ Entrada de mercadería</button>
          <button class="btn btn-secondary" onclick="openModal('modalMuestra')">🎁 Registrar muestra</button>
          <button class="btn btn-secondary" onclick="openModal('modalAjuste')">✏ Ajuste manual</button>`
       : `<button class="btn btn-secondary" onclick="exportarExcel('stock')">📥 Excel</button>
+         <button class="btn btn-secondary" onclick="imprimirProductos()">📋 Listado interno</button>
          <span style="font-size:13px;color:var(--muted);padding:8px 0">Solo lectura</span>`;
   }
 
@@ -4033,10 +4034,6 @@ function applyRolRestrictions() {
   style.id = 'adminOnlyStyle';
   style.textContent = isAdmin ? '' : '.admin-only { display: none !important; }';
   document.head.appendChild(style);
-
-  // Imprimir listado productos - admin only
-  const btnImpProd = document.getElementById('btnImprimirProductos');
-  if (btnImpProd) btnImpProd.style.display = isAdmin ? '' : 'none';
 
   // Apply mobile restrictions
   applyMobileRolRestrictions();
