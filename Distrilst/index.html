@@ -386,11 +386,11 @@ function showSection(name) {
           <span id="dashFiltroLabel" style="font-size:12px;color:var(--muted)"></span>
         </div>
         <div class="stats-grid" id="statsGrid">
-          <div class="stat-card"><div class="stat-label">Clientes</div><div class="stat-value" id="statClientes">—</div></div>
-          <div class="stat-card"><div class="stat-label">Productos</div><div class="stat-value" id="statProductos">—</div></div>
           <div class="stat-card"><div class="stat-label">Pedidos pendientes</div><div class="stat-value" id="statPedidos">—</div></div>
+          <div class="stat-card"><div class="stat-label">Entregas hoy</div><div class="stat-value" id="statEntregasHoy">—</div><div class="stat-sub">pedidos</div></div>
+          <div class="stat-card"><div class="stat-label">Entregas mañana</div><div class="stat-value" id="statEntregasManana">—</div><div class="stat-sub">pedidos</div></div>
+          <div class="stat-card"><div class="stat-label">Ventas hoy</div><div class="stat-value" id="statVentasHoy">—</div><div class="stat-sub" id="statVentasHoySub">ARS</div></div>
           <div class="stat-card"><div class="stat-label">Cobrado hoy</div><div class="stat-value" id="statCobrado">—</div><div class="stat-sub">ARS</div></div>
-          <div class="stat-card"><div class="stat-label">Ganancia hoy</div><div class="stat-value" id="statGanancia">—</div><div class="stat-sub">ARS estimado</div></div>
           <div class="stat-card"><div class="stat-label">Saldo pendiente</div><div class="stat-value" id="statDeuda">—</div><div class="stat-sub">ARS</div></div>
         </div>
         <div class="card" id="dashObjetivosWrap" style="margin-bottom:16px;display:none">
@@ -2212,34 +2212,30 @@ async function loadDashboardAdmin() {
 
   try {
     const today = new Date().toISOString().split('T')[0];
-    const [clientes, productos, pedidos, pagos, ventas] = await Promise.all([
-      api('clientes', 'GET', null, '?select=id'),
-      api('productos', 'GET', null, '?select=id'),
+    const manana = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const [pedidos, pagos, ventas, ventasHoy, entregasHoy, entregasManana] = await Promise.all([
       api('pedidos', 'GET', null, `?select=id&estado=eq.pendiente${vFiltro}`),
       api('pagos',   'GET', null, `?select=monto&fecha=eq.${today}${vFiltro}`),
-      api('ventas',  'GET', null, `?select=total,estado_pago&estado_pago=neq.pagado${vFiltro}`)
+      api('ventas',  'GET', null, `?select=total,monto_pagado,estado_pago&estado_pago=neq.pagado${vFiltro}`),
+      api('ventas',  'GET', null, `?select=total&fecha=eq.${today}${vFiltro}`),
+      api('pedidos', 'GET', null, `?select=id&fecha_entrega=eq.${today}&estado=eq.pendiente${vFiltro}`),
+      api('pedidos', 'GET', null, `?select=id&fecha_entrega=eq.${manana}&estado=eq.pendiente${vFiltro}`)
     ]);
-    document.getElementById('statClientes').textContent = clientes.length;
-    document.getElementById('statProductos').textContent = productos.length;
-    document.getElementById('statPedidos').textContent = pedidos.length;
-    const cobrado = pagos.reduce((s, p) => s + parseFloat(p.monto || 0), 0);
-    document.getElementById('statCobrado').textContent = '$' + cobrado.toLocaleString('es-AR');
-    const deuda = ventas.reduce((s, v) => s + parseFloat(v.total || 0), 0);
-    document.getElementById('statDeuda').textContent = '$' + deuda.toLocaleString('es-AR');
 
-    const ventasHoy = await api('ventas', 'GET', null,
-      `?select=total,venta_items(cantidad,bonificado,precio_unitario,producto_id,productos(costo))&fecha=eq.${today}${vFiltro}`);
-    let gananciaHoy = 0;
-    ventasHoy.forEach(v => {
-      (v.venta_items || []).forEach(item => {
-        const precio = parseFloat(item.precio_unitario);
-        if (precio > 0) {
-          const costo = parseFloat(item.productos?.costo || 0);
-          gananciaHoy += (precio - costo) * item.cantidad;
-        }
-      });
-    });
-    document.getElementById('statGanancia').textContent = '$' + gananciaHoy.toLocaleString('es-AR', {maximumFractionDigits:0});
+    document.getElementById('statPedidos').textContent = pedidos.length;
+
+    const cobrado = pagos.reduce((s, p) => s + parseFloat(p.monto || 0), 0);
+    document.getElementById('statCobrado').textContent = '$' + cobrado.toLocaleString('es-AR', {maximumFractionDigits:0});
+
+    const deuda = ventas.reduce((s, v) => s + parseFloat(v.total||0) - parseFloat(v.monto_pagado||0), 0);
+    document.getElementById('statDeuda').textContent = '$' + deuda.toLocaleString('es-AR', {maximumFractionDigits:0});
+
+    const totalVentasHoy = ventasHoy.reduce((s, v) => s + parseFloat(v.total || 0), 0);
+    document.getElementById('statVentasHoy').textContent = ventasHoy.length;
+    document.getElementById('statVentasHoySub').textContent = '$' + totalVentasHoy.toLocaleString('es-AR', {maximumFractionDigits:0});
+
+    document.getElementById('statEntregasHoy').textContent = entregasHoy.length;
+    document.getElementById('statEntregasManana').textContent = entregasManana.length;
 
     const ultPedidos = await api('pedidos', 'GET', null,
       `?select=id,total,estado,fecha,clientes(nombre,nombre_fantasia)&order=created_at.desc&limit=5${vFiltro}`);
