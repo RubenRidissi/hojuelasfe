@@ -658,7 +658,7 @@ function showSection(name) {
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>Fecha real recepción</th><th>Pedido asociado</th><th>Remito proveedor</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+            <thead><tr><th>N°</th><th>Fecha real recepción</th><th>Pedido asociado</th><th>Remito proveedor</th><th>Total</th><th>Estado</th><th>Pago proveedor</th><th></th></tr></thead>
             <tbody id="tablaRecepciones"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
@@ -1291,6 +1291,34 @@ function showSection(name) {
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalRecepcion')">Cancelar</button>
       <button class="btn btn-primary" onclick="abrirModalFechaRecepcionReal()">Registrar recepción</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL PAGO AL PROVEEDOR -->
+<div class="modal-backdrop" id="modalPagoProveedor">
+  <div class="modal" style="max-width:480px">
+    <h3 class="modal-title">💸 Registrar pago al proveedor</h3>
+    <input type="hidden" id="pagoProvRecepcionId">
+    <div id="pagoProvResumen" style="margin-bottom:14px;padding:10px 12px;background:var(--bg);border-radius:8px;font-size:13px"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Fecha *</label><input id="pagoProvFecha" type="date"></div>
+      <div class="form-group"><label>Monto *</label><input id="pagoProvMonto" type="number" min="0" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Medio de pago</label>
+        <select id="pagoProvMedio">
+          <option value="transferencia">Transferencia</option>
+          <option value="efectivo">Efectivo</option>
+          <option value="cheque">Cheque</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Notas</label><input id="pagoProvNotas" placeholder="Referencia, comprobante..."></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalPagoProveedor')">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePagoProveedor()">Registrar pago</button>
     </div>
   </div>
 </div>
@@ -4885,12 +4913,26 @@ async function loadRecepciones() {
   try {
     const recepciones = await api('recepciones', 'GET', null, '?select=*,pedidos_proveedor(numero)&order=created_at.desc');
     const tbody = document.getElementById('tablaRecepciones');
-    if (!recepciones.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-icon">📥</div><p>No hay recepciones registradas todavía</p></div></td></tr>'; return; }
+    if (!recepciones.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><div class="empty-icon">📥</div><p>No hay recepciones registradas todavía</p></div></td></tr>'; return; }
     tbody.innerHTML = recepciones.map(r => {
       const esBorrador = r.estado === 'borrador';
       const estadoBadge = esBorrador
         ? '<span class="badge badge-yellow">Borrador</span>'
         : '<span class="badge badge-green">Confirmada</span>';
+      // Pago al proveedor — solo aplica a confirmadas
+      let pagoProv = '—';
+      if (!esBorrador) {
+        const saldoProv = parseFloat(r.total||0) - parseFloat(r.monto_pagado_prov||0);
+        if (r.estado_pago_prov === 'pagado') {
+          pagoProv = '<span class="badge badge-green">Pagado</span>';
+        } else if (r.estado_pago_prov === 'parcial') {
+          pagoProv = `<span class="badge badge-yellow">Parcial</span> <span style="font-size:11px;color:var(--muted)">Saldo $${saldoProv.toLocaleString('es-AR',{maximumFractionDigits:0})}</span>
+            <button class="btn btn-sm" style="background:#FEF3C7;color:#92400E" onclick="abrirPagoProveedor('${r.id}',${r.total},${r.monto_pagado_prov||0},'${r.remito_proveedor||''}')">+ Pago</button>`;
+        } else {
+          pagoProv = `<span class="badge badge-red">Pendiente</span>
+            <button class="btn btn-sm btn-success" onclick="abrirPagoProveedor('${r.id}',${r.total},${r.monto_pagado_prov||0},'${r.remito_proveedor||''}')">💸 Pagar</button>`;
+        }
+      }
       return `
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(r.numero).padStart(4,'0')}</td>
@@ -4899,6 +4941,7 @@ async function loadRecepciones() {
         <td style="font-size:12px">${r.remito_proveedor || '—'}</td>
         <td>$${parseFloat(r.total||0).toLocaleString('es-AR')}</td>
         <td>${estadoBadge}</td>
+        <td>${pagoProv}</td>
         <td style="white-space:nowrap">
           ${esBorrador ? `
             <button class="btn btn-sm btn-success" onclick="confirmarRecepcion('${r.id}')" title="Confirmar y mover stock">✓ Confirmar</button>
@@ -4912,6 +4955,44 @@ async function loadRecepciones() {
       </tr>`;
     }).join('');
   } catch(e) { console.error(e); toast('Error cargando recepciones', 'error'); }
+}
+
+function abrirPagoProveedor(recepcionId, total, montoPagado, remito) {
+  const saldo = parseFloat(total) - parseFloat(montoPagado);
+  document.getElementById('pagoProvRecepcionId').value = recepcionId;
+  document.getElementById('pagoProvFecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('pagoProvMonto').value = saldo.toFixed(2);
+  document.getElementById('pagoProvNotas').value = '';
+  document.getElementById('pagoProvResumen').innerHTML =
+    `Total factura: <strong>$${parseFloat(total).toLocaleString('es-AR',{maximumFractionDigits:2})}</strong>` +
+    (parseFloat(montoPagado) > 0 ? ` · Ya pagado: <strong>$${parseFloat(montoPagado).toLocaleString('es-AR',{maximumFractionDigits:2})}</strong>` : '') +
+    ` · <span style="color:#DC2626;font-weight:600">Saldo: $${saldo.toLocaleString('es-AR',{maximumFractionDigits:2})}</span>` +
+    (remito ? `<br><span style="font-size:11px;color:var(--muted)">Remito: ${remito}</span>` : '');
+  openModal('modalPagoProveedor');
+}
+
+async function savePagoProveedor() {
+  const recepcionId = document.getElementById('pagoProvRecepcionId').value;
+  const fecha = document.getElementById('pagoProvFecha').value;
+  const monto = parseFloat(document.getElementById('pagoProvMonto').value);
+  const medio = document.getElementById('pagoProvMedio').value;
+  const notas = document.getElementById('pagoProvNotas').value.trim();
+  if (!fecha) { toast('Elegí la fecha', 'error'); return; }
+  if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'error'); return; }
+  try {
+    // Guardar el pago
+    await api('pagos_proveedor', 'POST', { recepcion_id: recepcionId, fecha, monto, medio, notas });
+    // Recalcular monto_pagado_prov y estado
+    const pagos = await api('pagos_proveedor', 'GET', null, `?recepcion_id=eq.${recepcionId}&select=monto`);
+    const totalPagado = pagos.reduce((s, p) => s + parseFloat(p.monto||0), 0);
+    const [r] = await api('recepciones', 'GET', null, `?id=eq.${recepcionId}&select=total`);
+    const totalRecep = parseFloat(r?.total || 0);
+    const nuevoEstado = totalPagado >= totalRecep - 0.01 ? 'pagado' : totalPagado > 0 ? 'parcial' : 'pendiente';
+    await api('recepciones', 'PATCH', { monto_pagado_prov: totalPagado, estado_pago_prov: nuevoEstado }, `?id=eq.${recepcionId}`);
+    toast(`Pago registrado ✓ — ${nuevoEstado === 'pagado' ? 'Factura cancelada' : 'Saldo pendiente actualizado'}`);
+    closeModal('modalPagoProveedor');
+    loadRecepciones();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
 async function abrirNuevaRecepcion(pedidoProveedorId) {
