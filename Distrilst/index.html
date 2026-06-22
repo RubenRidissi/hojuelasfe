@@ -1243,16 +1243,17 @@ function showSection(name) {
       <div style="font-size:13px;font-weight:600;margin-bottom:10px">Productos recibidos</div>
       <div class="form-row" style="align-items:flex-end">
         <div class="form-group" style="flex:2"><label>Producto</label><select id="recepProductoSel"></select></div>
-        <div class="form-group" style="flex:1"><label>Cantidad</label><input id="recepCantidadInput" type="number" min="1" step="1" placeholder="0"></div>
+        <div class="form-group" style="flex:1"><label>Cantidad (facturada)</label><input id="recepCantidadInput" type="number" min="1" step="1" placeholder="0"></div>
+        <div class="form-group" style="flex:1"><label>Bonificado 🎁</label><input id="recepBonificadoInput" type="number" min="0" step="1" placeholder="0" value="0"></div>
         <button class="btn btn-secondary" style="margin-bottom:14px" onclick="addItemRecepcion()">+ Agregar</button>
       </div>
       <div class="table-wrap" style="max-height:240px;overflow-y:auto">
         <table>
-          <thead><tr><th>Producto</th><th style="text-align:center">Cantidad</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Subtotal</th><th></th></tr></thead>
+          <thead><tr><th>Producto</th><th style="text-align:center">Facturado</th><th style="text-align:center">Bonificado</th><th style="text-align:center">Total físico</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Costo real</th><th></th></tr></thead>
           <tbody id="recepItemsTabla"></tbody>
         </table>
       </div>
-      <div style="text-align:right;margin-top:10px;font-size:15px;font-weight:600">Total: <span id="recepTotal">$0</span></div>
+      <div style="text-align:right;margin-top:10px;font-size:15px;font-weight:600">Costo real total: <span id="recepTotal">$0</span></div>
     </div>
 
     <div class="modal-footer">
@@ -1472,7 +1473,6 @@ function showSection(name) {
       <div class="form-group"><label>Fecha</label><input id="entradaFecha" type="date"></div>
       <div class="form-group"><label>Origen</label>
         <select id="entradaOrigen">
-          <option value="reposicion">Reposición / Compra</option>
           <option value="devolucion">Devolución de cliente</option>
           <option value="ajuste_manual">Ajuste manual</option>
         </select>
@@ -4594,18 +4594,25 @@ function poblarSelectProductosRecepcion() {
 function addItemRecepcion() {
   const sel = document.getElementById('recepProductoSel');
   const pid = sel.value;
-  const cant = parseInt(document.getElementById('recepCantidadInput').value);
+  const cant = parseInt(document.getElementById('recepCantidadInput').value) || 0;
+  const bonif = parseInt(document.getElementById('recepBonificadoInput').value) || 0;
   if (!pid) { toast('Elegí un producto', 'error'); return; }
   if (!cant || cant <= 0) { toast('Ingresá una cantidad válida', 'error'); return; }
+  if (bonif > cant) { toast('El bonificado no puede superar la cantidad facturada', 'error'); return; }
   const opt = sel.selectedOptions[0];
   const costo = parseFloat(opt.dataset.costo) || 0;
   const nombre = opt.textContent;
   const existing = recepItems.find(i => i.producto_id === pid);
-  if (existing) existing.cantidad += cant;
-  else recepItems.push({ producto_id: pid, nombre, cantidad: cant, costo_unitario: costo });
+  if (existing) {
+    existing.cantidad += cant;
+    existing.bonificado = (existing.bonificado || 0) + bonif;
+  } else {
+    recepItems.push({ producto_id: pid, nombre, cantidad: cant, bonificado: bonif, costo_unitario: costo });
+  }
   renderRecepItems();
   sel.value = '';
   document.getElementById('recepCantidadInput').value = '';
+  document.getElementById('recepBonificadoInput').value = '0';
 }
 
 function removeItemRecepcion(pid) {
@@ -4619,20 +4626,38 @@ function updateCantidadRecepItem(pid, val) {
   renderRecepItems();
 }
 
+function updateBonificadoRecepItem(pid, val) {
+  const item = recepItems.find(i => i.producto_id === pid);
+  if (!item) return;
+  const bonif = parseInt(val) || 0;
+  if (bonif > item.cantidad) { toast('El bonificado no puede superar la cantidad', 'error'); return; }
+  item.bonificado = bonif;
+  renderRecepItems();
+}
+
 function renderRecepItems() {
   const tbody = document.getElementById('recepItemsTabla');
-  if (!recepItems.length) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:14px;color:var(--muted);font-size:13px">Sin productos agregados</td></tr>'; }
-  else {
-    tbody.innerHTML = recepItems.map(i => `
+  if (!recepItems.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:14px;color:var(--muted);font-size:13px">Sin productos agregados</td></tr>';
+  } else {
+    tbody.innerHTML = recepItems.map(i => {
+      const totalFisico = i.cantidad + (i.bonificado || 0);
+      const costoReal = i.costo_unitario * (i.cantidad - (i.bonificado || 0));
+      const bonifTag = i.bonificado > 0 ? ` <span style="color:#15803D;font-size:11px">🎁 ${i.bonificado} bonif.</span>` : '';
+      return `
       <tr>
         <td style="font-size:13px">${i.nombre}</td>
-        <td style="text-align:center"><input type="number" value="${i.cantidad}" min="1" style="width:70px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" onchange="updateCantidadRecepItem('${i.producto_id}',this.value)"></td>
+        <td style="text-align:center"><input type="number" value="${i.cantidad}" min="1" style="width:65px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" onchange="updateCantidadRecepItem('${i.producto_id}',this.value)"></td>
+        <td style="text-align:center"><input type="number" value="${i.bonificado||0}" min="0" style="width:65px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;color:#15803D" onchange="updateBonificadoRecepItem('${i.producto_id}',this.value)"></td>
+        <td style="text-align:center;font-size:13px">${totalFisico}${bonifTag}</td>
         <td style="text-align:right;font-size:13px">$${i.costo_unitario.toLocaleString('es-AR')}</td>
-        <td style="text-align:right;font-size:13px">$${(i.cantidad*i.costo_unitario).toLocaleString('es-AR')}</td>
+        <td style="text-align:right;font-size:13px;font-weight:600">$${costoReal.toLocaleString('es-AR')}</td>
         <td><button class="btn btn-sm btn-danger" onclick="removeItemRecepcion('${i.producto_id}')">✕</button></td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   }
-  const total = recepItems.reduce((s, i) => s + i.cantidad * i.costo_unitario, 0);
+  // Costo real total = suma de (costo_unitario × (cantidad - bonificado))
+  const total = recepItems.reduce((s, i) => s + i.costo_unitario * (i.cantidad - (i.bonificado || 0)), 0);
   document.getElementById('recepTotal').textContent = '$' + total.toLocaleString('es-AR');
 }
 
@@ -4651,15 +4676,33 @@ async function confirmarGuardarRecepcion() {
   const remitoProveedor = document.getElementById('recepRemitoProveedor').value.trim();
   const notas = document.getElementById('recepNotas').value.trim();
   if (!recepItems.length) { toast('Agregá al menos un producto recibido', 'error'); return; }
-  const total = recepItems.reduce((s, i) => s + i.cantidad * i.costo_unitario, 0);
+  const total = recepItems.reduce((s, i) => s + i.costo_unitario * (i.cantidad - (i.bonificado || 0)), 0);
   try {
     const [recepcion] = await api('recepciones', 'POST', {
       pedido_proveedor_id: pedidoProveedorId, fecha, fecha_recepcion_real: fechaRecepcionReal, remito_proveedor: remitoProveedor || null, notas, total
     });
-    await Promise.all(recepItems.map(item => Promise.all([
-      api('recepcion_items', 'POST', { recepcion_id: recepcion.id, producto_id: item.producto_id, cantidad: item.cantidad, costo_unitario: item.costo_unitario }),
-      api('stock_movimientos', 'POST', { producto_id: item.producto_id, tipo: 'entrada', origen: 'reposicion', cantidad: item.cantidad, referencia_id: recepcion.id, notas: `Recepción #${String(recepcion.numero).padStart(4,'0')}${remitoProveedor ? ' (remito '+remitoProveedor+')' : ''}`, fecha: fechaRecepcionReal })
-    ])));
+    await Promise.all(recepItems.map(async item => {
+      const bonif = item.bonificado || 0;
+      const cantFisica = item.cantidad + bonif;
+      const [recepItem] = await api('recepcion_items', 'POST', {
+        recepcion_id: recepcion.id, producto_id: item.producto_id,
+        cantidad: item.cantidad, bonificado: bonif, costo_unitario: item.costo_unitario
+      });
+      // Stock: entra la cantidad física total (facturada + bonificada)
+      await api('stock_movimientos', 'POST', {
+        producto_id: item.producto_id, tipo: 'entrada', origen: 'reposicion', cantidad: cantFisica,
+        referencia_id: recepcion.id,
+        notas: `Recepción #${String(recepcion.numero).padStart(4,'0')}${bonif > 0 ? ' (incl. '+bonif+' bonif.)' : ''}${remitoProveedor ? ' (remito '+remitoProveedor+')' : ''}`,
+        fecha: fechaRecepcionReal
+      });
+      // Si hay unidades bonificadas, crear lote de muestra por esa cantidad específica
+      if (bonif > 0) {
+        await api('lotes_muestra', 'POST', {
+          producto_id: item.producto_id, recepcion_item_id: recepItem.id,
+          cantidad_original: bonif, cantidad_disponible: bonif, fecha_ingreso: fechaRecepcionReal
+        });
+      }
+    }));
     toast('Recepción registrada y stock actualizado ✓');
     closeModal('modalFechaRecepcionReal');
     closeModal('modalRecepcion');
@@ -4689,7 +4732,7 @@ async function verRecepcion(id) {
   try {
     const [r] = await api('recepciones', 'GET', null, `?id=eq.${id}&select=*,pedidos_proveedor(numero,proveedor)`);
     if (!r) { toast('Recepción no encontrada', 'error'); return; }
-    const items = await api('recepcion_items', 'GET', null, `?recepcion_id=eq.${id}&select=cantidad,costo_unitario,productos(nombre,codigo,unidad)`);
+    const items = await api('recepcion_items', 'GET', null, `?recepcion_id=eq.${id}&select=cantidad,bonificado,costo_unitario,productos(nombre,codigo,unidad)`);
     document.getElementById('compModalTitle').textContent = 'Recepción de Mercadería';
     document.getElementById('compContenido').innerHTML = buildRecepcionDoc(r, items);
     document.getElementById('modalComprobante').classList.add('open');
@@ -4703,15 +4746,22 @@ function buildRecepcionDoc(r, items) {
     '<div><span>Remito proveedor</span><strong>' + (r.remito_proveedor || '—') + '</strong></div>' +
     '<div><span>Fecha real de recepción</span><strong>' + (r.fecha_recepcion_real ? new Date(r.fecha_recepcion_real+'T00:00:00').toLocaleDateString('es-AR') : '—') + '</strong></div>' +
     '</div>';
-  html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
+  html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Facturado</th><th style="text-align:center">Bonificado</th><th style="text-align:center">Total físico</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Costo real</th></tr></thead><tbody>';
   items.forEach(item => {
-    html += '<tr><td style="color:#78716C;font-size:12px">' + (item.productos?.codigo || '—') + '</td>' +
+    const bonif = item.bonificado || 0;
+    const cantFisica = item.cantidad + bonif;
+    const costoReal = item.cantidad * (item.costo_unitario||0);
+    const bonifTag = bonif > 0 ? ` <span style="color:#15803D;font-size:10px">🎁 ${bonif} bonif.</span>` : '';
+    html += '<tr>' +
+      '<td style="color:#78716C;font-size:12px">' + (item.productos?.codigo || '—') + '</td>' +
       '<td>' + (item.productos?.nombre || '—') + '</td>' +
       '<td style="text-align:center">' + item.cantidad + ' ' + (item.productos?.unidad || '') + '</td>' +
+      '<td style="text-align:center;color:#15803D">' + (bonif > 0 ? bonif + bonifTag : '—') + '</td>' +
+      '<td style="text-align:center;font-weight:600">' + cantFisica + '</td>' +
       '<td style="text-align:right">$' + parseFloat(item.costo_unitario||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
-      '<td style="text-align:right">$' + (item.cantidad * (item.costo_unitario||0)).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
+      '<td style="text-align:right;font-weight:600">$' + costoReal.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
   });
-  html += '</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$' + parseFloat(r.total||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr></tfoot></table>';
+  html += '</tbody><tfoot><tr><td colspan="6" style="text-align:right">COSTO REAL TOTAL</td><td style="text-align:right">$' + parseFloat(r.total||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr></tfoot></table>';
   html += buildFooter(r.notas);
   return html;
 }
