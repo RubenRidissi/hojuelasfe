@@ -6285,8 +6285,13 @@ async function loadReportes() {
     }
     let totalIngresos = 0, totalCostos = 0;
     ventas.forEach(v => {
-      totalIngresos += parseFloat(v.total || 0);
-      (v.venta_items || []).forEach(item => { totalCostos += parseFloat(item.productos?.costo || 0) * item.cantidad; });
+      (v.venta_items || []).forEach(item => {
+        const precio = parseFloat(item.precio_unitario);
+        if (precio > 0) {
+          totalIngresos += precio * item.cantidad;
+          totalCostos += parseFloat(item.productos?.costo || 0) * item.cantidad;
+        }
+      });
     });
     const totalGanancia = totalIngresos - totalCostos;
     const margenProm = totalIngresos > 0 ? (totalGanancia / totalIngresos * 100) : 0;
