@@ -4164,15 +4164,14 @@ async function generarListaPrecios() {
 
   const html = `
     <div class="comp-wrap">
-      <div class="comp-header">
-        <img src="${EMPRESA.razon ? 'https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp' : ''}" class="comp-logo" alt="Hojuelas con Miel" onerror="this.style.display='none'">
-        <div class="comp-empresa">
-          <h2>${EMPRESA.nombre}</h2>
-          <p>${EMPRESA.razon}</p>
-          
-          <p>${EMPRESA.rep} · ${EMPRESA.tel}</p>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:8px">
+        <div>
+          <h2 style="font-size:28px;font-weight:700;color:#1C1917;margin:0 0 4px">${EMPRESA.razon}</h2>
+          <p style="font-size:13px;color:#78716C;margin:0">Descubrí el sabor del maná</p>
         </div>
+        <img src="https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp" style="height:64px;object-fit:contain" alt="Hojuelas" onerror="this.style.display='none'">
       </div>
+      <div style="border-top:3px solid #DC2626;margin-bottom:16px"></div>
       <div class="comp-tipo">
         <h3 style="font-size:18px">${tituloLista}</h3>
         <p class="comp-num">Vigencia: ${vigencia}</p>
@@ -4193,54 +4192,49 @@ async function generarListaPrecios() {
         <tbody>${tablaRows}</tbody>
       </table>
       ${mostrarPromo ? `
-      <p style="font-size:11px;color:#78716C;margin-top:8px">🎁 Promociones de volumen disponibles según indicación.</p>
-      <p style="font-size:11px;color:#78716C;margin-top:2px">Promociones de volumen corresponden al período de lanzamiento en Zona Santa Fe y están sujetas a modificación.</p>
+      <p style="font-size:11px;color:#78716C;margin-top:8px">Promociones de volumen corresponden al período de lanzamiento en Zona Santa Fe y están sujetas a modificación.</p>
       ` : ''}
 
       <!-- CONDICIONES COMERCIALES -->
       <table style="width:100%;border-collapse:collapse;margin-top:18px;font-size:12px">
-        <tr><td colspan="2" style="background:#1D4ED8;color:#fff;font-weight:700;padding:8px 12px;text-align:center;letter-spacing:1px">CONDICIONES COMERCIALES</td></tr>
+        <tr><td colspan="2" style="background:#9A5F00;color:#fff;font-weight:700;padding:8px 12px;text-align:center;letter-spacing:1px">CONDICIONES COMERCIALES</td></tr>
         <tr>
-          <td style="background:#DBEAFE;font-weight:700;padding:6px 12px;width:160px;color:#1D4ED8">Precios</td>
-          <td style="padding:6px 12px;border-bottom:1px solid #E2E8F0">
+          <td style="background:#FEF3DC;font-weight:700;padding:6px 12px;width:160px;color:#9A5F00">Precios</td>
+          <td style="padding:6px 12px;border-bottom:1px solid #FEE9AA">
             ${ivaOpcion === 'siniva' ? 'Expresados en pesos argentinos, SIN IVA incluido.' : ivaOpcion === 'coniva' ? 'Expresados en pesos argentinos, IVA (21%) incluido.' : 'Expresados en pesos argentinos, sin IVA y con IVA (21%).'}
           </td>
         </tr>
         <tr>
-          <td style="background:#DBEAFE;font-weight:700;padding:6px 12px;color:#1D4ED8">Forma de pago</td>
-          <td style="padding:6px 12px;border-bottom:1px solid #E2E8F0">Efectivo.</td>
+          <td style="background:#FEF3DC;font-weight:700;padding:6px 12px;color:#9A5F00">Forma de pago</td>
+          <td style="padding:6px 12px;border-bottom:1px solid #FEE9AA">Efectivo.</td>
         </tr>
         <tr>
-          <td style="background:#DBEAFE;font-weight:700;padding:6px 12px;color:#1D4ED8">Vigencia</td>
-          <td style="padding:6px 12px;border-bottom:1px solid #E2E8F0">Desde el ${vigencia} y hasta nueva actualización.</td>
+          <td style="background:#FEF3DC;font-weight:700;padding:6px 12px;color:#9A5F00">Vigencia</td>
+          <td style="padding:6px 12px;border-bottom:1px solid #FEE9AA">Desde el ${vigencia} y hasta nueva actualización.</td>
         </tr>
         <tr>
-          <td style="background:#DBEAFE;font-weight:700;padding:6px 12px;color:#1D4ED8">Zona de entrega</td>
+          <td style="background:#FEF3DC;font-weight:700;padding:6px 12px;color:#9A5F00">Zona de entrega</td>
           <td style="padding:6px 12px">Santa Fe.</td>
         </tr>
       </table>
 
       <!-- CONTACTO -->
       <table style="width:100%;border-collapse:collapse;margin-top:0;font-size:12px">
-        <tr><td colspan="2" style="background:#1D4ED8;color:#fff;font-weight:700;padding:8px 12px;text-align:center;letter-spacing:1px">REPRESENTANTE EN ZONA SANTA FE</td></tr>
+        <tr><td colspan="2" style="background:#9A5F00;color:#fff;font-weight:700;padding:8px 12px;text-align:center;letter-spacing:1px">REPRESENTANTE EN ZONA SANTA FE</td></tr>
         <tr>
-          <td style="background:#DBEAFE;font-weight:700;padding:6px 12px;color:#1D4ED8">LST Distribuidora</td>
+          <td style="background:#FEF3DC;font-weight:700;padding:6px 12px;color:#9A5F00">LST Distribuidora</td>
           <td style="padding:6px 12px"></td>
         </tr>
         <tr>
-          <td style="background:#DBEAFE;font-weight:700;padding:6px 12px;color:#1D4ED8">${EMPRESA.rep}</td>
+          <td style="background:#FEF3DC;font-weight:700;padding:6px 12px;color:#9A5F00">${EMPRESA.rep} (Responsable Comercial)</td>
           <td style="padding:6px 12px">Cel.: ${EMPRESA.tel}</td>
-        </tr>
-        <tr>
-          <td style="background:#DBEAFE;font-weight:700;padding:6px 12px;color:#1D4ED8">Responsable Comercial</td>
-          <td style="padding:6px 12px"></td>
         </tr>
       </table>
 
       <!-- PIE FINAL -->
       <div style="border-top:1px solid #1C1917;margin-top:24px;padding-top:8px;text-align:center">
         <p style="font-weight:700;font-size:13px;margin:0">HOJUELAS S.R.L.</p>
-        <p style="font-size:12px;color:#78716C;margin:2px 0 0"><a href="https://hojuelassrl.com/" style="color:#1D4ED8">https://hojuelassrl.com/</a></p>
+        <p style="font-size:12px;color:#78716C;margin:2px 0 0"><a href="https://hojuelassrl.com/" style="color:#9A5F00">https://hojuelassrl.com/</a></p>
       </div>
 
       <div class="comp-footer">
