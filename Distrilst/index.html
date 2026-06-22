@@ -1268,6 +1268,24 @@ function showSection(name) {
           <tbody id="recepItemsTabla"></tbody>
         </table>
       </div>
+      <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px">Costo adicional (flete / logística)</div>
+        <div class="form-row" style="align-items:flex-end">
+          <div class="form-group" style="flex:2"><label>Descripción</label><input id="recepAdicionalDesc" placeholder="Ej: Flete junio 2026"></div>
+          <div class="form-group" style="flex:1"><label>Monto $</label><input id="recepAdicionalMonto" type="number" min="0" step="0.01" placeholder="0" oninput="actualizarTotalRecep()"></div>
+          <div class="form-group" style="flex:1">
+            <label>Descuento</label>
+            <div style="display:flex;gap:6px">
+              <select id="recepAdicionalDescTipo" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:13px" onchange="actualizarTotalRecep()">
+                <option value="pct">%</option>
+                <option value="monto">$</option>
+              </select>
+              <input id="recepAdicionalDescValor" type="number" min="0" step="0.01" placeholder="0" style="flex:1" oninput="actualizarTotalRecep()">
+            </div>
+          </div>
+          <div class="form-group" style="flex:1"><label style="color:var(--muted);font-size:12px">Neto flete</label><div id="recepAdicionalNeto" style="padding:8px 10px;background:var(--bg);border-radius:7px;font-size:13px;font-weight:600">$0</div></div>
+        </div>
+      </div>
       <div style="text-align:right;margin-top:10px;font-size:15px;font-weight:600">Costo real total: <span id="recepTotal">$0</span></div>
     </div>
 
@@ -4745,6 +4763,10 @@ async function abrirNuevaRecepcion(pedidoProveedorId) {
   document.getElementById('recepDescTipo').value = 'pct';
   document.getElementById('recepDescValor').value = '';
   document.getElementById('recepCostoPreview').textContent = '—';
+  document.getElementById('recepAdicionalDesc').value = '';
+  document.getElementById('recepAdicionalMonto').value = '';
+  document.getElementById('recepAdicionalDescValor').value = '';
+  document.getElementById('recepAdicionalNeto').textContent = '$0';
   await ensureCache();
   poblarSelectProductosRecepcion();
   renderRecepItems();
@@ -4860,6 +4882,18 @@ function updateBonificadoRecepItem(pid, val) {
   renderRecepItems();
 }
 
+function actualizarTotalRecep() {
+  const subtotalProductos = recepItems.reduce((s, i) => s + i.costo_unitario * (i.cantidad - (i.bonificado || 0)), 0);
+  const montoFlete = parseFloat(document.getElementById('recepAdicionalMonto')?.value) || 0;
+  const descTipo = document.getElementById('recepAdicionalDescTipo')?.value || 'pct';
+  const descValor = parseFloat(document.getElementById('recepAdicionalDescValor')?.value) || 0;
+  const fletoNeto = montoFlete > 0 && descValor > 0
+    ? (descTipo === 'pct' ? montoFlete * (1 - descValor / 100) : Math.max(0, montoFlete - descValor))
+    : montoFlete;
+  document.getElementById('recepAdicionalNeto').textContent = '$' + fletoNeto.toLocaleString('es-AR', {maximumFractionDigits:2});
+  document.getElementById('recepTotal').textContent = '$' + (subtotalProductos + fletoNeto).toLocaleString('es-AR', {maximumFractionDigits:2});
+}
+
 function renderRecepItems() {
   const tbody = document.getElementById('recepItemsTabla');
   if (!recepItems.length) {
@@ -4885,6 +4919,7 @@ function renderRecepItems() {
   }
   const total = recepItems.reduce((s, i) => s + i.costo_unitario * (i.cantidad - (i.bonificado || 0)), 0);
   document.getElementById('recepTotal').textContent = '$' + total.toLocaleString('es-AR');
+  actualizarTotalRecep();
 }
 
 function abrirModalFechaRecepcionReal() {
@@ -4902,10 +4937,21 @@ async function confirmarGuardarRecepcion() {
   const remitoProveedor = document.getElementById('recepRemitoProveedor').value.trim();
   const notas = document.getElementById('recepNotas').value.trim();
   if (!recepItems.length) { toast('Agregá al menos un producto recibido', 'error'); return; }
-  const total = recepItems.reduce((s, i) => s + i.costo_unitario * (i.cantidad - (i.bonificado || 0)), 0);
+  const subtotalProductos = recepItems.reduce((s, i) => s + i.costo_unitario * (i.cantidad - (i.bonificado || 0)), 0);
+  const montoFlete = parseFloat(document.getElementById('recepAdicionalMonto').value) || 0;
+  const adicionalDesc = document.getElementById('recepAdicionalDesc').value.trim();
+  const adicionalDescTipo = document.getElementById('recepAdicionalDescTipo').value;
+  const adicionalDescValor = parseFloat(document.getElementById('recepAdicionalDescValor').value) || 0;
+  const fleteNeto = montoFlete > 0 && adicionalDescValor > 0
+    ? (adicionalDescTipo === 'pct' ? montoFlete * (1 - adicionalDescValor / 100) : Math.max(0, montoFlete - adicionalDescValor))
+    : montoFlete;
+  const total = subtotalProductos + fleteNeto;
   try {
     const [recepcion] = await api('recepciones', 'POST', {
-      pedido_proveedor_id: pedidoProveedorId, fecha, fecha_recepcion_real: fechaRecepcionReal, remito_proveedor: remitoProveedor || null, notas, total
+      pedido_proveedor_id: pedidoProveedorId, fecha, fecha_recepcion_real: fechaRecepcionReal,
+      remito_proveedor: remitoProveedor || null, notas, total,
+      costo_adicional_desc: adicionalDesc || null,
+      costo_adicional_monto: fleteNeto || 0
     });
     await Promise.all(recepItems.map(async item => {
       const bonif = item.bonificado || 0;
@@ -4987,7 +5033,12 @@ function buildRecepcionDoc(r, items) {
       '<td style="text-align:right">$' + parseFloat(item.costo_unitario||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
       '<td style="text-align:right;font-weight:600">$' + costoReal.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
   });
-  html += '</tbody><tfoot><tr><td colspan="6" style="text-align:right">COSTO REAL TOTAL</td><td style="text-align:right">$' + parseFloat(r.total||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr></tfoot></table>';
+  html += '</tbody></table>';
+  if (r.costo_adicional_monto > 0) {
+    html += '<div style="text-align:right;margin-top:8px;font-size:13px;color:var(--muted)">' +
+      (r.costo_adicional_desc || 'Flete / Logística') + ': <strong>$' + parseFloat(r.costo_adicional_monto).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</strong></div>';
+  }
+  html += '<div style="text-align:right;margin-top:6px;font-size:15px;font-weight:700">Costo real total: $' + parseFloat(r.total||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</div>';
   html += buildFooter(r.notas);
   return html;
 }
