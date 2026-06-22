@@ -427,7 +427,7 @@ function showSection(name) {
         <!-- Acciones rápidas -->
         <div class="card" style="margin-bottom:16px">
           <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Acciones rápidas</h3>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <button class="btn btn-primary" onclick="showSection('pedidos');setTimeout(()=>openModal('modalPedido'),200)">📋 Nuevo pedido</button>
             <button class="btn btn-primary" onclick="showSection('ventas');setTimeout(()=>openModal('modalVenta'),200)">🧾 Nueva venta</button>
             <button class="btn btn-secondary" onclick="showSection('pagos');setTimeout(()=>openModal('modalPago'),200)">💰 Registrar cobro</button>
@@ -448,7 +448,7 @@ function showSection(name) {
 
         <!-- Productos disponibles -->
         <div class="card" id="vDashStockWrap">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="display:flex;flex-direction:column;gap:20px">
             <div>
               <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--success)">✅ Productos disponibles</h3>
               <div class="table-wrap">
@@ -2306,13 +2306,15 @@ async function loadDashboardVendedor() {
     if (!ultPedidos.length) {
       tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Sin pedidos registrados todavía</td></tr>';
     } else {
-      tbody.innerHTML = ultPedidos.map(p => `
-        <tr>
-          <td>${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
-          <td>${p.fecha}</td>
+      tbody.innerHTML = ultPedidos.map(p => {
+        const fechaCorta = p.fecha ? new Date(p.fecha+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '—';
+        return `<tr>
+          <td style="font-size:12px">${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
+          <td style="font-size:12px;color:var(--muted)">${fechaCorta}</td>
           <td>${badgeEstado(p.estado)}</td>
-          <td>$${parseFloat(p.total||0).toLocaleString('es-AR')}</td>
-        </tr>`).join('');
+          <td style="font-size:12px">$${parseFloat(p.total||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</td>
+        </tr>`;
+      }).join('');
     }
   } catch(e) { console.error('vDash pedidos:', e); }
 
