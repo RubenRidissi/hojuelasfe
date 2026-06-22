@@ -3121,7 +3121,7 @@ function renderPedidoItems() {
     return `
     <div class="item-row">
       <span style="flex:2">${item.nombre}</span>
-      <span style="flex:1;text-align:center">${item.cantidad}${item.bonificado ? ' <span style="color:var(--success);font-size:11px">+' + item.bonificado + ' bon.</span>' : ''}</span>
+      <span style="flex:1;text-align:center">${item.cantidad}${item.bonificado ? ' <span style="color:var(--success);font-size:11px">+' + item.bonificado + ' bon.</span>' : ''}${item.precio_unitario === 0 ? ' <span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:1px 5px;border-radius:8px">🎁 muestra</span>' : ''}</span>
       <span style="flex:1;text-align:right">
         ${descPct > 0 ? '<span style="text-decoration:line-through;color:var(--muted);font-size:11px">$' + (item.cantidad * item.precio_unitario).toLocaleString('es-AR') + '</span><br>' : ''}
         $${subtotalFinal.toLocaleString('es-AR', {maximumFractionDigits:2})}
@@ -3154,7 +3154,7 @@ async function savePedido() {
   const cliente = cachedClientes.find(c => c.id === clienteId);
   const descPct = parseFloat(cliente?.descuento_pct || 0);
   const total = pedidoItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100), 0);
-  const notaFinal = [notas, descPct > 0 ? 'Descuento aplicado: ' + descPct + '%' : '', pedidoItems.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : ''].filter(Boolean).join(' | ');
+  const notaFinal = [notas, descPct > 0 ? 'Descuento aplicado: ' + descPct + '%' : '', pedidoItems.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : '', pedidoItems.some(i => i.precio_unitario === 0) ? 'Incluye muestras sin cargo' : ''].filter(Boolean).join(' | ');
   try {
     let pedidoId = id;
     if (id) {
@@ -3375,7 +3375,7 @@ function renderVentaItems() {
     return `
     <div class="item-row">
       <span style="flex:2">${item.nombre}</span>
-      <span style="flex:1;text-align:center">${item.cantidad}${item.bonificado ? ` <span style="color:var(--success);font-size:11px">+${item.bonificado} bon.</span>` : ''}</span>
+      <span style="flex:1;text-align:center">${item.cantidad}${item.bonificado ? ` <span style="color:var(--success);font-size:11px">+${item.bonificado} bon.</span>` : ''}${item.precio_unitario === 0 ? ' <span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:1px 5px;border-radius:8px">🎁 muestra</span>' : ''}</span>
       <span style="flex:1;text-align:right">
         ${descPct > 0 ? `<span style="text-decoration:line-through;color:var(--muted);font-size:11px">$${(item.cantidad * item.precio_unitario).toLocaleString('es-AR')}</span><br>` : ''}
         $${subtotalFinal.toLocaleString('es-AR', {maximumFractionDigits:2})}
@@ -3422,7 +3422,7 @@ async function saveVenta() {
   const cliente = cachedClientes.find(c => c.id === clienteId);
   const descPct = parseFloat(cliente?.descuento_pct || 0);
   const total = ventaItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100), 0);
-  const notaFinal = [notas, descPct > 0 ? `Descuento aplicado: ${descPct}%` : '', ventaItems.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : ''].filter(Boolean).join(' | ');
+  const notaFinal = [notas, descPct > 0 ? `Descuento aplicado: ${descPct}%` : '', ventaItems.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : '', ventaItems.some(i => i.precio_unitario === 0) ? 'Incluye muestras sin cargo' : ''].filter(Boolean).join(' | ');
   try {
     const [venta] = await api('ventas', 'POST', { cliente_id: clienteId, fecha: fecha || new Date().toISOString().split('T')[0], notas: notaFinal, total, vendedor_id: currentUser });
     await Promise.all(ventaItems.map(item => {
@@ -5641,19 +5641,22 @@ function buildComprobantePedido(p) {
   html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
   items.forEach(item => {
     const bonifTxt = item.bonificado > 0 ? ` <span style="color:#15803D;font-size:11px">+${item.bonificado} 🎁</span>` : '';
+    const muestraTxt = item.precio_unitario === 0 ? ' <span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:1px 5px;border-radius:8px">🎁 muestra</span>' : '';
     html += '<tr><td style="color:#78716C;font-size:12px">' + (item.productos?.codigo || '—') + '</td>' +
       '<td>' + (item.productos?.nombre || '—') + '</td>' +
-      '<td style="text-align:center">' + item.cantidad + bonifTxt + ' ' + (item.productos?.unidad || '') + '</td>' +
+      '<td style="text-align:center">' + item.cantidad + bonifTxt + muestraTxt + ' ' + (item.productos?.unidad || '') + '</td>' +
       '<td style="text-align:right">$' + parseFloat(item.precio_unitario).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
       '<td style="text-align:right">$' + (item.cantidad * item.precio_unitario).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
   });
   const hasBonif = (p.notas || '').includes('bonificadas por promo');
+  const hasMuestraPed = (p.notas || '').includes('muestras sin cargo');
   html += '</tbody>';
-  if (hasBonif) {
-    html += '<tr style="background:#F0FDF4"><td colspan="5" style="font-size:12px;color:#15803D;padding:6px 10px">🎁 Este pedido incluye unidades bonificadas por promo de volumen.</td></tr>';
+  if (hasBonif || hasMuestraPed) {
+    const partes = [hasBonif ? 'promo de volumen' : '', hasMuestraPed ? 'muestras sin cargo' : ''].filter(Boolean).join(' y ');
+    html += '<tr style="background:#F0FDF4"><td colspan="5" style="font-size:12px;color:#15803D;padding:6px 10px">🎁 Este pedido incluye unidades bonificadas por ' + partes + '.</td></tr>';
   }
   html += '<tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$' + parseFloat(p.total).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr></tfoot></table>';
-  const notaLimpia = (p.notas || '').split('|').map(s => s.trim()).filter(s => s && !s.includes('Descuento aplicado') && !s.includes('bonificadas')).join(' | ');
+  const notaLimpia = (p.notas || '').split('|').map(s => s.trim()).filter(s => s && !s.includes('Descuento aplicado') && !s.includes('bonificadas') && !s.includes('muestras')).join(' | ');
   html += buildFooter(notaLimpia);
   return html;
 }
@@ -5700,19 +5703,22 @@ function buildComprobanteVenta(v) {
   html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
   items.forEach(item => {
     const bonifTxt = item.bonificado > 0 ? ` <span style="color:#15803D;font-size:11px">+${item.bonificado} 🎁</span>` : '';
+    const muestraTxt = item.precio_unitario === 0 ? ' <span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:1px 5px;border-radius:8px">🎁 muestra</span>' : '';
     html += '<tr><td style="color:#78716C;font-size:12px">' + (item.productos?.codigo || '—') + '</td>' +
       '<td>' + (item.productos?.nombre || '—') + '</td>' +
-      '<td style="text-align:center">' + item.cantidad + bonifTxt + ' ' + (item.productos?.unidad || '') + '</td>' +
+      '<td style="text-align:center">' + item.cantidad + bonifTxt + muestraTxt + ' ' + (item.productos?.unidad || '') + '</td>' +
       '<td style="text-align:right">$' + parseFloat(item.precio_unitario).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
       '<td style="text-align:right">$' + (item.cantidad * item.precio_unitario).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
   });
   const hasBonif = (v.notas || '').includes('bonificadas por promo');
+  const hasMuestraVen = (v.notas || '').includes('muestras sin cargo');
   html += '</tbody>';
-  if (hasBonif) {
-    html += '<tr style="background:#F0FDF4"><td colspan="5" style="font-size:12px;color:#15803D;padding:6px 10px">🎁 Esta venta incluye unidades bonificadas por promo de volumen.</td></tr>';
+  if (hasBonif || hasMuestraVen) {
+    const partes = [hasBonif ? 'promo de volumen' : '', hasMuestraVen ? 'muestras sin cargo' : ''].filter(Boolean).join(' y ');
+    html += '<tr style="background:#F0FDF4"><td colspan="5" style="font-size:12px;color:#15803D;padding:6px 10px">🎁 Esta venta incluye unidades bonificadas por ' + partes + '.</td></tr>';
   }
   html += '<tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$' + parseFloat(v.total).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr></tfoot></table>';
-  const notaLimpia = (v.notas || '').split('|').map(s => s.trim()).filter(s => s && !s.includes('Descuento aplicado') && !s.includes('bonificadas')).join(' | ');
+  const notaLimpia = (v.notas || '').split('|').map(s => s.trim()).filter(s => s && !s.includes('Descuento aplicado') && !s.includes('bonificadas') && !s.includes('muestras')).join(' | ');
   html += buildFooter(notaLimpia);
   return html;
 }
