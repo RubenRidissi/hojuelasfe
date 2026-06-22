@@ -1247,11 +1247,24 @@ function showSection(name) {
         <div class="form-group" style="flex:2"><label>Producto</label><select id="recepProductoSel"></select></div>
         <div class="form-group" style="flex:1"><label>Cantidad (facturada)</label><input id="recepCantidadInput" type="number" min="1" step="1" placeholder="0"></div>
         <div class="form-group" style="flex:1"><label>Bonificado 🎁</label><input id="recepBonificadoInput" type="number" min="0" step="1" placeholder="0" value="0"></div>
+      </div>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-group" style="flex:1">
+          <label>Descuento en costo</label>
+          <div style="display:flex;gap:6px">
+            <select id="recepDescTipo" style="width:70px;padding:6px 8px;border:1px solid var(--border);border-radius:7px;font-size:13px">
+              <option value="pct">%</option>
+              <option value="monto">$</option>
+            </select>
+            <input id="recepDescValor" type="number" min="0" step="0.01" placeholder="0" style="flex:1">
+          </div>
+        </div>
+        <div class="form-group" style="flex:1"><label style="color:var(--muted);font-size:12px">Costo con descuento</label><div id="recepCostoPreview" style="padding:8px 10px;background:var(--bg);border-radius:7px;font-size:13px;font-weight:600">—</div></div>
         <button class="btn btn-secondary" style="margin-bottom:14px" onclick="addItemRecepcion()">+ Agregar</button>
       </div>
       <div class="table-wrap" style="max-height:240px;overflow-y:auto">
         <table>
-          <thead><tr><th>Producto</th><th style="text-align:center">Facturado</th><th style="text-align:center">Bonificado</th><th style="text-align:center">Total físico</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Costo real</th><th></th></tr></thead>
+          <thead><tr><th>Producto</th><th style="text-align:center">Facturado</th><th style="text-align:center">Bonificado</th><th style="text-align:center">Total físico</th><th style="text-align:right">Costo lista</th><th style="text-align:right">Desc.</th><th style="text-align:right">Costo real</th><th></th></tr></thead>
           <tbody id="recepItemsTabla"></tbody>
         </table>
       </div>
@@ -4729,9 +4742,26 @@ async function abrirNuevaRecepcion(pedidoProveedorId) {
   document.getElementById('recepFecha').value = new Date().toISOString().split('T')[0];
   document.getElementById('recepRemitoProveedor').value = '';
   document.getElementById('recepNotas').value = '';
+  document.getElementById('recepDescTipo').value = 'pct';
+  document.getElementById('recepDescValor').value = '';
+  document.getElementById('recepCostoPreview').textContent = '—';
   await ensureCache();
   poblarSelectProductosRecepcion();
   renderRecepItems();
+
+  // Preview en tiempo real del costo con descuento
+  const actualizarPreview = () => {
+    const sel = document.getElementById('recepProductoSel');
+    const costo = parseFloat(sel.selectedOptions[0]?.dataset.costo || 0);
+    const tipo = document.getElementById('recepDescTipo').value;
+    const val = parseFloat(document.getElementById('recepDescValor').value) || 0;
+    if (!costo) { document.getElementById('recepCostoPreview').textContent = '—'; return; }
+    const costoFinal = tipo === 'pct' ? costo * (1 - val / 100) : Math.max(0, costo - val);
+    document.getElementById('recepCostoPreview').textContent = '$' + costoFinal.toLocaleString('es-AR', {maximumFractionDigits:2});
+  };
+  document.getElementById('recepProductoSel').onchange = actualizarPreview;
+  document.getElementById('recepDescTipo').onchange = actualizarPreview;
+  document.getElementById('recepDescValor').oninput = actualizarPreview;
 
   if (pedidoProveedorId) {
     try {
@@ -4783,23 +4813,31 @@ function addItemRecepcion() {
   const pid = sel.value;
   const cant = parseInt(document.getElementById('recepCantidadInput').value) || 0;
   const bonif = parseInt(document.getElementById('recepBonificadoInput').value) || 0;
+  const descTipo = document.getElementById('recepDescTipo').value;
+  const descValor = parseFloat(document.getElementById('recepDescValor').value) || 0;
   if (!pid) { toast('Elegí un producto', 'error'); return; }
   if (!cant || cant <= 0) { toast('Ingresá una cantidad válida', 'error'); return; }
   if (bonif > cant) { toast('El bonificado no puede superar la cantidad facturada', 'error'); return; }
   const opt = sel.selectedOptions[0];
-  const costo = parseFloat(opt.dataset.costo) || 0;
+  const costoLista = parseFloat(opt.dataset.costo) || 0;
+  const costoConDesc = descValor > 0
+    ? (descTipo === 'pct' ? costoLista * (1 - descValor / 100) : Math.max(0, costoLista - descValor))
+    : costoLista;
   const nombre = opt.textContent;
+  const descLabel = descValor > 0 ? (descTipo === 'pct' ? `-${descValor}%` : `-$${descValor}`) : null;
   const existing = recepItems.find(i => i.producto_id === pid);
   if (existing) {
     existing.cantidad += cant;
     existing.bonificado = (existing.bonificado || 0) + bonif;
   } else {
-    recepItems.push({ producto_id: pid, nombre, cantidad: cant, bonificado: bonif, costo_unitario: costo });
+    recepItems.push({ producto_id: pid, nombre, cantidad: cant, bonificado: bonif, costo_lista: costoLista, costo_unitario: costoConDesc, desc_label: descLabel });
   }
   renderRecepItems();
   sel.value = '';
   document.getElementById('recepCantidadInput').value = '';
   document.getElementById('recepBonificadoInput').value = '0';
+  document.getElementById('recepDescValor').value = '';
+  document.getElementById('recepCostoPreview').textContent = '—';
 }
 
 function removeItemRecepcion(pid) {
@@ -4825,25 +4863,26 @@ function updateBonificadoRecepItem(pid, val) {
 function renderRecepItems() {
   const tbody = document.getElementById('recepItemsTabla');
   if (!recepItems.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:14px;color:var(--muted);font-size:13px">Sin productos agregados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:14px;color:var(--muted);font-size:13px">Sin productos agregados</td></tr>';
   } else {
     tbody.innerHTML = recepItems.map(i => {
       const totalFisico = i.cantidad + (i.bonificado || 0);
       const costoReal = i.costo_unitario * (i.cantidad - (i.bonificado || 0));
       const bonifTag = i.bonificado > 0 ? ` <span style="color:#15803D;font-size:11px">🎁 ${i.bonificado} bonif.</span>` : '';
+      const descTag = i.desc_label ? `<span style="color:#DC2626;font-size:11px">${i.desc_label}</span>` : '—';
       return `
       <tr>
         <td style="font-size:13px">${i.nombre}</td>
         <td style="text-align:center"><input type="number" value="${i.cantidad}" min="1" style="width:65px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" onchange="updateCantidadRecepItem('${i.producto_id}',this.value)"></td>
         <td style="text-align:center"><input type="number" value="${i.bonificado||0}" min="0" style="width:65px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;color:#15803D" onchange="updateBonificadoRecepItem('${i.producto_id}',this.value)"></td>
         <td style="text-align:center;font-size:13px">${totalFisico}${bonifTag}</td>
-        <td style="text-align:right;font-size:13px">$${i.costo_unitario.toLocaleString('es-AR')}</td>
-        <td style="text-align:right;font-size:13px;font-weight:600">$${costoReal.toLocaleString('es-AR')}</td>
+        <td style="text-align:right;font-size:13px;color:var(--muted)">$${(i.costo_lista||i.costo_unitario).toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
+        <td style="text-align:center;font-size:12px">${descTag}</td>
+        <td style="text-align:right;font-size:13px;font-weight:600;color:#15803D">$${i.costo_unitario.toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
         <td><button class="btn btn-sm btn-danger" onclick="removeItemRecepcion('${i.producto_id}')">✕</button></td>
       </tr>`;
     }).join('');
   }
-  // Costo real total = suma de (costo_unitario × (cantidad - bonificado))
   const total = recepItems.reduce((s, i) => s + i.costo_unitario * (i.cantidad - (i.bonificado || 0)), 0);
   document.getElementById('recepTotal').textContent = '$' + total.toLocaleString('es-AR');
 }
