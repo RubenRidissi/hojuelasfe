@@ -4958,7 +4958,9 @@ async function confirmarGuardarRecepcion() {
       const cantFisica = item.cantidad + bonif;
       const [recepItem] = await api('recepcion_items', 'POST', {
         recepcion_id: recepcion.id, producto_id: item.producto_id,
-        cantidad: item.cantidad, bonificado: bonif, costo_unitario: item.costo_unitario
+        cantidad: item.cantidad, bonificado: bonif, costo_unitario: item.costo_unitario,
+        costo_lista: item.costo_lista || item.costo_unitario,
+        desc_label: item.desc_label || null
       });
       // Stock: entra la cantidad física total (facturada + bonificada)
       await api('stock_movimientos', 'POST', {
@@ -5004,7 +5006,7 @@ async function verRecepcion(id) {
   try {
     const [r] = await api('recepciones', 'GET', null, `?id=eq.${id}&select=*,pedidos_proveedor(numero,proveedor)`);
     if (!r) { toast('Recepción no encontrada', 'error'); return; }
-    const items = await api('recepcion_items', 'GET', null, `?recepcion_id=eq.${id}&select=cantidad,bonificado,costo_unitario,productos(nombre,codigo,unidad)`);
+    const items = await api('recepcion_items', 'GET', null, `?recepcion_id=eq.${id}&select=cantidad,bonificado,costo_unitario,costo_lista,desc_label,productos(nombre,codigo,unidad)`);
     document.getElementById('compModalTitle').textContent = 'Recepción de Mercadería';
     document.getElementById('compContenido').innerHTML = buildRecepcionDoc(r, items);
     document.getElementById('modalComprobante').classList.add('open');
@@ -5018,22 +5020,59 @@ function buildRecepcionDoc(r, items) {
     '<div><span>Remito proveedor</span><strong>' + (r.remito_proveedor || '—') + '</strong></div>' +
     '<div><span>Fecha real de recepción</span><strong>' + (r.fecha_recepcion_real ? new Date(r.fecha_recepcion_real+'T00:00:00').toLocaleDateString('es-AR') : '—') + '</strong></div>' +
     '</div>';
-  html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Facturado</th><th style="text-align:center">Bonificado</th><th style="text-align:center">Total físico</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Costo real</th></tr></thead><tbody>';
+  html += '<table class="comp-table"><thead><tr>' +
+    '<th>Código</th><th>Producto</th>' +
+    '<th style="text-align:right">Precio unit.</th>' +
+    '<th style="text-align:center">Unidades</th>' +
+    '<th style="text-align:right">Monto s/dcto</th>' +
+    '<th style="text-align:right;color:#15803D">Acción</th>' +
+    '<th style="text-align:right;font-weight:700">Monto neto</th>' +
+    '</tr></thead><tbody>';
+
+  let subtotalSinDcto = 0;
+  let subtotalAccion = 0;
+
   items.forEach(item => {
     const bonif = item.bonificado || 0;
-    const cantFisica = item.cantidad + bonif;
-    const costoReal = item.cantidad * (item.costo_unitario||0);
-    const bonifTag = bonif > 0 ? ` <span style="color:#15803D;font-size:10px">🎁 ${bonif} bonif.</span>` : '';
+    const cantTotal = item.cantidad + bonif;
+    const costoLista = parseFloat(item.costo_lista || item.costo_unitario || 0);
+    const costoConDcto = parseFloat(item.costo_unitario || 0);
+    const montoBruto = costoLista * item.cantidad;
+    const montoNeto = costoConDcto * (item.cantidad - bonif);
+    const accion = montoNeto - montoBruto; // negativo = descuento/bonificación
+
+    subtotalSinDcto += montoBruto;
+    subtotalAccion += accion;
+
+    let accionLabel = '—';
+    if (bonif > 0 && item.desc_label) {
+      accionLabel = `<span style="color:#15803D">🎁 ${bonif} un. + ${item.desc_label}</span>`;
+    } else if (bonif > 0) {
+      accionLabel = `<span style="color:#15803D">🎁 ${bonif} un. bonif.</span>`;
+    } else if (item.desc_label) {
+      accionLabel = `<span style="color:#15803D">${item.desc_label}</span>`;
+    }
+
     html += '<tr>' +
       '<td style="color:#78716C;font-size:12px">' + (item.productos?.codigo || '—') + '</td>' +
       '<td>' + (item.productos?.nombre || '—') + '</td>' +
-      '<td style="text-align:center">' + item.cantidad + ' ' + (item.productos?.unidad || '') + '</td>' +
-      '<td style="text-align:center;color:#15803D">' + (bonif > 0 ? bonif + bonifTag : '—') + '</td>' +
-      '<td style="text-align:center;font-weight:600">' + cantFisica + '</td>' +
-      '<td style="text-align:right">$' + parseFloat(item.costo_unitario||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
-      '<td style="text-align:right;font-weight:600">$' + costoReal.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
+      '<td style="text-align:right">$' + costoLista.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
+      '<td style="text-align:center">' + cantTotal + ' ' + (item.productos?.unidad || '') + '</td>' +
+      '<td style="text-align:right">$' + montoBruto.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
+      '<td style="text-align:right">' + accionLabel + '</td>' +
+      '<td style="text-align:right;font-weight:600">$' + montoNeto.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
+      '</tr>';
   });
-  html += '</tbody></table>';
+
+  // Fila de subtotales
+  html += '<tr style="border-top:2px solid var(--border);font-size:12px;color:var(--muted)">' +
+    '<td colspan="4" style="text-align:right">Subtotal productos</td>' +
+    '<td style="text-align:right">$' + subtotalSinDcto.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
+    '<td style="text-align:right;color:#15803D">$' + (subtotalAccion).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
+    '<td style="text-align:right">$' + (subtotalSinDcto + subtotalAccion).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td>' +
+    '</tr></tbody></table>';
+
+  // Flete / logística
   const fletoMonto = parseFloat(r.costo_adicional_monto || 0);
   if (r.costo_adicional_desc) {
     const fletoLabel = fletoMonto === 0 ? '🎁 Bonificado 100%' : '$' + fletoMonto.toLocaleString('es-AR',{maximumFractionDigits:2});
