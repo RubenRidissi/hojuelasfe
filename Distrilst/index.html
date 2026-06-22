@@ -1123,6 +1123,13 @@ function showSection(name) {
         <label>Descuento %</label>
         <input id="clienteDescuento" type="number" min="0" max="99" step="0.5" placeholder="0" value="0">
       </div>
+      <div class="form-group">
+        <label>Modalidad de factura</label>
+        <select id="clienteModalidadFactura">
+          <option value="sin_iva">Sin IVA (negro)</option>
+          <option value="con_iva">Con IVA 21% (blanco)</option>
+        </select>
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -1467,11 +1474,20 @@ function showSection(name) {
       <div class="form-group"><label>Cliente *</label><select id="pedidoCliente" onchange="renderPedidoItems()"><option value="">Seleccioná un cliente</option></select></div>
       <div class="form-group"><label>Fecha de entrega</label><input id="pedidoFechaEntrega" type="date"></div>
     </div>
-    <div class="form-group">
-      <label>Lista de precios</label>
-      <select id="pedidoVersionPrecios" onchange="cambiarVersionPrecios('pedido')">
-        <option value="">Precios actuales</option>
-      </select>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Lista de precios</label>
+        <select id="pedidoVersionPrecios" onchange="cambiarVersionPrecios('pedido')">
+          <option value="">Precios actuales</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Modalidad de factura</label>
+        <select id="pedidoModalidadFactura">
+          <option value="sin_iva">Sin IVA (negro)</option>
+          <option value="con_iva">Con IVA 21% (blanco)</option>
+        </select>
+      </div>
     </div>
     <div class="form-group"><label>Notas</label><textarea id="pedidoNotas" placeholder="Indicaciones especiales..."></textarea></div>
     <div style="margin-top:8px">
@@ -1508,10 +1524,21 @@ function showSection(name) {
       <div class="form-group"><label>Cliente *</label><select id="ventaCliente" onchange="renderVentaItems()"><option value="">Seleccioná un cliente</option></select></div>
       <div class="form-group"><label>Fecha</label><input id="ventaFecha" type="date"></div>
     </div>
-    <div class="form-group">
-      <label>Lista de precios</label>
-      <select id="ventaVersionPrecios" onchange="cambiarVersionPrecios('venta')">
-        <option value="">Precios actuales</option>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Lista de precios</label>
+        <select id="ventaVersionPrecios" onchange="cambiarVersionPrecios('venta')">
+          <option value="">Precios actuales</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Modalidad de factura</label>
+        <select id="ventaModalidadFactura">
+          <option value="sin_iva">Sin IVA (negro)</option>
+          <option value="con_iva">Con IVA 21% (blanco)</option>
+        </select>
+      </div>
+    </div>
       </select>
     </div>
     <div class="form-group"><label>Notas</label><textarea id="ventaNotas" placeholder="Observaciones..."></textarea></div>
@@ -2345,6 +2372,7 @@ async function saveCliente() {
     direccion: document.getElementById('clienteDir').value.trim(),
     tipo: document.getElementById('clienteTipo').value,
     descuento_pct: parseFloat(document.getElementById('clienteDescuento').value) || 0,
+    modalidad_factura: document.getElementById('clienteModalidadFactura').value || 'sin_iva',
     estado_cliente: document.getElementById('clienteEstado').value,
     notas: document.getElementById('clienteNotas').value.trim(),
     facturacion,
@@ -2398,6 +2426,7 @@ function editCliente(id) {
   document.getElementById('clienteDir').value = c.direccion || '';
   document.getElementById('clienteTipo').value = c.tipo || 'Minorista';
   document.getElementById('clienteDescuento').value = c.descuento_pct || 0;
+  document.getElementById('clienteModalidadFactura').value = c.modalidad_factura || 'sin_iva';
   document.getElementById('clienteEstado').value = c.estado_cliente || 'Pendiente';
   document.getElementById('clienteNotas').value = c.notas || '';
   document.getElementById('clienteFacturacion').value = c.facturacion || 'Sin factura';
@@ -2420,6 +2449,7 @@ async function deleteCliente(id) {
 
 function clearClienteForm() {
   ['clienteId','clienteNombre','clienteFantasia','clienteTel','clienteEmail','clienteLocalidad','clienteDir','clienteNotas','clienteDescuento','clienteLatitud','clienteLongitud'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('clienteModalidadFactura').value = 'sin_iva';
   document.getElementById('clienteTipo').value = 'Minorista';
   document.getElementById('clienteEstado').value = 'Pendiente';
   document.getElementById('clienteProvincia').value = 'Santa Fe';
@@ -3210,10 +3240,15 @@ function renderPedidoItems() {
   const clienteId = document.getElementById('pedidoCliente').value;
   const cliente = cachedClientes.find(c => c.id === clienteId);
   const descPct = parseFloat(cliente?.descuento_pct || 0);
+  if (clienteId && cliente?.modalidad_factura) {
+    document.getElementById('pedidoModalidadFactura').value = cliente.modalidad_factura;
+  }
+  const modalidad = document.getElementById('pedidoModalidadFactura').value;
+  const ivaFactor = modalidad === 'con_iva' ? 1.21 : 1;
   if (!pedidoItems.length) { el.style.display = 'none'; resumen.innerHTML = ''; return; }
   el.style.display = 'block';
   el.innerHTML = pedidoItems.map((item, i) => {
-    const precioConDesc = item.precio_unitario * (1 - descPct / 100);
+    const precioConDesc = item.precio_unitario * (1 - descPct / 100) * ivaFactor;
     const subtotalFinal = item.cantidad * precioConDesc;
     return `
     <div class="item-row">
@@ -3246,25 +3281,26 @@ async function savePedido() {
   const clienteId = document.getElementById('pedidoCliente').value;
   const fechaEntrega = document.getElementById('pedidoFechaEntrega').value;
   const notas = document.getElementById('pedidoNotas').value;
+  const modalidad = document.getElementById('pedidoModalidadFactura').value || 'sin_iva';
   if (!clienteId) { toast('Seleccioná un cliente', 'error'); return; }
   if (!pedidoItems.length) { toast('Agregá al menos un producto', 'error'); return; }
   const cliente = cachedClientes.find(c => c.id === clienteId);
   const descPct = parseFloat(cliente?.descuento_pct || 0);
-  const total = pedidoItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100), 0);
-  const notaFinal = [notas, descPct > 0 ? 'Descuento aplicado: ' + descPct + '%' : '', pedidoItems.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : '', pedidoItems.some(i => i.precio_unitario === 0) ? 'Incluye muestras sin cargo' : ''].filter(Boolean).join(' | ');
+  const ivaFactor = modalidad === 'con_iva' ? 1.21 : 1;
+  const total = pedidoItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor, 0);
+  const notaFinal = [notas, descPct > 0 ? 'Descuento aplicado: ' + descPct + '%' : '', modalidad === 'con_iva' ? 'Con IVA 21%' : '', pedidoItems.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : '', pedidoItems.some(i => i.precio_unitario === 0) ? 'Incluye muestras sin cargo' : ''].filter(Boolean).join(' | ');
   try {
     let pedidoId = id;
     if (id) {
-      // Editar: actualizar pedido y reemplazar sus ítems
-      await api('pedidos', 'PATCH', { cliente_id: clienteId, fecha_entrega: fechaEntrega || null, notas: notaFinal, total }, `?id=eq.${id}`);
+      await api('pedidos', 'PATCH', { cliente_id: clienteId, fecha_entrega: fechaEntrega || null, notas: notaFinal, total, modalidad_factura: modalidad }, `?id=eq.${id}`);
       await api('pedido_items', 'DELETE', null, `?pedido_id=eq.${id}`);
     } else {
       const vendedorId = cliente?.vendedor_id || currentUser;
-      const [pedido] = await api('pedidos', 'POST', { cliente_id: clienteId, fecha_entrega: fechaEntrega || null, notas: notaFinal, total, vendedor_id: vendedorId });
+      const [pedido] = await api('pedidos', 'POST', { cliente_id: clienteId, fecha_entrega: fechaEntrega || null, notas: notaFinal, total, vendedor_id: vendedorId, modalidad_factura: modalidad });
       pedidoId = pedido.id;
     }
     await Promise.all(pedidoItems.map(item => {
-      const precioConDesc = item.precio_unitario * (1 - descPct / 100);
+      const precioConDesc = item.precio_unitario * (1 - descPct / 100) * ivaFactor;
       return api('pedido_items', 'POST', { pedido_id: pedidoId, producto_id: item.producto_id, cantidad: item.cantidad, bonificado: item.bonificado || 0, precio_unitario: precioConDesc });
     }));
     toast(id ? 'Pedido actualizado' : 'Pedido creado');
@@ -3469,10 +3505,16 @@ function renderVentaItems() {
   const clienteId = document.getElementById('ventaCliente').value;
   const cliente = cachedClientes.find(c => c.id === clienteId);
   const descPct = parseFloat(cliente?.descuento_pct || 0);
+  // Cargar modalidad del cliente si el select está en default
+  if (clienteId && cliente?.modalidad_factura) {
+    document.getElementById('ventaModalidadFactura').value = cliente.modalidad_factura;
+  }
+  const modalidad = document.getElementById('ventaModalidadFactura').value;
+  const ivaFactor = modalidad === 'con_iva' ? 1.21 : 1;
   if (!ventaItems.length) { el.style.display = 'none'; resumen.innerHTML = ''; return; }
   el.style.display = 'block';
   el.innerHTML = ventaItems.map((item, i) => {
-    const precioConDesc = item.precio_unitario * (1 - descPct / 100);
+    const precioConDesc = item.precio_unitario * (1 - descPct / 100) * ivaFactor;
     const subtotalFinal = item.cantidad * precioConDesc;
     return `
     <div class="item-row">
@@ -3519,17 +3561,19 @@ async function saveVenta() {
   const clienteId = document.getElementById('ventaCliente').value;
   const fecha = document.getElementById('ventaFecha').value;
   const notas = document.getElementById('ventaNotas').value;
+  const modalidad = document.getElementById('ventaModalidadFactura').value || 'sin_iva';
   if (!clienteId) { toast('Seleccioná un cliente', 'error'); return; }
   if (!ventaItems.length) { toast('Agregá al menos un producto', 'error'); return; }
   const cliente = cachedClientes.find(c => c.id === clienteId);
   const descPct = parseFloat(cliente?.descuento_pct || 0);
-  const total = ventaItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100), 0);
-  const notaFinal = [notas, descPct > 0 ? `Descuento aplicado: ${descPct}%` : '', ventaItems.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : '', ventaItems.some(i => i.precio_unitario === 0) ? 'Incluye muestras sin cargo' : ''].filter(Boolean).join(' | ');
+  const ivaFactor = modalidad === 'con_iva' ? 1.21 : 1;
+  const total = ventaItems.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor, 0);
+  const notaFinal = [notas, descPct > 0 ? `Descuento aplicado: ${descPct}%` : '', modalidad === 'con_iva' ? 'Con IVA 21%' : '', ventaItems.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : '', ventaItems.some(i => i.precio_unitario === 0) ? 'Incluye muestras sin cargo' : ''].filter(Boolean).join(' | ');
   try {
     const vendedorId = cliente?.vendedor_id || currentUser;
-    const [venta] = await api('ventas', 'POST', { cliente_id: clienteId, fecha: fecha || new Date().toISOString().split('T')[0], notas: notaFinal, total, vendedor_id: vendedorId });
+    const [venta] = await api('ventas', 'POST', { cliente_id: clienteId, fecha: fecha || new Date().toISOString().split('T')[0], notas: notaFinal, total, vendedor_id: vendedorId, modalidad_factura: modalidad });
     await Promise.all(ventaItems.map(item => {
-      const precioConDesc = item.precio_unitario * (1 - descPct / 100);
+      const precioConDesc = item.precio_unitario * (1 - descPct / 100) * ivaFactor;
       const cantTotal = item.cantidad + (item.bonificado || 0);
       return Promise.all([
         api('venta_items', 'POST', { venta_id: venta.id, producto_id: item.producto_id, cantidad: item.cantidad, bonificado: item.bonificado || 0, precio_unitario: precioConDesc }),
