@@ -517,6 +517,7 @@ function showSection(name) {
         <button class="btn btn-secondary" id="btnImprimirProductos" onclick="imprimirProductos()">📄 Imprimir listado</button>
         <button class="btn btn-secondary" onclick="openModal('modalListaPrecios')">📄 Lista de precios</button>
         <button class="btn btn-secondary admin-only" onclick="abrirActualizacionMasiva()">💲 Actualizar precios</button>
+        <button class="btn btn-secondary admin-only" onclick="abrirGuardarVersion()">📸 Guardar versión</button>
       </div>
       <div class="search-bar">
         <input class="search-input" type="text" placeholder="Buscar producto..." oninput="filterTable('tablaProductos',this.value)">
@@ -1350,6 +1351,12 @@ function showSection(name) {
       <div class="form-group"><label>Cliente *</label><select id="pedidoCliente" onchange="renderPedidoItems()"><option value="">Seleccioná un cliente</option></select></div>
       <div class="form-group"><label>Fecha de entrega</label><input id="pedidoFechaEntrega" type="date"></div>
     </div>
+    <div class="form-group">
+      <label>Lista de precios</label>
+      <select id="pedidoVersionPrecios" onchange="cambiarVersionPrecios('pedido')">
+        <option value="">Precios actuales</option>
+      </select>
+    </div>
     <div class="form-group"><label>Notas</label><textarea id="pedidoNotas" placeholder="Indicaciones especiales..."></textarea></div>
     <div style="margin-top:8px">
       <label style="margin-bottom:8px">Productos</label>
@@ -1381,6 +1388,12 @@ function showSection(name) {
     <div class="form-row">
       <div class="form-group"><label>Cliente *</label><select id="ventaCliente" onchange="renderVentaItems()"><option value="">Seleccioná un cliente</option></select></div>
       <div class="form-group"><label>Fecha</label><input id="ventaFecha" type="date"></div>
+    </div>
+    <div class="form-group">
+      <label>Lista de precios</label>
+      <select id="ventaVersionPrecios" onchange="cambiarVersionPrecios('venta')">
+        <option value="">Precios actuales</option>
+      </select>
     </div>
     <div class="form-group"><label>Notas</label><textarea id="ventaNotas" placeholder="Observaciones..."></textarea></div>
     <div style="margin-top:8px">
@@ -1607,6 +1620,26 @@ function showSection(name) {
   </div>
 </div>
 
+<!-- MODAL GUARDAR VERSIÓN DE PRECIOS -->
+<div class="modal-backdrop" id="modalGuardarVersion">
+  <div class="modal" style="max-width:420px">
+    <h3 class="modal-title">📸 Guardar versión de precios</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Se va a guardar una foto del catálogo completo con los costos y precios actuales. Podés usarla después para facturar a un cliente con esa lista.</p>
+    <div class="form-group">
+      <label>Nombre de la versión</label>
+      <input id="versionNombre" placeholder="Ej: Lista julio 2026" type="text">
+    </div>
+    <div class="form-group">
+      <label>Fecha</label>
+      <input id="versionFecha" type="date">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalGuardarVersion')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarGuardarVersion()">📸 Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL ACTUALIZACIÓN MASIVA DE PRECIOS -->
 <div class="modal-backdrop" id="modalActualizacionMasiva">
   <div class="modal" style="max-width:480px">
@@ -1798,11 +1831,15 @@ function closeModal(id) {
     document.getElementById('modalPedidoTitle').textContent = 'Nuevo pedido';
     pedidoItems = []; renderPedidoItems(); 
     document.getElementById('pedidoPromoInfo').style.display='none';
+    document.getElementById('pedidoVersionPrecios').value = '';
+    delete cachedVersionItems['pedido'];
     const s = document.getElementById('pedidoClienteSearch'); if(s) s.value='';
   }
   if (id === 'modalVenta') { 
     ventaItems = []; renderVentaItems(); 
     document.getElementById('ventaPromoInfo').style.display='none';
+    document.getElementById('ventaVersionPrecios').value = '';
+    delete cachedVersionItems['venta'];
     const s = document.getElementById('ventaClienteSearch'); if(s) s.value='';
   }
 }
@@ -2454,6 +2491,85 @@ async function restaurarCostoNormal(productoId) {
   } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
+// ==================== VERSIONES DE PRECIOS ====================
+let cachedVersiones = [];
+let cachedVersionItems = {}; // version_id -> { producto_id -> { costo, precio, margen_pct } }
+
+function abrirGuardarVersion() {
+  const hoy = new Date();
+  const mesNombre = hoy.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  document.getElementById('versionNombre').value = `Lista ${mesNombre.charAt(0).toUpperCase() + mesNombre.slice(1)}`;
+  document.getElementById('versionFecha').value = hoy.toISOString().split('T')[0];
+  openModal('modalGuardarVersion');
+}
+
+async function confirmarGuardarVersion() {
+  const nombre = document.getElementById('versionNombre').value.trim();
+  const fecha = document.getElementById('versionFecha').value;
+  if (!nombre) { toast('Ingresá un nombre para la versión', 'error'); return; }
+  if (!fecha) { toast('Elegí la fecha', 'error'); return; }
+  await ensureCache();
+  try {
+    const [version] = await api('versiones_precios', 'POST', { nombre, fecha, activa: true });
+    const items = cachedProductos.filter(p => p.activo !== false).map(p => ({
+      version_id: version.id, producto_id: p.id,
+      costo: p.costo || 0, margen_pct: p.margen_pct || 0, precio: p.precio || 0
+    }));
+    // Insertar en lotes de 50 para no sobrecargar
+    for (let i = 0; i < items.length; i += 50) {
+      await api('version_precios_items', 'POST', items.slice(i, i + 50));
+    }
+    toast(`Versión "${nombre}" guardada con ${items.length} productos ✓`);
+    closeModal('modalGuardarVersion');
+    cachedVersiones = [];
+    cachedVersionItems = {};
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function cargarVersionesPrecios() {
+  if (cachedVersiones.length) return; // ya cargadas
+  try {
+    cachedVersiones = await api('versiones_precios', 'GET', null, '?activa=eq.true&order=fecha.desc&limit=10');
+  } catch(e) { cachedVersiones = []; }
+}
+
+async function poblarSelectVersiones(selId) {
+  await cargarVersionesPrecios();
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Precios actuales</option>' +
+    cachedVersiones.map(v => `<option value="${v.id}">${v.nombre} (${new Date(v.fecha+'T00:00:00').toLocaleDateString('es-AR')})</option>`).join('');
+}
+
+async function cambiarVersionPrecios(modalTipo) {
+  const selId = modalTipo === 'venta' ? 'ventaVersionPrecios' : 'pedidoVersionPrecios';
+  const versionId = document.getElementById(selId).value;
+  if (!versionId) {
+    // Restaurar precios actuales en cachedProductos
+    delete cachedVersionItems[modalTipo];
+    toast('Usando precios actuales');
+    return;
+  }
+  try {
+    if (!cachedVersionItems[versionId]) {
+      const items = await api('version_precios_items', 'GET', null, `?version_id=eq.${versionId}&select=producto_id,costo,margen_pct,precio`);
+      cachedVersionItems[versionId] = {};
+      items.forEach(i => { cachedVersionItems[versionId][i.producto_id] = i; });
+    }
+    cachedVersionItems[modalTipo] = cachedVersionItems[versionId];
+    const version = cachedVersiones.find(v => v.id === versionId);
+    toast(`Usando ${version?.nombre || 'versión seleccionada'}`);
+  } catch(e) { toast('Error cargando versión: ' + e.message, 'error'); }
+}
+
+function getPrecioProducto(productoId, modalTipo) {
+  // Devuelve { precio, costo } según la versión seleccionada o los valores actuales
+  const versionData = cachedVersionItems[modalTipo];
+  if (versionData && versionData[productoId]) return versionData[productoId];
+  const p = cachedProductos.find(x => x.id === productoId);
+  return { precio: p?.precio || 0, costo: p?.costo || 0, margen_pct: p?.margen_pct || 0 };
+}
+
 // ==================== ACTUALIZACIÓN MASIVA DE PRECIOS ====================
 function abrirActualizacionMasiva() {
   const familias = [...new Set(cachedProductos.map(p => p.familia).filter(Boolean))].sort();
@@ -2804,6 +2920,8 @@ function populateSelects() {
   const opts = '<option value="">Elegí un producto</option>' + cachedProductos.map(p => `<option value="${p.id}" data-precio="${p.precio}" data-promo="${p.promo||''}">${p.codigo ? p.codigo+' — ' : ''}${p.nombre} — $${parseFloat(p.precio).toLocaleString('es-AR')}${p.promo ? ' 🎁'+p.promo : ''}</option>`).join('');
   document.getElementById('pedidoProductoSel').innerHTML = opts;
   document.getElementById('ventaProductoSel').innerHTML = opts;
+  poblarSelectVersiones('pedidoVersionPrecios');
+  poblarSelectVersiones('ventaVersionPrecios');
 }
 
 function populateClienteSelect(selId) {
@@ -2842,10 +2960,12 @@ function addItemPedido() {
   const cant = parseInt(document.getElementById('pedidoCantidad').value) || 1;
   const pid = sel.value;
   const opt = sel.selectedOptions[0];
-  const precio = parseFloat(opt?.dataset.precio || 0);
   const nombre = opt?.text.split(' — ')[0];
   const promo = opt?.dataset.promo || '';
   if (!pid) { toast('Elegí un producto', 'error'); return; }
+  // Usar precio de la versión seleccionada si corresponde
+  const precioData = getPrecioProducto(pid, 'pedido');
+  const precio = precioData.precio;
   const promoInfo = document.getElementById('pedidoPromoInfo');
   const promoTexto = document.getElementById('pedidoPromoTexto');
   const promoCheck = document.getElementById('pedidoPromoCheck');
@@ -3091,10 +3211,12 @@ function addItemVenta() {
   const cant = parseInt(document.getElementById('ventaCantidad').value) || 1;
   const pid = sel.value;
   const opt = sel.selectedOptions[0];
-  const precio = parseFloat(opt?.dataset.precio || 0);
   const nombre = opt?.text.split(' — ')[0];
   const promo = opt?.dataset.promo || '';
   if (!pid) { toast('Elegí un producto', 'error'); return; }
+  // Usar precio de la versión seleccionada si corresponde
+  const precioData = getPrecioProducto(pid, 'venta');
+  const precio = precioData.precio;
   const promoInfo = document.getElementById('ventaPromoInfo');
   const promoTexto = document.getElementById('ventaPromoTexto');
   const promoCheck = document.getElementById('ventaPromoCheck');
@@ -3155,8 +3277,9 @@ function renderVentaItems() {
   }).join('');
   let costoTotal = 0;
   ventaItems.forEach(item => {
-    const prod = cachedProductos.find(p => p.id === item.producto_id);
-    const costo = parseFloat(prod?.costo || 0);
+    // Usar el costo de la versión seleccionada si corresponde
+    const precioData = getPrecioProducto(item.producto_id, 'venta');
+    const costo = parseFloat(precioData.costo || 0);
     // Las unidades bonificadas por promo del proveedor no tienen costo para nosotros
     costoTotal += costo * item.cantidad;
   });
