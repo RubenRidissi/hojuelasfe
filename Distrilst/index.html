@@ -5616,26 +5616,30 @@ async function verComprobante(tipo, id) {
   try {
     let html = '';
     if (tipo === 'venta') {
-      const [v] = await api('ventas', 'GET', null, '?select=id,numero,fecha,fecha_entrega_real,total,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      const [v] = await api('ventas', 'GET', null, '?select=id,fecha,fecha_entrega_real,total,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      if (!v) { toast('No se encontró la venta', 'error'); return; }
+      const numVenta = (cachedVentas.findIndex(x => x.id === id) + 1) || 1;
       if (!v) { toast('No se encontró la venta', 'error'); return; }
       document.getElementById('compModalTitle').textContent = 'Comprobante de Venta';
-      html = buildComprobanteVenta(v);
+      html = buildComprobanteVenta(v, numVenta);
     } else {
-      const [p] = await api('pedidos', 'GET', null, '?select=id,numero,fecha,fecha_entrega,fecha_entrega_real,estado,notas,total,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      const [p] = await api('pedidos', 'GET', null, '?select=id,fecha,fecha_entrega,fecha_entrega_real,estado,notas,total,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))&id=eq.' + id);
+      if (!p) { toast('No se encontró el pedido', 'error'); return; }
+      const numPedido = (cachedPedidos.findIndex(x => x.id === id) + 1) || 1;
       if (!p) { toast('No se encontró el pedido', 'error'); return; }
       document.getElementById('compModalTitle').textContent = 'Comprobante de Pedido';
-      html = buildComprobantePedido(p);
+      html = buildComprobantePedido(p, numPedido);
     }
     document.getElementById('compContenido').innerHTML = html;
     document.getElementById('modalComprobante').classList.add('open');
   } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
-function buildComprobantePedido(p) {
+function buildComprobantePedido(p, num) {
   const items = p.pedido_items || [];
   const descMatch = (p.notas || '').match(/Descuento aplicado: ([\d.]+)/);
   const descPct = descMatch ? parseFloat(descMatch[1]) : 0;
-  let html = buildHeader('PEDIDO', p.numero || 0, p.fecha);
+  let html = buildHeader('PEDIDO', num || 0, p.fecha);
   const fechaProgramada = p.fecha_entrega ? new Date(p.fecha_entrega+'T00:00:00').toLocaleDateString('es-AR') : 'A confirmar';
   html += buildClienteInfo(p.clientes, 'Fecha de entrega', fechaProgramada, 'Estado', p.estado.charAt(0).toUpperCase() + p.estado.slice(1));
   html += '<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>';
@@ -5688,11 +5692,11 @@ function buildFooter(notas) {
     '<div class="comp-firma"><div class="linea"></div><p style="font-size:12px;color:#78716C">' + EMPRESA.rep + ' · Director de Ventas</p></div></div>';
 }
 
-function buildComprobanteVenta(v) {
+function buildComprobanteVenta(v, num) {
   const items = v.venta_items || [];
   const descMatch = (v.notas || '').match(/Descuento aplicado: ([\d.]+)/);
   const descPct = descMatch ? parseFloat(descMatch[1]) : 0;
-  let html = buildHeader('VENTA', v.numero || 0, v.fecha);
+  let html = buildHeader('VENTA', num || 0, v.fecha);
   const fechaFacturacion = new Date(v.fecha+'T00:00:00').toLocaleDateString('es-AR');
   const entregaTxt = v.fecha_entrega_real
     ? `<span style="color:#15803D;font-weight:600">✓ ${new Date(v.fecha_entrega_real+'T00:00:00').toLocaleDateString('es-AR')}</span>`
