@@ -412,12 +412,11 @@ function showSection(name) {
       <div id="dashVendedor" style="display:none">
         <!-- Stats del vendedor -->
         <div class="stats-grid" style="margin-bottom:20px">
-          <div class="stat-card"><div class="stat-label">Mis pedidos hoy</div><div class="stat-value" id="vStatPedidosHoy">—</div></div>
-          <div class="stat-card"><div class="stat-label">Mis pedidos pendientes</div><div class="stat-value" id="vStatPedidosPend">—</div></div>
-          <div class="stat-card"><div class="stat-label">Cobrado hoy</div><div class="stat-value" id="vStatCobrado">—</div><div class="stat-sub">ARS</div></div>
-          <div class="stat-card"><div class="stat-label">Ventas esta semana</div><div class="stat-value" id="vStatVentasSemana">—</div><div class="stat-sub">ARS</div></div>
+          <div class="stat-card"><div class="stat-label">Pedidos pendientes</div><div class="stat-value" id="vStatPedidosPend">—</div></div>
+          <div class="stat-card"><div class="stat-label">Entregas hoy</div><div class="stat-value" id="vStatEntregasHoy">—</div><div class="stat-sub">pedidos</div></div>
+          <div class="stat-card"><div class="stat-label">Cobranzas pendientes</div><div class="stat-value" id="vStatCobranzasPend">—</div><div class="stat-sub">ARS</div></div>
           <div class="stat-card"><div class="stat-label">Clientes activos</div><div class="stat-value" id="vStatClientesActivos">—</div></div>
-          <div class="stat-card"><div class="stat-label">Productos disponibles</div><div class="stat-value" id="vStatProductos">—</div></div>
+          <div class="stat-card"><div class="stat-label">Productos c/stock</div><div class="stat-value" id="vStatProductos">—</div></div>
         </div>
 
         <!-- Objetivo mensual -->
@@ -2270,26 +2269,23 @@ async function loadDashboardVendedor() {
   const lunnes = d.toISOString().split('T')[0];
 
   try {
-    const [pedidosHoy, pedidosPend, pagosHoy, ventasSemana, clientesActivos, productos] = await Promise.all([
-      api('pedidos', 'GET', null, `?select=id&vendedor_id=eq.${currentUser}&created_at=gte.${today}T00:00:00`),
+    const manana = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const [pedidosPend, entregasHoy, ventasPend, clientesActivos, productosStock] = await Promise.all([
       api('pedidos', 'GET', null, `?select=id&vendedor_id=eq.${currentUser}&estado=eq.pendiente`),
-      api('pagos',   'GET', null, `?select=monto&vendedor_id=eq.${currentUser}&fecha=eq.${today}`),
-      api('ventas',  'GET', null, `?select=total&vendedor_id=eq.${currentUser}&fecha=gte.${lunnes}`),
-      api('clientes','GET', null, '?select=id&estado_cliente=eq.Activo'),
-      api('productos','GET', null, '?select=id&activo=eq.true')
+      api('pedidos', 'GET', null, `?select=id&vendedor_id=eq.${currentUser}&fecha_entrega=eq.${today}&estado=eq.pendiente`),
+      api('ventas',  'GET', null, `?select=total,monto_pagado&vendedor_id=eq.${currentUser}&estado_pago=neq.pagado`),
+      api('clientes','GET', null, `?select=id&estado_cliente=eq.Activo&vendedor_id=eq.${currentUser}`),
+      api('stock_actual', 'GET', null, '?select=id&stock=gt.0')
     ]);
 
-    document.getElementById('vStatPedidosHoy').textContent = pedidosHoy.length;
     document.getElementById('vStatPedidosPend').textContent = pedidosPend.length;
+    document.getElementById('vStatEntregasHoy').textContent = entregasHoy.length;
 
-    const cobrado = pagosHoy.reduce((s, p) => s + parseFloat(p.monto || 0), 0);
-    document.getElementById('vStatCobrado').textContent = '$' + cobrado.toLocaleString('es-AR', {maximumFractionDigits:0});
-
-    const totalSemana = ventasSemana.reduce((s, v) => s + parseFloat(v.total || 0), 0);
-    document.getElementById('vStatVentasSemana').textContent = '$' + totalSemana.toLocaleString('es-AR', {maximumFractionDigits:0});
+    const cobranzasPend = ventasPend.reduce((s, v) => s + parseFloat(v.total||0) - parseFloat(v.monto_pagado||0), 0);
+    document.getElementById('vStatCobranzasPend').textContent = '$' + cobranzasPend.toLocaleString('es-AR', {maximumFractionDigits:0});
 
     document.getElementById('vStatClientesActivos').textContent = clientesActivos.length;
-    document.getElementById('vStatProductos').textContent = productos.length;
+    document.getElementById('vStatProductos').textContent = productosStock.length;
   } catch(e) { console.error('vDash stats:', e); }
 
   // Mis últimos pedidos
