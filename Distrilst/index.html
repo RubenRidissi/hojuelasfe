@@ -1144,21 +1144,7 @@ function showSection(name) {
     <div class="form-group"><label>Notas</label><textarea id="clienteNotas" placeholder="Observaciones opcionales..."></textarea></div>
 
     <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:14px">
-      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Facturación y ubicación</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label>Facturación</label>
-          <select id="clienteFacturacion" onchange="toggleFacturacionPct()">
-            <option value="Sin factura">Sin factura</option>
-            <option value="Factura completa">Factura completa</option>
-            <option value="Mix">Mix</option>
-          </select>
-        </div>
-        <div class="form-group" id="clienteFacturacionPctWrap" style="display:none">
-          <label>% facturado</label>
-          <input id="clienteFacturacionPct" type="number" min="1" max="99" step="1" placeholder="Ej: 50" value="50">
-        </div>
-      </div>
+      <div style="font-size:12px;font-weight:600;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Ubicación</div>
       <div class="form-row">
         <div class="form-group">
           <label>Latitud</label>
@@ -2330,12 +2316,10 @@ function renderClientes(list) {
       }
     }
 
-    // Facturación badge
-    const factBadge = {
-      'Sin factura': '<span class="badge badge-gray">SF</span>',
-      'Factura completa': '<span class="badge badge-green">FC</span>',
-      'Mix': `<span class="badge badge-yellow">${c.facturacion_pct || '?'}%</span>`
-    }[c.facturacion] || '<span class="badge badge-gray">SF</span>';
+    // Modalidad de factura badge
+    const factBadge = c.modalidad_factura === 'con_iva'
+      ? '<span class="badge badge-blue">c/IVA</span>'
+      : '<span class="badge badge-gray">s/IVA</span>';
 
     // Coordenadas
     const tieneCoordenadas = c.latitud && c.longitud;
@@ -2361,7 +2345,6 @@ function renderClientes(list) {
 
 async function saveCliente() {
   const id = document.getElementById('clienteId').value;
-  const facturacion = document.getElementById('clienteFacturacion').value;
   const data = {
     nombre: document.getElementById('clienteNombre').value.trim(),
     nombre_fantasia: document.getElementById('clienteFantasia').value.trim() || null,
@@ -2375,8 +2358,6 @@ async function saveCliente() {
     modalidad_factura: document.getElementById('clienteModalidadFactura').value || 'sin_iva',
     estado_cliente: document.getElementById('clienteEstado').value,
     notas: document.getElementById('clienteNotas').value.trim(),
-    facturacion,
-    facturacion_pct: facturacion === 'Mix' ? parseInt(document.getElementById('clienteFacturacionPct').value) || 0 : null,
     latitud: document.getElementById('clienteLatitud').value ? parseFloat(document.getElementById('clienteLatitud').value) : null,
     longitud: document.getElementById('clienteLongitud').value ? parseFloat(document.getElementById('clienteLongitud').value) : null,
   };
@@ -2429,9 +2410,6 @@ function editCliente(id) {
   document.getElementById('clienteModalidadFactura').value = c.modalidad_factura || 'sin_iva';
   document.getElementById('clienteEstado').value = c.estado_cliente || 'Pendiente';
   document.getElementById('clienteNotas').value = c.notas || '';
-  document.getElementById('clienteFacturacion').value = c.facturacion || 'Sin factura';
-  document.getElementById('clienteFacturacionPct').value = c.facturacion_pct || 50;
-  document.getElementById('clienteFacturacionPctWrap').style.display = c.facturacion === 'Mix' ? '' : 'none';
   document.getElementById('clienteLatitud').value = c.latitud || '';
   document.getElementById('clienteLongitud').value = c.longitud || '';
   openModal('modalCliente');
@@ -2453,15 +2431,7 @@ function clearClienteForm() {
   document.getElementById('clienteTipo').value = 'Minorista';
   document.getElementById('clienteEstado').value = 'Pendiente';
   document.getElementById('clienteProvincia').value = 'Santa Fe';
-  document.getElementById('clienteFacturacion').value = 'Sin factura';
-  document.getElementById('clienteFacturacionPct').value = 50;
-  document.getElementById('clienteFacturacionPctWrap').style.display = 'none';
   document.getElementById('modalClienteTitle').textContent = 'Nuevo cliente';
-}
-
-function toggleFacturacionPct() {
-  const val = document.getElementById('clienteFacturacion').value;
-  document.getElementById('clienteFacturacionPctWrap').style.display = val === 'Mix' ? '' : 'none';
 }
 
 // ==================== PRODUCTOS ====================
@@ -4981,9 +4951,7 @@ function renderMapa() {
     const vendedorNombre = c.vendedor_id
       ? (cachedVendedores.find(v => v.user_id === c.vendedor_id)?.nombre || 'Asignado')
       : 'Sin asignar';
-    const factBadge = c.facturacion === 'Mix'
-      ? `${c.facturacion_pct || '?'}% fact.`
-      : (c.facturacion || 'SF');
+    const factBadge = c.modalidad_factura === 'con_iva' ? 'c/IVA' : 's/IVA';
 
     const icon = L.divIcon({
       className: '',
@@ -6462,13 +6430,17 @@ async function exportarExcel(seccion) {
         'Nombre fantasía': c.nombre_fantasia || '',
         'Estado': c.estado_cliente || '',
         'Tipo': c.tipo || '',
-        'Descuento %': c.descuento || 0,
+        'Modalidad factura': c.modalidad_factura === 'con_iva' ? 'Con IVA' : 'Sin IVA',
+        'Descuento %': c.descuento_pct || 0,
+        'Vendedor': cachedVendedores.find(v => v.user_id === c.vendedor_id)?.nombre || '',
         'Localidad': c.localidad || '',
         'Provincia': c.provincia || '',
         'Dirección': c.direccion || '',
         'Teléfono': c.telefono || '',
         'Email': c.email || '',
-        'Notas': c.notas || ''
+        'Notas': c.notas || '',
+        'Latitud': c.latitud || '',
+        'Longitud': c.longitud || ''
       }));
     }
 
