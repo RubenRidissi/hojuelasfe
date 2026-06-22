@@ -685,8 +685,8 @@ function showSection(name) {
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Fecha</th><th>Cliente</th><th>Monto</th><th>Medio</th><th>Notas</th><th id="thPagoVendedor" style="display:none">Vendedor</th><th></th></tr></thead>
-            <tbody id="tablaPagos"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+            <thead><tr><th>Fecha</th><th>Cliente</th><th>Monto</th><th>Medio</th><th>CC</th><th>Notas</th><th id="thPagoVendedor" style="display:none">Vendedor</th><th></th></tr></thead>
+            <tbody id="tablaPagos"><tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1608,9 +1608,21 @@ function showSection(name) {
       <div style="font-size:13px;font-weight:600;margin-bottom:8px">Imputar a facturas (opcional)</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Tildá las facturas que cubre este cobro. Si no tildás ninguna, queda como pago a cuenta.</div>
       <div id="pagoVentasPendientes"></div>
-      <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:13px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:13px">
         <span style="color:var(--muted)">Imputado: <strong id="pagoImputado">$0</strong></span>
         <span style="color:var(--muted)">Saldo a cuenta: <strong id="pagoSaldoCuenta">$0</strong></span>
+      </div>
+      <!-- CC selector: solo visible cuando hay saldo a cuenta -->
+      <div id="pagoCCWrap" style="display:none;margin-top:10px;padding:10px;background:var(--bg);border-radius:8px">
+        <label style="font-size:12px;font-weight:600;margin-bottom:6px;display:block">Centro de costo del saldo a cuenta</label>
+        <div style="display:flex;gap:10px">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:normal">
+            <input type="radio" name="pagoCentroCosto" id="pagoCC1" value="CC1"> CC1 — Con factura (blanco)
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;font-weight:normal">
+            <input type="radio" name="pagoCentroCosto" id="pagoCC2" value="CC2" checked> CC2 — Sin factura (negro)
+          </label>
+        </div>
       </div>
     </div>
 
@@ -3579,15 +3591,19 @@ async function loadPagos() {
       if (isAdmin && filtroVendedor.options.length <= 1) poblarSelectVendedor('pagoFiltroVendedor');
     }
     const tbody = document.getElementById('tablaPagos');
-    if (!pagos.length) { tbody.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}"><div class="empty"><div class="empty-icon">💰</div><p>No hay cobros registrados</p></div></td></tr>`; return; }
+    if (!pagos.length) { tbody.innerHTML = `<tr><td colspan="${isAdmin ? 8 : 7}"><div class="empty"><div class="empty-icon">💰</div><p>No hay cobros registrados</p></div></td></tr>`; return; }
     tbody.innerHTML = pagos.map(p => {
       const nombreVendedor = cachedVendedores.find(v => v.user_id === p.vendedor_id)?.nombre || '—';
+      const ccBadge = p.centro_costo === 'CC1'
+        ? '<span class="badge badge-blue">CC1</span>'
+        : '<span class="badge badge-gray">CC2</span>';
       return `
       <tr>
         <td>${p.fecha}</td>
         <td>${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
         <td><strong>$${parseFloat(p.monto||0).toLocaleString('es-AR')}</strong></td>
         <td><span class="badge badge-blue">${p.medio}</span></td>
+        <td>${ccBadge}</td>
         <td class="hide-mobile" style="color:var(--muted)">${p.notas || '—'}</td>
         ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
         <td style="white-space:nowrap">
@@ -3643,6 +3659,7 @@ function actualizarSaldoPago() {
   const saldoCuenta = montoCobrado - totalImputado;
   const elImputado = document.getElementById('pagoImputado');
   const elSaldo = document.getElementById('pagoSaldoCuenta');
+  const elCCWrap = document.getElementById('pagoCCWrap');
   if (elImputado) elImputado.textContent = '$' + totalImputado.toLocaleString('es-AR',{maximumFractionDigits:2});
   if (elSaldo) {
     if (saldoCuenta < -0.01) {
@@ -3653,6 +3670,8 @@ function actualizarSaldoPago() {
       elSaldo.style.color = 'var(--muted)';
     }
   }
+  // Mostrar selector CC solo si hay saldo a cuenta (sin imputar)
+  if (elCCWrap) elCCWrap.style.display = saldoCuenta > 0.01 ? '' : 'none';
 }
 
 async function savePago() {
@@ -3678,10 +3697,27 @@ async function savePago() {
   const totalImputado = imputaciones.reduce((s, i) => s + i.monto_aplicado, 0);
   if (totalImputado > monto + 0.01) { toast('El total imputado supera el monto cobrado', 'error'); return; }
 
+  // Determinar centro de costo
+  let centroCosto;
+  if (imputaciones.length > 0) {
+    // CC automático: de las ventas imputadas (mayoría)
+    const ventasImputadas = await Promise.all(
+      imputaciones.map(imp => api('ventas', 'GET', null, `?id=eq.${imp.venta_id}&select=modalidad_factura`).then(r => r[0]))
+    );
+    const tieneBlanco = ventasImputadas.some(v => v?.modalidad_factura === 'con_iva');
+    const tieneNegro = ventasImputadas.some(v => v?.modalidad_factura === 'sin_iva' || !v?.modalidad_factura);
+    // Si todas en blanco → CC1, si todas en negro → CC2, si mix → CC1 (el blanco prevalece)
+    centroCosto = tieneBlanco ? 'CC1' : 'CC2';
+    if (tieneBlanco && tieneNegro) toast('⚠ Pago mixto (blanco y negro) — asignado a CC1', 'warning');
+  } else {
+    // Pago a cuenta: tomar el selector manual
+    centroCosto = document.querySelector('input[name="pagoCentroCosto"]:checked')?.value || 'CC2';
+  }
+
   const cliente = cachedClientes.find(c => c.id === clienteId);
   try {
     const vendedorId = cliente?.vendedor_id || currentUser;
-    const [pago] = await api('pagos', 'POST', { cliente_id: clienteId, fecha, monto, medio, notas, vendedor_id: vendedorId });
+    const [pago] = await api('pagos', 'POST', { cliente_id: clienteId, fecha, monto, medio, notas, vendedor_id: vendedorId, centro_costo: centroCosto });
 
     // Registrar imputaciones y recalcular estado de cada venta
     await Promise.all(imputaciones.map(async imp => {
@@ -3694,7 +3730,9 @@ async function savePago() {
       await api('ventas', 'PATCH', { monto_pagado: totalPagado, estado_pago: nuevoEstado }, `?id=eq.${imp.venta_id}`);
     }));
 
-    toast(imputaciones.length ? `Cobro registrado e imputado a ${imputaciones.length} factura(s) ✓` : 'Cobro registrado como pago a cuenta ✓');
+    toast(imputaciones.length
+      ? `Cobro registrado (${centroCosto}) e imputado a ${imputaciones.length} factura(s) ✓`
+      : `Cobro registrado como pago a cuenta (${centroCosto}) ✓`);
     closeModal('modalPago');
     loadPagos();
     loadDashboard();
@@ -5829,15 +5867,19 @@ async function loadFinanzas() {
 
     // 1. POSICIÓN DEL PERÍODO
     const [cobrosHoy, cobrosMes, pagProvHoy, pagProvMes] = await Promise.all([
-      api('pagos', 'GET', null, `?fecha=eq.${hoy}&select=monto`),
-      api('pagos', 'GET', null, `?fecha=gte.${mesDesde}&fecha=lte.${mesHasta}&select=monto`),
+      api('pagos', 'GET', null, `?fecha=eq.${hoy}&select=monto,centro_costo`),
+      api('pagos', 'GET', null, `?fecha=gte.${mesDesde}&fecha=lte.${mesHasta}&select=monto,centro_costo`),
       api('pagos_proveedor', 'GET', null, `?fecha=eq.${hoy}&select=monto`),
       api('pagos_proveedor', 'GET', null, `?fecha=gte.${mesDesde}&fecha=lte.${mesHasta}&select=monto`)
     ]);
     const fmt = n => '$' + parseFloat(n||0).toLocaleString('es-AR',{maximumFractionDigits:0});
     const sum = arr => arr.reduce((s,x) => s + parseFloat(x.monto||0), 0);
-    document.getElementById('finCobradoHoy').textContent = fmt(sum(cobrosHoy));
-    document.getElementById('finCobradoMes').textContent = fmt(sum(cobrosMes));
+    const sumCC = (arr, cc) => arr.filter(x => x.centro_costo === cc).reduce((s,x) => s + parseFloat(x.monto||0), 0);
+
+    document.getElementById('finCobradoHoy').innerHTML =
+      `${fmt(sum(cobrosHoy))}<br><span style="font-size:11px;color:var(--muted)">CC1: ${fmt(sumCC(cobrosHoy,'CC1'))} · CC2: ${fmt(sumCC(cobrosHoy,'CC2'))}</span>`;
+    document.getElementById('finCobradoMes').innerHTML =
+      `${fmt(sum(cobrosMes))}<br><span style="font-size:11px;color:var(--muted)">CC1: ${fmt(sumCC(cobrosMes,'CC1'))} · CC2: ${fmt(sumCC(cobrosMes,'CC2'))}</span>`;
     document.getElementById('finPagadoProvHoy').textContent = fmt(sum(pagProvHoy));
     document.getElementById('finPagadoProvMes').textContent = fmt(sum(pagProvMes));
 
