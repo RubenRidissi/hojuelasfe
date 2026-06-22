@@ -2203,8 +2203,11 @@ async function loadDashboardAdmin() {
     let gananciaHoy = 0;
     ventasHoy.forEach(v => {
       (v.venta_items || []).forEach(item => {
-        const costo = parseFloat(item.productos?.costo || 0);
-        gananciaHoy += (parseFloat(item.precio_unitario) - costo) * item.cantidad;
+        const precio = parseFloat(item.precio_unitario);
+        if (precio > 0) {
+          const costo = parseFloat(item.productos?.costo || 0);
+          gananciaHoy += (precio - costo) * item.cantidad;
+        }
       });
     });
     document.getElementById('statGanancia').textContent = '$' + gananciaHoy.toLocaleString('es-AR', {maximumFractionDigits:0});
@@ -6305,9 +6308,11 @@ async function loadReportes() {
       semanas[key].ventas++;
       semanas[key].total += parseFloat(v.total || 0);
       (v.venta_items || []).forEach(item => {
-        const costo = parseFloat(item.productos?.costo || 0);
         const precio = parseFloat(item.precio_unitario);
-        semanas[key].ganancia += (precio - costo) * item.cantidad;
+        if (precio > 0) {
+          const costo = parseFloat(item.productos?.costo || 0);
+          semanas[key].ganancia += (precio - costo) * item.cantidad;
+        }
       });
     });
 
@@ -6343,11 +6348,13 @@ async function loadReportes() {
       (v.venta_items || []).forEach(item => {
         const pid = item.producto_id;
         if (!prods[pid]) prods[pid] = { nombre: item.productos?.nombre||'—', codigo: item.productos?.codigo||'', unidades: 0, ingresos: 0, ganancia: 0 };
-        const costo = parseFloat(item.productos?.costo || 0);
         const precio = parseFloat(item.precio_unitario);
+        const costo = parseFloat(item.productos?.costo || 0);
         prods[pid].unidades += item.cantidad;
-        prods[pid].ingresos += precio * item.cantidad;
-        prods[pid].ganancia += (precio - costo) * item.cantidad;
+        if (precio > 0) {
+          prods[pid].ingresos += precio * item.cantidad;
+          prods[pid].ganancia += (precio - costo) * item.cantidad;
+        }
       });
     });
     document.getElementById('repGananciaProd').innerHTML = Object.values(prods).sort((a,b) => b.ganancia - a.ganancia).map(p => {
