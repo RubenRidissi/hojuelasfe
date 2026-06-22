@@ -5034,9 +5034,11 @@ function buildRecepcionDoc(r, items) {
       '<td style="text-align:right;font-weight:600">$' + costoReal.toLocaleString('es-AR',{maximumFractionDigits:2}) + '</td></tr>';
   });
   html += '</tbody></table>';
-  if (r.costo_adicional_monto > 0) {
+  const fletoMonto = parseFloat(r.costo_adicional_monto || 0);
+  if (r.costo_adicional_desc) {
+    const fletoLabel = fletoMonto === 0 ? '🎁 Bonificado 100%' : '$' + fletoMonto.toLocaleString('es-AR',{maximumFractionDigits:2});
     html += '<div style="text-align:right;margin-top:8px;font-size:13px;color:var(--muted)">' +
-      (r.costo_adicional_desc || 'Flete / Logística') + ': <strong>$' + parseFloat(r.costo_adicional_monto).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</strong></div>';
+      r.costo_adicional_desc + ': <strong>' + fletoLabel + '</strong></div>';
   }
   html += '<div style="text-align:right;margin-top:6px;font-size:15px;font-weight:700">Costo real total: $' + parseFloat(r.total||0).toLocaleString('es-AR',{maximumFractionDigits:2}) + '</div>';
   html += buildFooter(r.notas);
