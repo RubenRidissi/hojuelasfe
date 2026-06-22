@@ -4014,10 +4014,9 @@ async function loadCtaCte() {
     ]);
     const totalFacturado = ventas.reduce((s, v) => s + parseFloat(v.total || 0), 0);
     const totalCobrado = pagos.reduce((s, p) => s + parseFloat(p.monto || 0), 0);
-    const totalPagadoDir = ventas.filter(v => v.estado_pago === 'pagado').reduce((s, v) => s + parseFloat(v.total || 0), 0);
-    const saldo = totalFacturado - totalCobrado - totalPagadoDir;
+    const saldo = totalFacturado - totalCobrado;
     document.getElementById('ctaFacturado').textContent = '$' + totalFacturado.toLocaleString('es-AR', {maximumFractionDigits:0});
-    document.getElementById('ctaCobrado').textContent = '$' + (totalCobrado + totalPagadoDir).toLocaleString('es-AR', {maximumFractionDigits:0});
+    document.getElementById('ctaCobrado').textContent = '$' + totalCobrado.toLocaleString('es-AR', {maximumFractionDigits:0});
     const saldoEl = document.getElementById('ctaSaldo');
     const saldoCard = document.getElementById('ctaSaldoCard');
     saldoEl.textContent = '$' + Math.abs(saldo).toLocaleString('es-AR', {maximumFractionDigits:0});
@@ -4043,8 +4042,9 @@ async function loadCtaCte() {
     tbody.innerHTML = movs.map(m => {
       let debe = 0, haber = 0, tipoBadge = '', tipoLabel = '', detalle = '';
       if (m.tipo === 'venta') {
-        if (m.estado === 'pagado') { haber = m.monto; tipoBadge = 'badge-green'; tipoLabel = 'Venta pagada'; }
-        else { debe = m.monto; tipoBadge = 'badge-yellow'; tipoLabel = 'Venta'; }
+        debe = m.monto;
+        tipoBadge = m.estado === 'pagado' ? 'badge-green' : m.estado === 'parcial' ? 'badge-yellow' : 'badge-gray';
+        tipoLabel = m.estado === 'pagado' ? 'Venta pagada' : m.estado === 'parcial' ? 'Venta parcial' : 'Venta';
         detalle = m.notas || '—';
       } else {
         haber = m.monto; tipoBadge = 'badge-blue'; tipoLabel = 'Cobro';
