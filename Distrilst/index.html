@@ -4119,13 +4119,16 @@ async function imprimirProductos() {
   if (!cachedProductos.length) { toast('No hay productos para imprimir', 'error'); return; }
 
   const conPrecio = confirm('¿Incluir precios en el listado?\n\nAceptar = Con precios\nCancelar = Sin precios');
+  const conStock = confirm('¿Incluir stock en el listado?\n\nAceptar = Con stock\nCancelar = Sin stock');
 
   // Get current stock from stock_actual view
   let stockMap = {};
-  try {
-    const stockData = await api('stock_actual', 'GET', null, '?select=id,stock');
-    stockData.forEach(s => stockMap[s.id] = parseFloat(s.stock || 0));
-  } catch(e) {}
+  if (conStock) {
+    try {
+      const stockData = await api('stock_actual', 'GET', null, '?select=id,stock');
+      stockData.forEach(s => stockMap[s.id] = parseFloat(s.stock || 0));
+    } catch(e) {}
+  }
 
   // Sort by familia then nombre
   const productos = [...cachedProductos]
@@ -4140,19 +4143,21 @@ async function imprimirProductos() {
     grupos[fam].push(p);
   });
 
-  const colSpan = conPrecio ? 6 : 4;
+  const colSpan = (conPrecio ? 2 : 0) + (conStock ? 1 : 0) + 3;
   let filas = '';
   Object.entries(grupos).forEach(([fam, prods]) => {
     filas += `<tr><td colspan="${colSpan}" style="background:#FEF3DC;font-weight:700;font-size:13px;color:#9A5F00;padding:8px 10px">${fam}</td></tr>`;
     prods.forEach(p => {
-      const stock = stockMap[p.id] !== undefined ? stockMap[p.id] : parseFloat(p.stock || 0);
-      const stockColor = stock <= 0 ? '#DC2626' : stock <= parseFloat(p.stock_minimo||0) ? '#D97706' : '#16A34A';
-      const stockLabel = stock <= 0 ? 'Sin stock' : stock <= parseFloat(p.stock_minimo||0) ? `⚠ ${stock}` : stock;
       filas += `<tr>
         <td style="font-family:monospace;font-size:11px;color:#78716C">${p.codigo||'—'}</td>
         <td>${p.nombre}${p.promo ? ` <span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:1px 6px;border-radius:10px">${p.promo}</span>` : ''}</td>
         <td style="text-align:center;color:#78716C">${p.unidad||'—'}</td>
-        <td style="text-align:center;font-weight:600;color:${stockColor}">${stockLabel}</td>
+        ${conStock ? (() => {
+          const stock = stockMap[p.id] !== undefined ? stockMap[p.id] : parseFloat(p.stock || 0);
+          const stockColor = stock <= 0 ? '#DC2626' : stock <= parseFloat(p.stock_minimo||0) ? '#D97706' : '#16A34A';
+          const stockLabel = stock <= 0 ? 'Sin stock' : stock <= parseFloat(p.stock_minimo||0) ? `⚠ ${stock}` : stock;
+          return `<td style="text-align:center;font-weight:600;color:${stockColor}">${stockLabel}</td>`;
+        })() : ''}
         ${conPrecio ? `
         <td style="text-align:right">$${parseFloat(p.precio||0).toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
         <td style="text-align:right;color:#1D4ED8">$${(parseFloat(p.precio||0)*1.21).toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
@@ -4162,10 +4167,10 @@ async function imprimirProductos() {
   });
 
   // Stock summary
-  const sinStock = productos.filter(p => (stockMap[p.id]||0) <= 0).length;
-  const stockBajo = productos.filter(p => { const s = stockMap[p.id]||0; return s > 0 && s <= parseFloat(p.stock_minimo||0); }).length;
+  const sinStock = conStock ? productos.filter(p => (stockMap[p.id]||0) <= 0).length : 0;
+  const stockBajo = conStock ? productos.filter(p => { const s = stockMap[p.id]||0; return s > 0 && s <= parseFloat(p.stock_minimo||0); }).length : 0;
 
-  const titulo = 'Listado de Productos con Stock';
+  const titulo = 'Listado de Productos';
   const html = `
     <div class="comp-wrap">
       <div class="comp-header">
@@ -4180,7 +4185,7 @@ async function imprimirProductos() {
       <div class="comp-tipo">
         <h3 style="font-size:18px">${titulo}</h3>
         <p class="comp-num">${productos.length} productos · ${new Date().toLocaleDateString('es-AR', {day:'2-digit',month:'2-digit',year:'numeric'})}</p>
-        ${sinStock > 0 || stockBajo > 0 ? `<p style="font-size:12px;color:#DC2626;margin-top:4px">⚠ ${sinStock} sin stock · ${stockBajo} con stock bajo</p>` : '<p style="font-size:12px;color:#16A34A;margin-top:4px">✓ Todo el stock sobre mínimo</p>'}
+        ${conStock ? (sinStock > 0 || stockBajo > 0 ? `<p style="font-size:12px;color:#DC2626;margin-top:4px">⚠ ${sinStock} sin stock · ${stockBajo} con stock bajo</p>` : '<p style="font-size:12px;color:#16A34A;margin-top:4px">✓ Todo el stock sobre mínimo</p>') : ''}
       </div>
       <table class="comp-table">
         <thead>
@@ -4188,7 +4193,7 @@ async function imprimirProductos() {
             <th>Código</th>
             <th>Producto</th>
             <th style="text-align:center">Unidad</th>
-            <th style="text-align:center">Stock</th>
+            ${conStock ? '<th style="text-align:center">Stock</th>' : ''}
             ${conPrecio ? '<th style="text-align:right">P. s/IVA</th><th style="text-align:right">P. c/IVA</th>' : ''}
           </tr>
         </thead>
