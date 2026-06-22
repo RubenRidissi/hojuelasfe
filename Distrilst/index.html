@@ -5194,6 +5194,7 @@ async function deleteAjusteProveedor(id) {
 }
 
 
+function abrirPagoProveedor(recepcionId, total, montoPagado, remito) {
   const saldo = parseFloat(total) - parseFloat(montoPagado);
   document.getElementById('pagoProvRecepcionId').value = recepcionId;
   document.getElementById('pagoProvFecha').value = new Date().toISOString().split('T')[0];
