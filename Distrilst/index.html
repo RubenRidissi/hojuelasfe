@@ -464,12 +464,6 @@ function showSection(name) {
           <div class="stat-card"><div class="stat-label">Clientes activos</div><div class="stat-value" id="vStatClientesActivos">—</div></div>
         </div>
 
-        <!-- Objetivo mensual -->
-        <div class="card" id="vDashObjetivoWrap" style="margin-bottom:16px;display:none">
-          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">🎯 Mi objetivo del mes</h3>
-          <div id="vDashObjetivoContenido"></div>
-        </div>
-
         <!-- Acciones rápidas -->
         <div class="card" style="margin-bottom:16px">
           <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Acciones rápidas</h3>
@@ -1023,6 +1017,12 @@ function showSection(name) {
           <input type="date" id="vRepHasta" style="padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px">
           <button class="btn btn-primary" onclick="loadReportesVendedor()">Actualizar</button>
         </div>
+      </div>
+
+      <!-- Objetivo mensual -->
+      <div class="card" id="vDashObjetivoWrap" style="margin-bottom:16px;display:none">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">🎯 Mi objetivo del mes</h3>
+        <div id="vDashObjetivoContenido"></div>
       </div>
 
       <!-- Stats período -->
@@ -2051,15 +2051,13 @@ function showSection(name) {
 </div>
 
 <!-- MORE DRAWER OVERLAY -->
-<div class="more-overlay" id="moreOverlay" onclick="closeMoreDrawer()"></div>
+<div class="more-overlay" id="moreOverlay" onclick="closeMoreDrawer();closeOperacionesDrawer();closeCobrosDrawer()"></div>
 
 <!-- MORE DRAWER -->
 <div class="more-drawer" id="moreDrawer">
   <div class="more-drawer-item admin-only" id="moreMapa" onclick="mobileNav('mapa')"><span class="mn-icon">🗺️</span>Mapa</div>
   <div class="more-drawer-item" onclick="mobileNav('productos')"><span class="mn-icon">📦</span>Productos</div>
-  <div class="more-drawer-item" onclick="mobileNav('pagos')"><span class="mn-icon">💰</span>Pagos</div>
   <div class="more-drawer-item" onclick="mobileNav('stock')"><span class="mn-icon">🏪</span>Stock</div>
-  <div class="more-drawer-item" onclick="mobileNav('ctacte')"><span class="mn-icon">💳</span>Cuenta Corriente</div>
   <div class="more-drawer-item" id="moreReportes" onclick="mobileNav('reportes')"><span class="mn-icon">📊</span>Reportes</div>
   <div class="more-drawer-item" id="moreConfig" onclick="mobileNav('config')"><span class="mn-icon">⚙️</span>Configuración</div>
   <div style="border-top:1px solid var(--border);margin:8px 0"></div>
@@ -2073,6 +2071,21 @@ function showSection(name) {
   <div class="more-drawer-item" onclick="closeMoreDrawer();doLogout()" style="color:var(--danger)"><span class="mn-icon">🚪</span>Cerrar sesión</div>
 </div>
 
+<!-- OPERACIONES DRAWER -->
+<div class="more-drawer" id="operacionesDrawer" style="display:none">
+  <div style="padding:12px 20px 8px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Operaciones</div>
+  <div class="more-drawer-item" onclick="mobileNav('pedidos');closeOperacionesDrawer()"><span class="mn-icon">📋</span>Pedidos</div>
+  <div class="more-drawer-item" onclick="mobileNav('ventas');closeOperacionesDrawer()"><span class="mn-icon">🧾</span>Ventas</div>
+  <div class="more-drawer-item" onclick="mobileNav('remitos');closeOperacionesDrawer()"><span class="mn-icon">🚚</span>Remitos</div>
+</div>
+
+<!-- COBROS DRAWER -->
+<div class="more-drawer" id="cobrosDrawer" style="display:none">
+  <div style="padding:12px 20px 8px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Cobros</div>
+  <div class="more-drawer-item" onclick="mobileNav('pagos');closeCobrosDrawer()"><span class="mn-icon">💰</span>Pagos</div>
+  <div class="more-drawer-item" onclick="mobileNav('ctacte');closeCobrosDrawer()"><span class="mn-icon">💳</span>Cta. Corriente</div>
+</div>
+
 <!-- MOBILE NAV -->
 <nav class="mobile-nav" id="mobileNav">
   <div class="mobile-nav-items">
@@ -2082,17 +2095,14 @@ function showSection(name) {
     <button class="mobile-nav-item" id="mn-clientes" onclick="mobileNav('clientes')">
       <span class="mn-icon">👥</span><span class="mn-label">Clientes</span>
     </button>
-    <button class="mobile-nav-item" id="mn-pedidos" onclick="mobileNav('pedidos')">
-      <span class="mn-icon">📋</span><span class="mn-label">Pedidos</span>
+    <button class="mobile-nav-item" id="mn-operaciones" onclick="toggleOperacionesDrawer()">
+      <span class="mn-icon">📋</span><span class="mn-label">Operaciones</span>
     </button>
-    <button class="mobile-nav-item" id="mn-ventas" onclick="mobileNav('ventas')">
-      <span class="mn-icon">🧾</span><span class="mn-label">Ventas</span>
+    <button class="mobile-nav-item" id="mn-cobros" onclick="toggleCobrosDrawer()">
+      <span class="mn-icon">💰</span><span class="mn-label">Cobros</span>
     </button>
     <button class="mobile-nav-item" id="mn-more" onclick="toggleMoreDrawer()">
       <span class="mn-icon">☰</span><span class="mn-label">Más</span>
-    </button>
-    <button class="mobile-nav-item" onclick="abrirAyuda()">
-      <span class="mn-icon">❓</span><span class="mn-label">Ayuda</span>
     </button>
   </div>
 </nav>
@@ -2387,8 +2397,7 @@ async function loadDashboardVendedor() {
         </tr>`).join('')
       : '<tr><td colspan="4" style="text-align:center;padding:12px;color:var(--muted)">Sin alertas de stock</td></tr>';
   } catch(e) { console.error('vDash stock:', e); }
-  // Objetivo del mes
-  loadObjetivoVendedor();
+  // Objetivo del mes → ahora en Reportes
 }
 
 // ==================== CLIENTES ====================
@@ -4257,12 +4266,45 @@ function mobileNav(name) {
 }
 
 function toggleMoreDrawer() {
+  closeOperacionesDrawer(); closeCobrosDrawer();
   document.getElementById('moreDrawer').classList.toggle('open');
   document.getElementById('moreOverlay').classList.toggle('open');
 }
 
 function closeMoreDrawer() {
   document.getElementById('moreDrawer').classList.remove('open');
+  document.getElementById('moreOverlay').classList.remove('open');
+}
+
+function toggleOperacionesDrawer() {
+  closeMoreDrawer(); closeCobrosDrawer();
+  const d = document.getElementById('operacionesDrawer');
+  const isOpen = d.classList.contains('open');
+  d.classList.toggle('open', !isOpen);
+  d.style.display = isOpen ? 'none' : '';
+  document.getElementById('moreOverlay').classList.toggle('open', !isOpen);
+}
+
+function closeOperacionesDrawer() {
+  const d = document.getElementById('operacionesDrawer');
+  d.classList.remove('open');
+  d.style.display = 'none';
+  document.getElementById('moreOverlay').classList.remove('open');
+}
+
+function toggleCobrosDrawer() {
+  closeMoreDrawer(); closeOperacionesDrawer();
+  const d = document.getElementById('cobrosDrawer');
+  const isOpen = d.classList.contains('open');
+  d.classList.toggle('open', !isOpen);
+  d.style.display = isOpen ? 'none' : '';
+  document.getElementById('moreOverlay').classList.toggle('open', !isOpen);
+}
+
+function closeCobrosDrawer() {
+  const d = document.getElementById('cobrosDrawer');
+  d.classList.remove('open');
+  d.style.display = 'none';
   document.getElementById('moreOverlay').classList.remove('open');
 }
 
@@ -6294,6 +6336,7 @@ function initReportesVendedor() {
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
   document.getElementById('vRepDesde').value = firstDay.toISOString().split('T')[0];
   document.getElementById('vRepHasta').value = today.toISOString().split('T')[0];
+  loadObjetivoVendedor();
   loadReportesVendedor();
 }
 
