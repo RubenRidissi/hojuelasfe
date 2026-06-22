@@ -3397,6 +3397,12 @@ async function savePedido() {
       const precioConDesc = item.precio_unitario * (1 - descPct / 100) * ivaFactor;
       return api('pedido_items', 'POST', { pedido_id: pedidoId, producto_id: item.producto_id, cantidad: item.cantidad, bonificado: item.bonificado || 0, precio_unitario: precioConDesc });
     }));
+    // Activar cliente automáticamente si estaba Pendiente o Inactivo
+    if (cliente && cliente.estado_cliente !== 'Activo') {
+      await api('clientes', 'PATCH', { estado_cliente: 'Activo' }, `?id=eq.${clienteId}`);
+      const idx = cachedClientes.findIndex(c => c.id === clienteId);
+      if (idx >= 0) cachedClientes[idx].estado_cliente = 'Activo';
+    }
     toast(id ? 'Pedido actualizado' : 'Pedido creado');
     closeModal('modalPedido');
     clearPedidoForm();
@@ -3674,6 +3680,12 @@ async function saveVenta() {
         api('stock_movimientos', 'POST', { producto_id: item.producto_id, tipo: 'salida', origen: 'venta', cantidad: -cantTotal, referencia_id: venta.id, notas: `Venta #${venta.id.substring(0,8)}${item.bonificado ? ' (incl. '+item.bonificado+' bonif.)' : ''}`, fecha: fecha || new Date().toISOString().split('T')[0] })
       ]);
     }));
+    // Activar cliente automáticamente si estaba Pendiente o Inactivo
+    if (cliente && cliente.estado_cliente !== 'Activo') {
+      await api('clientes', 'PATCH', { estado_cliente: 'Activo' }, `?id=eq.${clienteId}`);
+      const idx = cachedClientes.findIndex(c => c.id === clienteId);
+      if (idx >= 0) cachedClientes[idx].estado_cliente = 'Activo';
+    }
     toast('Venta registrada');
     closeModal('modalVenta');
     loadVentas();
