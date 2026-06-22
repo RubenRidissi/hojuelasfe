@@ -447,14 +447,27 @@ function showSection(name) {
           </div>
         </div>
 
-        <!-- Stock bajo -->
-        <div class="card" id="vDashStockWrap" style="display:none">
-          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">⚠ Productos con stock bajo</h3>
-          <div class="table-wrap">
-            <table>
-              <thead><tr><th>Código</th><th>Producto</th><th>Stock</th><th>Mínimo</th></tr></thead>
-              <tbody id="vDashStock"></tbody>
-            </table>
+        <!-- Productos disponibles -->
+        <div class="card" id="vDashStockWrap">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--success)">✅ Productos disponibles</h3>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Código</th><th>Producto</th><th>Stock</th></tr></thead>
+                  <tbody id="vDashStockOk"></tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <h3 style="font-size:14px;font-weight:600;margin-bottom:12px;color:#D97706">⚠ Stock bajo</h3>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Código</th><th>Producto</th><th>Stock</th><th>Mín.</th></tr></thead>
+                  <tbody id="vDashStock"></tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -2306,22 +2319,28 @@ async function loadDashboardVendedor() {
     }
   } catch(e) { console.error('vDash pedidos:', e); }
 
-  // Stock bajo (info útil para el vendedor)
+  // Productos disponibles y stock bajo
   try {
-    const stockBajo = await api('stock_actual', 'GET', null, '?select=nombre,codigo,stock,stock_minimo');
-    const bajos = stockBajo.filter(p => parseFloat(p.stock) <= parseFloat(p.stock_minimo) && parseFloat(p.stock_minimo) > 0);
-    if (bajos.length) {
-      document.getElementById('vDashStockWrap').style.display = '';
-      document.getElementById('vDashStock').innerHTML = bajos.map(p => `
-        <tr>
-          <td><code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px">${p.codigo||'—'}</code></td>
-          <td>${p.nombre}</td>
-          <td><span class="badge badge-red">⚠ ${p.stock}</span></td>
+    const stockData = await api('stock_actual', 'GET', null, '?select=nombre,codigo,stock,stock_minimo&order=nombre.asc');
+    const disponibles = stockData.filter(p => parseFloat(p.stock) > parseFloat(p.stock_minimo || 0));
+    const bajos = stockData.filter(p => parseFloat(p.stock) > 0 && parseFloat(p.stock) <= parseFloat(p.stock_minimo || 0) && parseFloat(p.stock_minimo || 0) > 0);
+
+    document.getElementById('vDashStockOk').innerHTML = disponibles.length
+      ? disponibles.map(p => `<tr>
+          <td><code style="font-size:11px;background:var(--bg);padding:2px 5px;border-radius:4px">${p.codigo||'—'}</code></td>
+          <td style="font-size:12px">${p.nombre}</td>
+          <td><span class="badge badge-green">${p.stock}</span></td>
+        </tr>`).join('')
+      : '<tr><td colspan="3" style="text-align:center;padding:12px;color:var(--muted)">Sin productos disponibles</td></tr>';
+
+    document.getElementById('vDashStock').innerHTML = bajos.length
+      ? bajos.map(p => `<tr>
+          <td><code style="font-size:11px;background:var(--bg);padding:2px 5px;border-radius:4px">${p.codigo||'—'}</code></td>
+          <td style="font-size:12px">${p.nombre}</td>
+          <td><span class="badge badge-yellow">⚠ ${p.stock}</span></td>
           <td style="color:var(--muted)">${p.stock_minimo}</td>
-        </tr>`).join('');
-    } else {
-      document.getElementById('vDashStockWrap').style.display = 'none';
-    }
+        </tr>`).join('')
+      : '<tr><td colspan="4" style="text-align:center;padding:12px;color:var(--muted)">Sin alertas de stock</td></tr>';
   } catch(e) { console.error('vDash stock:', e); }
   // Objetivo del mes
   loadObjetivoVendedor();
