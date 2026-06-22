@@ -1311,23 +1311,6 @@ function showSection(name) {
   </div>
 </div>
 
-<!-- MODAL MARCAR PAGADO -->
-<div class="modal-backdrop" id="modalMarcarPagado">
-  <div class="modal" style="max-width:380px">
-    <h3 class="modal-title">💰 Confirmar cobro</h3>
-    <input type="hidden" id="pagadoVentaId">
-    <div id="pagadoResumen" style="margin-bottom:14px;padding:10px 12px;background:var(--bg);border-radius:8px;font-size:13px"></div>
-    <div class="form-group">
-      <label>Fecha de pago</label>
-      <input type="date" id="pagadoFechaInput">
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('modalMarcarPagado')">Cancelar</button>
-      <button class="btn btn-primary" onclick="confirmarMarcarPagado()">Confirmar cobro</button>
-    </div>
-  </div>
-</div>
-
 <!-- MODAL PRODUCTO -->
 <div class="modal-backdrop" id="modalProducto">
   <div class="modal">
@@ -1492,14 +1475,14 @@ function showSection(name) {
 
 <!-- MODAL PAGO -->
 <div class="modal-backdrop" id="modalPago">
-  <div class="modal">
+  <div class="modal" style="max-width:620px">
     <h3 class="modal-title">Registrar cobro</h3>
     <div class="form-row">
-      <div class="form-group"><label>Cliente *</label><select id="pagoCliente"><option value="">Seleccioná un cliente</option></select></div>
+      <div class="form-group"><label>Cliente *</label><select id="pagoCliente" onchange="cargarVentasPendientesPago()"><option value="">Seleccioná un cliente</option></select></div>
       <div class="form-group"><label>Fecha *</label><input id="pagoFecha" type="date"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Monto *</label><input id="pagoMonto" type="number" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label>Monto cobrado *</label><input id="pagoMonto" type="number" min="0" step="0.01" placeholder="0.00" oninput="actualizarSaldoPago()"></div>
       <div class="form-group"><label>Medio de pago</label>
         <select id="pagoMedio">
           <option value="efectivo">Efectivo</option>
@@ -1510,6 +1493,18 @@ function showSection(name) {
       </div>
     </div>
     <div class="form-group"><label>Notas</label><textarea id="pagoNotas" placeholder="Referencia de pago, comprobante..."></textarea></div>
+
+    <!-- Imputación a facturas -->
+    <div id="pagoImputacionWrap" style="display:none;border-top:1px solid var(--border);margin-top:14px;padding-top:14px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">Imputar a facturas (opcional)</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Tildá las facturas que cubre este cobro. Si no tildás ninguna, queda como pago a cuenta.</div>
+      <div id="pagoVentasPendientes"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:13px">
+        <span style="color:var(--muted)">Imputado: <strong id="pagoImputado">$0</strong></span>
+        <span style="color:var(--muted)">Saldo a cuenta: <strong id="pagoSaldoCuenta">$0</strong></span>
+      </div>
+    </div>
+
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalPago')">Cancelar</button>
       <button class="btn btn-primary" onclick="savePago()">Registrar</button>
@@ -1873,7 +1868,14 @@ function openModal(id) {
     ensureCache().then(() => populateSelects());
   }
   if (id === 'modalPago') {
-    ensureCache().then(() => { populateClienteSelect('pagoCliente'); });
+    ensureCache().then(() => {
+      populateClienteSelect('pagoCliente');
+      document.getElementById('pagoFecha').value = new Date().toISOString().split('T')[0];
+      document.getElementById('pagoMonto').value = '';
+      document.getElementById('pagoNotas').value = '';
+      document.getElementById('pagoImputacionWrap').style.display = 'none';
+      document.getElementById('pagoVentasPendientes').innerHTML = '';
+    });
   }
   if (id === 'modalEntrada' || id === 'modalMuestra' || id === 'modalAjuste') { openStockModal(id); return; }
 }
@@ -3296,7 +3298,11 @@ async function loadVentas() {
         <td>${badgePago(v.estado_pago)}</td>
         ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
         <td style="white-space:nowrap">
-          ${v.estado_pago !== 'pagado' ? `<button class="btn btn-sm btn-success" onclick="marcarPagado('${v.id}','${(v.clientes?.nombre||'Cliente').replace(/'/g,'')}',${v.total})">Cobrar</button>` : '<span class="badge badge-green">Pagado</span>'}
+          ${v.estado_pago === 'pagado'
+            ? '<span class="badge badge-green">Pagado</span>'
+            : v.estado_pago === 'parcial'
+            ? '<span class="badge badge-yellow">Parcial</span>'
+            : `<button class="btn btn-sm btn-success" onclick="showSection('pagos');setTimeout(()=>openModal('modalPago'),200)">💰 Cobrar</button>`}
           ${!v.fecha_entrega_real ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="editarFechaEntregaVenta('${v.id}','')" title="Marcar como entregado">📦 Entregar</button>` : ''}
           <button class="btn btn-sm btn-secondary" onclick="verComprobante('venta','${v.id}')" title="Ver comprobante">🧾</button>
           ${tieneRemito
@@ -3442,27 +3448,6 @@ async function saveVenta() {
   } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
-function marcarPagado(id, nombreCliente, total) {
-  document.getElementById('pagadoVentaId').value = id;
-  document.getElementById('pagadoResumen').innerHTML = `<strong>${nombreCliente}</strong><br>Total: $${parseFloat(total).toLocaleString('es-AR')}`;
-  document.getElementById('pagadoFechaInput').value = new Date().toISOString().split('T')[0];
-  openModal('modalMarcarPagado');
-}
-
-async function confirmarMarcarPagado() {
-  const id = document.getElementById('pagadoVentaId').value;
-  const fechaPago = document.getElementById('pagadoFechaInput').value;
-  if (!fechaPago) { toast('Elegí la fecha de pago', 'error'); return; }
-  try {
-    await api('ventas', 'PATCH', { estado_pago: 'pagado', fecha_pago: fechaPago }, `?id=eq.${id}`);
-    toast('Venta marcada como pagada');
-    closeModal('modalMarcarPagado');
-    loadVentas();
-    loadDashboard();
-    setTimeout(applyTableRolRestrictions, 100);
-  } catch(e) { toast('Error: ' + e.message, 'error'); }
-}
-
 // ==================== PAGOS ====================
 async function loadPagos() {
   if (!SUPABASE_URL) return;
@@ -3504,6 +3489,62 @@ async function loadPagos() {
   } catch(e) { console.error(e); }
 }
 
+async function cargarVentasPendientesPago() {
+  const clienteId = document.getElementById('pagoCliente').value;
+  const wrap = document.getElementById('pagoImputacionWrap');
+  const contenedor = document.getElementById('pagoVentasPendientes');
+  if (!clienteId) { wrap.style.display = 'none'; return; }
+  try {
+    const ventas = await api('ventas', 'GET', null,
+      `?cliente_id=eq.${clienteId}&estado_pago=neq.pagado&order=fecha.asc&select=id,fecha,total,monto_pagado,estado_pago,notas`);
+    if (!ventas.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    contenedor.innerHTML = ventas.map(v => {
+      const saldo = parseFloat(v.total||0) - parseFloat(v.monto_pagado||0);
+      const fechaStr = new Date(v.fecha+'T00:00:00').toLocaleDateString('es-AR');
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+        <input type="checkbox" id="pagoCheck_${v.id}" onchange="actualizarSaldoPago()" style="margin:0">
+        <label for="pagoCheck_${v.id}" style="flex:1;cursor:pointer;font-weight:normal;margin:0">
+          <span style="color:var(--muted);font-size:11px">${fechaStr}</span>
+          ${v.notas ? `<span style="color:var(--muted);font-size:11px"> · ${v.notas.split('|')[0].trim()}</span>` : ''}
+          <br>Total: <strong>$${parseFloat(v.total||0).toLocaleString('es-AR',{maximumFractionDigits:2})}</strong>
+          ${parseFloat(v.monto_pagado||0) > 0 ? ` · Pagado: $${parseFloat(v.monto_pagado||0).toLocaleString('es-AR',{maximumFractionDigits:2})}` : ''}
+          · <span style="color:#DC2626;font-weight:600">Saldo: $${saldo.toLocaleString('es-AR',{maximumFractionDigits:2})}</span>
+        </label>
+        <input type="number" id="pagoMonto_${v.id}" value="${saldo.toFixed(2)}" min="0" max="${saldo.toFixed(2)}"
+          step="0.01" style="width:110px;padding:4px 6px;border:1px solid var(--border);border-radius:6px;font-size:12px"
+          oninput="actualizarSaldoPago()" data-saldo="${saldo}">
+      </div>`;
+    }).join('');
+    actualizarSaldoPago();
+  } catch(e) { console.error(e); }
+}
+
+function actualizarSaldoPago() {
+  const montoCobrado = parseFloat(document.getElementById('pagoMonto').value) || 0;
+  let totalImputado = 0;
+  document.querySelectorAll('[id^="pagoCheck_"]').forEach(chk => {
+    if (chk.checked) {
+      const ventaId = chk.id.replace('pagoCheck_', '');
+      const montoInput = document.getElementById(`pagoMonto_${ventaId}`);
+      totalImputado += parseFloat(montoInput?.value || 0);
+    }
+  });
+  const saldoCuenta = montoCobrado - totalImputado;
+  const elImputado = document.getElementById('pagoImputado');
+  const elSaldo = document.getElementById('pagoSaldoCuenta');
+  if (elImputado) elImputado.textContent = '$' + totalImputado.toLocaleString('es-AR',{maximumFractionDigits:2});
+  if (elSaldo) {
+    if (saldoCuenta < -0.01) {
+      elSaldo.textContent = '⚠ Excede el cobro';
+      elSaldo.style.color = '#DC2626';
+    } else {
+      elSaldo.textContent = '$' + saldoCuenta.toLocaleString('es-AR',{maximumFractionDigits:2});
+      elSaldo.style.color = 'var(--muted)';
+    }
+  }
+}
+
 async function savePago() {
   const clienteId = document.getElementById('pagoCliente').value;
   const fecha = document.getElementById('pagoFecha').value;
@@ -3512,11 +3553,38 @@ async function savePago() {
   const notas = document.getElementById('pagoNotas').value;
   if (!clienteId) { toast('Seleccioná un cliente', 'error'); return; }
   if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'error'); return; }
+
+  // Recopilar imputaciones
+  const imputaciones = [];
+  document.querySelectorAll('[id^="pagoCheck_"]').forEach(chk => {
+    if (chk.checked) {
+      const ventaId = chk.id.replace('pagoCheck_', '');
+      const montoInput = document.getElementById(`pagoMonto_${ventaId}`);
+      const montoAplicado = parseFloat(montoInput?.value || 0);
+      if (montoAplicado > 0) imputaciones.push({ venta_id: ventaId, monto_aplicado: montoAplicado });
+    }
+  });
+
+  const totalImputado = imputaciones.reduce((s, i) => s + i.monto_aplicado, 0);
+  if (totalImputado > monto + 0.01) { toast('El total imputado supera el monto cobrado', 'error'); return; }
+
   const cliente = cachedClientes.find(c => c.id === clienteId);
   try {
     const vendedorId = cliente?.vendedor_id || currentUser;
-    await api('pagos', 'POST', { cliente_id: clienteId, fecha, monto, medio, notas, vendedor_id: vendedorId });
-    toast('Cobro registrado');
+    const [pago] = await api('pagos', 'POST', { cliente_id: clienteId, fecha, monto, medio, notas, vendedor_id: vendedorId });
+
+    // Registrar imputaciones y recalcular estado de cada venta
+    await Promise.all(imputaciones.map(async imp => {
+      await api('pago_ventas', 'POST', { pago_id: pago.id, venta_id: imp.venta_id, monto_aplicado: imp.monto_aplicado });
+      const pagosVenta = await api('pago_ventas', 'GET', null, `?venta_id=eq.${imp.venta_id}&select=monto_aplicado`);
+      const totalPagado = pagosVenta.reduce((s, p) => s + parseFloat(p.monto_aplicado||0), 0);
+      const [venta] = await api('ventas', 'GET', null, `?id=eq.${imp.venta_id}&select=total`);
+      const totalVenta = parseFloat(venta?.total || 0);
+      const nuevoEstado = totalPagado >= totalVenta - 0.01 ? 'pagado' : totalPagado > 0 ? 'parcial' : 'pendiente';
+      await api('ventas', 'PATCH', { monto_pagado: totalPagado, estado_pago: nuevoEstado }, `?id=eq.${imp.venta_id}`);
+    }));
+
+    toast(imputaciones.length ? `Cobro registrado e imputado a ${imputaciones.length} factura(s) ✓` : 'Cobro registrado como pago a cuenta ✓');
     closeModal('modalPago');
     loadPagos();
     loadDashboard();
