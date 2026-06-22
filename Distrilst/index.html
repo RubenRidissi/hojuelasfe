@@ -655,6 +655,7 @@ function showSection(name) {
       <div class="page-header">
         <h1 class="page-title">📥 Recepciones de Mercadería</h1>
         <div class="page-header-actions" style="display:flex;gap:8px">
+          <button class="btn btn-secondary admin-only" onclick="abrirAjusteProveedor()">± NC/ND Proveedor</button>
           <button class="btn btn-primary" onclick="abrirNuevaRecepcion()">+ Nueva recepción</button>
         </div>
       </div>
@@ -662,7 +663,20 @@ function showSection(name) {
         <div class="table-wrap">
           <table>
             <thead><tr><th>N°</th><th>Fecha real recepción</th><th>Pedido asociado</th><th>Remito proveedor</th><th>Total</th><th>Estado</th><th>Pago proveedor</th><th></th></tr></thead>
-            <tbody id="tablaRecepciones"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+            <tbody id="tablaRecepciones"><tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- AJUSTES NC/ND -->
+      <div class="card" style="margin-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3 style="font-size:14px;font-weight:600">± Notas de Crédito / Débito del Proveedor</h3>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Tipo</th><th>Fecha</th><th>N° Comprobante</th><th>Recepción</th><th>Monto</th><th>Concepto</th><th></th></tr></thead>
+            <tbody id="tablaAjustesProveedor"><tr><td colspan="7" style="text-align:center;padding:16px;color:var(--muted)">Sin ajustes registrados</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1352,6 +1366,38 @@ function showSection(name) {
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalRecepcion')">Cancelar</button>
       <button class="btn btn-primary" onclick="abrirModalFechaRecepcionReal()">Registrar recepción</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL AJUSTE PROVEEDOR (NC/ND) -->
+<div class="modal-backdrop" id="modalAjusteProveedor">
+  <div class="modal" style="max-width:480px">
+    <h3 class="modal-title" id="ajusteProvTitulo">Nueva Nota de Crédito</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Tipo</label>
+        <select id="ajusteProvTipo" onchange="document.getElementById('ajusteProvTitulo').textContent = this.value === 'NC' ? 'Nueva Nota de Crédito' : 'Nueva Nota de Débito'">
+          <option value="NC">NC — Nota de Crédito (reduce deuda)</option>
+          <option value="ND">ND — Nota de Débito (aumenta deuda)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Fecha *</label><input id="ajusteProvFecha" type="date"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>N° Comprobante</label><input id="ajusteProvNumero" placeholder="Ej: NC-0001-00012345"></div>
+      <div class="form-group"><label>Monto *</label><input id="ajusteProvMonto" type="number" min="0" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="form-group">
+      <label>Recepción asociada (opcional)</label>
+      <select id="ajusteProvRecepcion">
+        <option value="">Sin recepción asociada</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Concepto</label><textarea id="ajusteProvConcepto" placeholder="Descripción del ajuste..."></textarea></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalAjusteProveedor')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveAjusteProveedor()">Registrar</button>
     </div>
   </div>
 </div>
@@ -4061,6 +4107,7 @@ function mobileNav(name) {
   if (name === 'reportes') initReportes();
   if (name === 'ctacte') initCtaCte();
   if (name === 'finanzas') loadFinanzas();
+  if (name === 'recepciones') { loadRecepciones(); loadAjustesProveedor(); }
 }
 
 function toggleMoreDrawer() {
@@ -5076,7 +5123,77 @@ async function loadRecepciones() {
   } catch(e) { console.error(e); toast('Error cargando recepciones', 'error'); }
 }
 
-function abrirPagoProveedor(recepcionId, total, montoPagado, remito) {
+async function abrirAjusteProveedor() {
+  document.getElementById('ajusteProvTipo').value = 'NC';
+  document.getElementById('ajusteProvTitulo').textContent = 'Nueva Nota de Crédito';
+  document.getElementById('ajusteProvFecha').value = new Date().toISOString().split('T')[0];
+  document.getElementById('ajusteProvNumero').value = '';
+  document.getElementById('ajusteProvMonto').value = '';
+  document.getElementById('ajusteProvConcepto').value = '';
+  // Cargar recepciones confirmadas en el select
+  const recepciones = await api('recepciones', 'GET', null, '?estado=eq.confirmada&select=id,numero,fecha_recepcion_real,remito_proveedor&order=fecha_recepcion_real.desc');
+  const sel = document.getElementById('ajusteProvRecepcion');
+  sel.innerHTML = '<option value="">Sin recepción asociada</option>' +
+    recepciones.map(r => `<option value="${r.id}">#${String(r.numero).padStart(4,'0')} — ${r.fecha_recepcion_real || ''}${r.remito_proveedor ? ' ('+r.remito_proveedor+')' : ''}</option>`).join('');
+  openModal('modalAjusteProveedor');
+}
+
+async function saveAjusteProveedor() {
+  const tipo = document.getElementById('ajusteProvTipo').value;
+  const fecha = document.getElementById('ajusteProvFecha').value;
+  const numero = document.getElementById('ajusteProvNumero').value.trim();
+  const monto = parseFloat(document.getElementById('ajusteProvMonto').value);
+  const recepcionId = document.getElementById('ajusteProvRecepcion').value || null;
+  const concepto = document.getElementById('ajusteProvConcepto').value.trim();
+  if (!fecha) { toast('Elegí la fecha', 'error'); return; }
+  if (!monto || monto <= 0) { toast('Ingresá un monto válido', 'error'); return; }
+  try {
+    await api('ajustes_proveedor', 'POST', {
+      tipo, fecha, numero_comprobante: numero || null,
+      monto, recepcion_id: recepcionId, concepto: concepto || null
+    });
+    toast(`${tipo} registrada ✓`);
+    closeModal('modalAjusteProveedor');
+    loadAjustesProveedor();
+    if (document.getElementById('sec-finanzas').classList.contains('active')) loadFinanzas();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function loadAjustesProveedor() {
+  try {
+    const ajustes = await api('ajustes_proveedor', 'GET', null,
+      '?select=*,recepciones(numero)&order=fecha.desc');
+    const tbody = document.getElementById('tablaAjustesProveedor');
+    if (!ajustes.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--muted)">Sin ajustes registrados</td></tr>';
+      return;
+    }
+    tbody.innerHTML = ajustes.map(a => `
+      <tr>
+        <td><span class="badge ${a.tipo === 'NC' ? 'badge-green' : 'badge-red'}">${a.tipo}</span></td>
+        <td style="font-size:12px">${new Date(a.fecha+'T00:00:00').toLocaleDateString('es-AR')}</td>
+        <td style="font-size:12px;color:var(--muted)">${a.numero_comprobante || '—'}</td>
+        <td style="font-size:12px">${a.recepciones ? '#'+String(a.recepciones.numero).padStart(4,'0') : '—'}</td>
+        <td><strong style="color:${a.tipo === 'NC' ? 'var(--success)' : '#DC2626'}">
+          ${a.tipo === 'NC' ? '-' : '+'}$${parseFloat(a.monto).toLocaleString('es-AR',{maximumFractionDigits:2})}
+        </strong></td>
+        <td style="font-size:12px;color:var(--muted)">${a.concepto || '—'}</td>
+        <td><button class="btn btn-sm btn-danger admin-only" onclick="deleteAjusteProveedor('${a.id}')">🗑</button></td>
+      </tr>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function deleteAjusteProveedor(id) {
+  if (!confirm('¿Eliminar este ajuste?')) return;
+  try {
+    await api('ajustes_proveedor', 'DELETE', null, `?id=eq.${id}`);
+    toast('Ajuste eliminado');
+    loadAjustesProveedor();
+    if (document.getElementById('sec-finanzas').classList.contains('active')) loadFinanzas();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+
   const saldo = parseFloat(total) - parseFloat(montoPagado);
   document.getElementById('pagoProvRecepcionId').value = recepcionId;
   document.getElementById('pagoProvFecha').value = new Date().toISOString().split('T')[0];
@@ -5921,8 +6038,14 @@ async function loadFinanzas() {
     document.getElementById('finTotalCobrar').textContent = fmt(totalCobrar);
 
     // 3. CUENTAS A PAGAR AL PROVEEDOR
-    const recepDeuda = await api('recepciones', 'GET', null,
-      `?estado_pago_prov=neq.pagado&estado=eq.confirmada&select=numero,fecha_recepcion_real,remito_proveedor,total,monto_pagado_prov,estado_pago_prov&order=fecha_recepcion_real.asc`);
+    const [recepDeuda, ajustes] = await Promise.all([
+      api('recepciones', 'GET', null,
+        `?estado_pago_prov=neq.pagado&estado=eq.confirmada&select=numero,fecha_recepcion_real,remito_proveedor,total,monto_pagado_prov,estado_pago_prov&order=fecha_recepcion_real.asc`),
+      api('ajustes_proveedor', 'GET', null, '?select=tipo,monto')
+    ]);
+
+    const totalNC = ajustes.filter(a => a.tipo === 'NC').reduce((s,a) => s + parseFloat(a.monto||0), 0);
+    const totalND = ajustes.filter(a => a.tipo === 'ND').reduce((s,a) => s + parseFloat(a.monto||0), 0);
 
     const estadoColors = { pendiente: '#DC2626', parcial: '#D97706' };
     document.getElementById('finCuentasPagar').innerHTML = recepDeuda.length
@@ -5940,8 +6063,12 @@ async function loadFinanzas() {
         }).join('')
       : '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--muted)">Sin deudas con el proveedor</td></tr>';
 
-    const totalPagar = recepDeuda.reduce((s,r) => s + parseFloat(r.total||0) - parseFloat(r.monto_pagado_prov||0), 0);
-    document.getElementById('finTotalPagar').textContent = fmt(totalPagar);
+    const totalRecepPendiente = recepDeuda.reduce((s,r) => s + parseFloat(r.total||0) - parseFloat(r.monto_pagado_prov||0), 0);
+    const totalPagar = totalRecepPendiente - totalNC + totalND;
+    const ajusteTexto = (totalNC > 0 || totalND > 0)
+      ? `<span style="font-size:11px;color:var(--muted);display:block;margin-top:2px">Recepciones: ${fmt(totalRecepPendiente)} − NC: ${fmt(totalNC)} + ND: ${fmt(totalND)}</span>`
+      : '';
+    document.getElementById('finTotalPagar').innerHTML = fmt(totalPagar) + ajusteTexto;
 
   } catch(e) { console.error(e); toast('Error cargando finanzas', 'error'); }
 }
