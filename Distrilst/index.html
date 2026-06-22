@@ -1367,6 +1367,12 @@ function showSection(name) {
       <div class="form-group"><label>Paga (cantidad)</label><input id="productoPromoPaga" type="number" min="1" step="1" placeholder="Ej: 10"></div>
       <div class="form-group"><label>Lleva gratis</label><input id="productoPromoLleva" type="number" min="1" step="1" placeholder="Ej: 1"></div>
     </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal">
+        <input type="checkbox" id="productoPrecioEditable">
+        🎁 Permite precio editable en pedido/venta (para muestras)
+      </label>
+    </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('modalProducto')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveProducto()">Guardar</button>
@@ -1393,8 +1399,11 @@ function showSection(name) {
     <div style="margin-top:8px">
       <label style="margin-bottom:8px">Productos</label>
       <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-        <select id="pedidoProductoSel" style="flex:2;min-width:180px"><option value="">Elegí un producto</option></select>
+        <select id="pedidoProductoSel" style="flex:2;min-width:180px" onchange="togglePrecioEditable('pedido')"><option value="">Elegí un producto</option></select>
         <input id="pedidoCantidad" type="number" min="1" value="1" style="flex:1;max-width:80px" placeholder="Cant.">
+        <div id="pedidoPrecioEditableWrap" style="display:none;flex:1;max-width:120px">
+          <input id="pedidoPrecioEditable" type="number" min="0" step="0.01" value="0" style="width:100%" placeholder="Precio">
+        </div>
         <button class="btn btn-secondary btn-sm" onclick="addItemPedido()">+ Agregar</button>
       </div>
       <div id="pedidoPromoInfo" style="display:none;margin-bottom:8px;padding:8px 10px;background:#FEF9C3;border-radius:8px;font-size:12px;color:#92400E">
@@ -1431,8 +1440,11 @@ function showSection(name) {
     <div style="margin-top:8px">
       <label style="margin-bottom:8px">Productos</label>
       <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
-        <select id="ventaProductoSel" style="flex:2;min-width:180px"><option value="">Elegí un producto</option></select>
+        <select id="ventaProductoSel" style="flex:2;min-width:180px" onchange="togglePrecioEditable('venta')"><option value="">Elegí un producto</option></select>
         <input id="ventaCantidad" type="number" min="1" value="1" style="flex:1;max-width:80px" placeholder="Cant.">
+        <div id="ventaPrecioEditableWrap" style="display:none;flex:1;max-width:120px">
+          <input id="ventaPrecioEditable" type="number" min="0" step="0.01" value="0" style="width:100%" placeholder="Precio">
+        </div>
         <button class="btn btn-secondary btn-sm" onclick="addItemVenta()">+ Agregar</button>
       </div>
       <div id="ventaPromoInfo" style="display:none;margin-bottom:8px;padding:8px 10px;background:#FEF9C3;border-radius:8px;font-size:12px;color:#92400E">
@@ -2400,7 +2412,8 @@ async function saveProducto() {
     stock_minimo: parseInt(document.getElementById('productoStockMin').value) || 0,
     promo: document.getElementById('productoTienePromo').checked
       ? `${parseInt(document.getElementById('productoPromoPaga').value) || 0}+${parseInt(document.getElementById('productoPromoLleva').value) || 0}`
-      : null
+      : null,
+    precio_editable: document.getElementById('productoPrecioEditable').checked
   };
   if (!data.nombre) { toast('El nombre es obligatorio', 'error'); return; }
   if (!data.codigo) { toast('El código es obligatorio', 'error'); return; }
@@ -2449,6 +2462,7 @@ function editProducto(id) {
     document.getElementById('productoPromoLleva').value = '';
   }
   toggleProductoPromo();
+  document.getElementById('productoPrecioEditable').checked = !!p.precio_editable;
   calcPrecioProducto();
   openModal('modalProducto');
 }
@@ -2468,6 +2482,7 @@ function clearProductoForm() {
   document.getElementById('productoTienePromo').checked = false;
   document.getElementById('productoPromoWrap').style.display = 'none';
   document.getElementById('productoCostoPromoAviso').style.display = 'none';
+  document.getElementById('productoPrecioEditable').checked = false;
   document.getElementById('modalProductoTitle').textContent = 'Nuevo producto';
 }
 
@@ -2992,7 +3007,7 @@ async function confirmarConvertirPedidoEnVenta() {
 function populateSelects() {
   populateClienteSelect('pedidoCliente');
   populateClienteSelect('ventaCliente');
-  const opts = '<option value="">Elegí un producto</option>' + cachedProductos.map(p => `<option value="${p.id}" data-precio="${p.precio}" data-promo="${p.promo||''}">${p.codigo ? p.codigo+' — ' : ''}${p.nombre} — $${parseFloat(p.precio).toLocaleString('es-AR')}${p.promo ? ' 🎁'+p.promo : ''}</option>`).join('');
+  const opts = '<option value="">Elegí un producto</option>' + cachedProductos.map(p => `<option value="${p.id}" data-precio="${p.precio}" data-promo="${p.promo||''}" data-editable="${p.precio_editable ? '1' : ''}">${p.codigo ? p.codigo+' — ' : ''}${p.nombre}${p.precio_editable ? ' 🎁' : ''} — $${parseFloat(p.precio).toLocaleString('es-AR')}${p.promo ? ' 🎁'+p.promo : ''}</option>`).join('');
   document.getElementById('pedidoProductoSel').innerHTML = opts;
   document.getElementById('ventaProductoSel').innerHTML = opts;
   poblarSelectVersiones('pedidoVersionPrecios');
@@ -3030,6 +3045,18 @@ function populateClienteSelect(selId) {
   }
 }
 
+function togglePrecioEditable(tipo) {
+  const sel = document.getElementById(tipo === 'venta' ? 'ventaProductoSel' : 'pedidoProductoSel');
+  const wrap = document.getElementById(tipo === 'venta' ? 'ventaPrecioEditableWrap' : 'pedidoPrecioEditableWrap');
+  const input = document.getElementById(tipo === 'venta' ? 'ventaPrecioEditable' : 'pedidoPrecioEditable');
+  const esEditable = sel.selectedOptions[0]?.dataset.editable === '1';
+  wrap.style.display = esEditable ? '' : 'none';
+  if (esEditable) {
+    input.value = '0';
+    input.title = 'Precio especial (muestra) — dejá en $0 para muestra sin cargo';
+  }
+}
+
 function addItemPedido() {
   const sel = document.getElementById('pedidoProductoSel');
   const cant = parseInt(document.getElementById('pedidoCantidad').value) || 1;
@@ -3038,9 +3065,12 @@ function addItemPedido() {
   const nombre = opt?.text.split(' — ')[0];
   const promo = opt?.dataset.promo || '';
   if (!pid) { toast('Elegí un producto', 'error'); return; }
-  // Usar precio de la versión seleccionada si corresponde
+  // Usar precio editable si el producto lo permite, sino el de lista/versión
+  const esEditable = opt?.dataset.editable === '1';
   const precioData = getPrecioProducto(pid, 'pedido');
-  const precio = precioData.precio;
+  const precio = esEditable
+    ? (parseFloat(document.getElementById('pedidoPrecioEditable').value) || 0)
+    : precioData.precio;
   const promoInfo = document.getElementById('pedidoPromoInfo');
   const promoTexto = document.getElementById('pedidoPromoTexto');
   const promoCheck = document.getElementById('pedidoPromoCheck');
@@ -3289,9 +3319,12 @@ function addItemVenta() {
   const nombre = opt?.text.split(' — ')[0];
   const promo = opt?.dataset.promo || '';
   if (!pid) { toast('Elegí un producto', 'error'); return; }
-  // Usar precio de la versión seleccionada si corresponde
+  // Usar precio editable si el producto lo permite, sino el de lista/versión
+  const esEditable = opt?.dataset.editable === '1';
   const precioData = getPrecioProducto(pid, 'venta');
-  const precio = precioData.precio;
+  const precio = esEditable
+    ? (parseFloat(document.getElementById('ventaPrecioEditable').value) || 0)
+    : precioData.precio;
   const promoInfo = document.getElementById('ventaPromoInfo');
   const promoTexto = document.getElementById('ventaPromoTexto');
   const promoCheck = document.getElementById('ventaPromoCheck');
