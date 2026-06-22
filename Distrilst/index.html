@@ -518,6 +518,7 @@ function showSection(name) {
         <button class="btn btn-secondary" onclick="openModal('modalListaPrecios')">📄 Lista de precios</button>
         <button class="btn btn-secondary admin-only" onclick="abrirActualizacionMasiva()">💲 Actualizar precios</button>
         <button class="btn btn-secondary admin-only" onclick="abrirGuardarVersion()">📸 Guardar versión</button>
+        <button class="btn btn-secondary admin-only" onclick="abrirVersiones()">📋 Versiones</button>
       </div>
       <div class="search-bar">
         <input class="search-input" type="text" placeholder="Buscar producto..." oninput="filterTable('tablaProductos',this.value)">
@@ -1620,6 +1621,17 @@ function showSection(name) {
   </div>
 </div>
 
+<!-- MODAL VERSIONES DE PRECIOS -->
+<div class="modal-backdrop" id="modalVersiones">
+  <div class="modal" style="max-width:480px">
+    <h3 class="modal-title">📋 Versiones de precios guardadas</h3>
+    <div id="versionesLista" style="max-height:400px;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modalVersiones')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL GUARDAR VERSIÓN DE PRECIOS -->
 <div class="modal-backdrop" id="modalGuardarVersion">
   <div class="modal" style="max-width:420px">
@@ -2526,7 +2538,37 @@ async function confirmarGuardarVersion() {
   } catch(e) { toast('Error: ' + e.message, 'error'); }
 }
 
-async function cargarVersionesPrecios() {
+async function restaurarVersion(versionId, nombre) {
+  if (!confirm(`¿Restaurar "${nombre}" como precios actuales?\n\nEsto va a actualizar el costo, margen y precio de todos los productos de esa versión. No se puede deshacer (aunque podés guardar una foto de los precios actuales antes).`)) return;
+  try {
+    const items = await api('version_precios_items', 'GET', null, `?version_id=eq.${versionId}&select=producto_id,costo,margen_pct,precio`);
+    if (!items.length) { toast('Esta versión no tiene productos guardados', 'error'); return; }
+    await Promise.all(items.map(item =>
+      api('productos', 'PATCH', { costo: item.costo, margen_pct: item.margen_pct, precio: item.precio }, `?id=eq.${item.producto_id}`)
+    ));
+    toast(`"${nombre}" restaurada como precios actuales ✓`);
+    closeModal('modalVersiones');
+    loadProductos();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function abrirVersiones() {
+  await cargarVersionesPrecios();
+  const lista = document.getElementById('versionesLista');
+  if (!cachedVersiones.length) {
+    lista.innerHTML = '<p style="color:var(--muted);font-size:13px">No hay versiones guardadas todavía.</p>';
+  } else {
+    lista.innerHTML = cachedVersiones.map(v => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-weight:600;font-size:13px">${v.nombre}</div>
+          <div style="font-size:12px;color:var(--muted)">${new Date(v.fecha+'T00:00:00').toLocaleDateString('es-AR')}</div>
+        </div>
+        <button class="btn btn-sm btn-secondary" onclick="restaurarVersion('${v.id}','${v.nombre.replace(/'/g,"\\'")}')">↩ Restaurar</button>
+      </div>`).join('');
+  }
+  openModal('modalVersiones');
+}
   if (cachedVersiones.length) return; // ya cargadas
   try {
     cachedVersiones = await api('versiones_precios', 'GET', null, '?activa=eq.true&order=fecha.desc&limit=10');
