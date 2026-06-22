@@ -2569,6 +2569,8 @@ async function abrirVersiones() {
   }
   openModal('modalVersiones');
 }
+
+async function cargarVersionesPrecios() {
   if (cachedVersiones.length) return; // ya cargadas
   try {
     cachedVersiones = await api('versiones_precios', 'GET', null, '?activa=eq.true&order=fecha.desc&limit=10');
