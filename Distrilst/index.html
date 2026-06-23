@@ -137,7 +137,9 @@
   .toast.error { background: var(--danger); }
 
   /* SEARCH */
-  .search-bar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
+  .search-bar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+  body, html { overflow-x: hidden; max-width: 100vw; }
+  * { box-sizing: border-box; }
   .search-input { flex: 1; max-width: 300px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; background: var(--surface); }
   .search-input:focus { outline: none; border-color: var(--honey); }
 
@@ -206,8 +208,9 @@
     .page-header { justify-content:space-between; align-items:center; }
     .page-title { font-size:16px !important; }
     /* En móvil el botón principal va full width debajo del título */
-    .page-header-actions { width:100%; }
+    .page-header-actions { width:100%; display:grid !important; grid-template-columns:1fr 1fr; gap:8px; }
     .page-header-actions .btn { width:100%; justify-content:center; }
+    .page-header { flex-wrap:wrap; gap:8px; }
     .page-header-btn-wrap { width:100%; }
     .page-header > .btn { width:100%; justify-content:center; margin-top:4px; }
     /* Múltiples botones en header también se adaptan */
@@ -736,14 +739,14 @@ function showSection(name) {
       </div>
 
       <div class="search-bar">
-        <input class="search-input" id="searchClientes" type="text" placeholder="Buscar cliente..." oninput="filterClientes()" style="flex:2;min-width:200px">
-        <select id="filtroEstadoCliente" onchange="filterClientes()" style="flex:1;min-width:140px;max-width:180px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+        <input class="search-input" id="searchClientes" type="text" placeholder="Buscar cliente..." oninput="filterClientes()" style="flex:2;min-width:0">
+        <select id="filtroEstadoCliente" onchange="filterClientes()" style="flex:1;min-width:0;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
           <option value="">Todos los estados</option>
           <option value="Pendiente">⏳ Pendiente</option>
           <option value="Activo">✅ Activo</option>
           <option value="Inactivo">❌ Inactivo</option>
         </select>
-        <select id="filtroCarteraCliente" onchange="filterClientes()" style="flex:1;min-width:140px;max-width:200px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+        <select id="filtroCarteraCliente" onchange="filterClientes()" style="flex:1;min-width:0;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
           <option value="">Toda la cartera</option>
           <option value="mis">Mis clientes</option>
           <option value="solicitados">Solicitados</option>
