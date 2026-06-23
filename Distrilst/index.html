@@ -7274,5 +7274,65 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 </script>
+<script>
+  window.addEventListener('load', () => {
+    const splash = document.getElementById('splashScreen');
+    if (splash) {
+      setTimeout(() => {
+        splash.style.opacity = '0';
+        splash.style.transition = 'opacity 300ms ease';
+        setTimeout(() => splash.remove(), 300);
+      }, 600);
+    }
+  });
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => {
+        console.log('SW registrado', reg);
+
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' &&
+                navigator.serviceWorker.controller) {
+              mostrarAvisoActualizacion();
+            }
+          });
+        });
+      })
+      .catch(err => console.error('Error SW', err));
+  });
+}
+
+function mostrarAvisoActualizacion() {
+  const aviso = document.createElement('div');
+
+  aviso.style.position = 'fixed';
+  aviso.style.left = '16px';
+  aviso.style.right = '16px';
+  aviso.style.bottom = '16px';
+  aviso.style.zIndex = '999999';
+  aviso.style.background = '#1C1917';
+  aviso.style.color = '#fff';
+  aviso.style.padding = '14px';
+  aviso.style.borderRadius = '12px';
+
+  aviso.innerHTML = `
+    <div><b>Nueva versión disponible</b></div>
+    <div style="margin-top:6px">Hay cambios nuevos en Hojuelas.</div>
+    <button onclick="location.reload()"
+      style="margin-top:10px;padding:8px 12px">
+      Actualizar
+    </button>
+  `;
+
+  document.body.appendChild(aviso);
+}
+</script>
 </body>
 </html>
