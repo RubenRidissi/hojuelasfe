@@ -183,6 +183,7 @@
     .brand-name, .brand-sub { display: none; }
     .main { margin-left: 56px; padding: 16px; }
     .form-row { grid-template-columns: 1fr; }
+    .hide-on-mobile { display: none !important; }
   }
 
   /* MOBILE */
@@ -210,7 +211,10 @@
     /* En móvil el botón principal va full width debajo del título */
     .page-header-actions { width:100%; display:grid !important; grid-template-columns:1fr 1fr; gap:8px; }
     .page-header-actions .btn { width:100%; justify-content:center; }
+    .page-header-actions .btn:only-child { grid-column: 1 / -1; }
     .page-header { flex-wrap:wrap; gap:8px; }
+    .search-bar { flex-wrap:wrap; gap:8px; }
+    .search-bar .search-input { min-width:0; width:100%; }
     .page-header-btn-wrap { width:100%; }
     .page-header > .btn { width:100%; justify-content:center; margin-top:4px; }
     /* Múltiples botones en header también se adaptan */
@@ -716,8 +720,8 @@ function showSection(name) {
       <div class="page-header">
         <h1 class="page-title">Clientes</h1>
         <div class="page-header-actions" style="display:flex;gap:8px">
-          <button class="btn btn-secondary" onclick="exportarExcel('clientes')">📥 Excel</button>
-          <button class="btn btn-secondary" onclick="imprimirClientes()">📄 Imprimir listado</button>
+          <button class="btn btn-secondary admin-only" onclick="exportarExcel('clientes')">📥 Excel</button>
+          <button class="btn btn-secondary admin-only" onclick="imprimirClientes()">📄 Imprimir listado</button>
           <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
         </div>
       </div>
@@ -794,7 +798,7 @@ function showSection(name) {
       <div class="page-header">
         <h1 class="page-title">Pedidos</h1>
         <div class="page-header-actions" style="display:flex;gap:8px">
-          <button class="btn btn-primary" onclick="openModal('modalPedido')">+ Nuevo pedido</button>
+          <button class="btn btn-primary hide-on-mobile" onclick="openModal('modalPedido')">+ Nuevo pedido</button>
           <button class="btn btn-secondary" onclick="exportarExcel('pedidos')">📥 Excel</button>
         </div>
       </div>
@@ -826,7 +830,7 @@ function showSection(name) {
       <div class="page-header">
         <h1 class="page-title">Ventas</h1>
         <div class="page-header-actions" style="display:flex;gap:8px">
-          <button class="btn btn-primary" onclick="openModal('modalVenta')">+ Nueva venta</button>
+          <button class="btn btn-primary hide-on-mobile" onclick="openModal('modalVenta')">+ Nueva venta</button>
           <button class="btn btn-secondary admin-only" onclick="abrirAjusteCliente()">± NC/ND Cliente</button>
           <button class="btn btn-secondary" onclick="exportarExcel('ventas')">📥 Excel</button>
         </div>
@@ -947,18 +951,18 @@ function showSection(name) {
     <!-- PAGOS -->
     <div id="sec-pagos" class="section">
       <div class="page-header">
-        <h1 class="page-title">Pagos</h1>
+        <h1 class="page-title">💰 Pagos</h1>
         <div class="page-header-actions" style="display:flex;gap:8px">
+          <button class="btn btn-primary hide-on-mobile" onclick="openModal('modalPago')">+ Registrar cobro</button>
           <button class="btn btn-secondary" onclick="exportarExcel('pagos')">📥 Excel</button>
-          <button class="btn btn-primary" onclick="openModal('modalPago')">+ Registrar cobro</button>
         </div>
       </div>
-      <div class="search-bar">
-        <select id="pagoFiltroVendedor" style="display:none;width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPagos()">
+      <div class="search-bar admin-only">
+        <select id="pagoFiltroVendedor" style="width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPagos()">
           <option value="">Todos los vendedores</option>
         </select>
       </div>
-      <div class="card">
+      <div class="card desktop-table">
         <div class="table-wrap">
           <table>
             <thead><tr><th>Fecha</th><th>Cliente</th><th>Monto</th><th>Medio</th><th>CC</th><th>Notas</th><th id="thPagoVendedor" style="display:none">Vendedor</th><th></th></tr></thead>
@@ -966,6 +970,7 @@ function showSection(name) {
           </table>
         </div>
       </div>
+      <div class="mobile-cards" id="cardsPagos"></div>
     </div>
 
     <!-- STOCK -->
@@ -1312,7 +1317,6 @@ function showSection(name) {
               <option value="">— Elegí un cliente —</option>
             </select>
           </div>
-          <button class="btn btn-primary" style="margin-top:18px" onclick="openModal('modalPago');populateClienteSelect('pagoCliente')">+ Registrar cobro</button>
         </div>
       </div>
 
@@ -4200,6 +4204,31 @@ async function loadPagos() {
         </td>
       </tr>`;
     }).join('');
+
+    // MOBILE CARDS pagos
+    const cardsEl = document.getElementById('cardsPagos');
+    if (cardsEl) {
+      cardsEl.innerHTML = pagos.length ? pagos.map(p => {
+        const fechaCorta = p.fecha ? new Date(p.fecha+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '—';
+        const ccBadge = p.centro_costo === 'CC1'
+          ? '<span class="badge badge-blue">CC1</span>'
+          : '<span class="badge badge-gray">CC2</span>';
+        return `<div class="op-card">
+          <div class="op-card-header">
+            <span class="op-card-fecha">${fechaCorta}</span>
+            <span class="badge badge-blue">${p.medio}</span>
+            ${ccBadge}
+          </div>
+          <div class="op-card-cliente">${p.clientes ? nombreCliente(p.clientes) : '—'}</div>
+          <div class="op-card-total" style="color:var(--success)">$${parseFloat(p.monto||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+          ${p.notas ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">${p.notas}</div>` : ''}
+          ${isAdmin ? `<div class="op-card-actions" style="margin-top:8px">
+            <button class="btn btn-secondary" onclick="editPago('${p.id}','${p.fecha}',${p.monto},'${p.medio}','${(p.notas||'').replace(/'/g,'')}','${p.clientes?.id||''}')">✏ Editar</button>
+            <button class="btn btn-danger" onclick="deletePago('${p.id}')">🗑 Borrar</button>
+          </div>` : ''}
+        </div>`;
+      }).join('') : '<div style="text-align:center;padding:32px;color:var(--muted)">No hay cobros registrados</div>';
+    }
   } catch(e) { console.error(e); }
 }
 
