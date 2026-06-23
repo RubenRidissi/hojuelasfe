@@ -223,6 +223,8 @@
     /* Múltiples botones en header también se adaptan */
     .page-header > div { width:100%; display:flex; flex-wrap:wrap; gap:6px; }
     .page-header > div .btn { flex:1; justify-content:center; min-width:120px; }
+    /* hide-on-mobile DEBE ir al final para pisar display:grid !important */
+    .hide-on-mobile, div.hide-on-mobile, .page-header-actions.hide-on-mobile { display:none !important; }
     .stats-grid { grid-template-columns:repeat(2, 1fr) !important; gap:10px; }
     .stat-card {
       padding:16px 14px !important;
