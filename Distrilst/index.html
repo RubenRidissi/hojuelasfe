@@ -306,7 +306,32 @@
     }
     .fab-overlay.open { display:block; }
 
-    /* FAB solo visible en móvil */
+    /* CARDS MÓVIL - Pedidos y Ventas */
+  .mobile-cards { display:none; }
+  @media (max-width: 768px) {
+    .mobile-cards { display:flex; flex-direction:column; gap:10px; }
+    .desktop-table { display:none !important; }
+    .op-card {
+      background:var(--surface);
+      border-radius:14px;
+      padding:14px 16px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.07);
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .op-card-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    .op-card-num { font-size:11px; color:var(--muted); font-weight:600; }
+    .op-card-fecha { font-size:11px; color:var(--muted); }
+    .op-card-cliente { font-size:15px; font-weight:600; color:var(--text); }
+    .op-card-total { font-size:18px; font-weight:700; color:var(--text); }
+    .op-card-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; }
+    .op-card-actions .btn { flex:1; min-width:80px; font-size:12px; padding:8px 6px; border-radius:10px !important; justify-content:center; }
+  }
 
     .card { padding:14px; border-radius:14px !important; }
     table { font-size:12px; }
@@ -737,7 +762,7 @@ function showSection(name) {
           <option value="">Todos los vendedores</option>
         </select>
       </div>
-      <div class="card">
+      <div class="card desktop-table">
         <div class="table-wrap">
           <table>
             <thead><tr><th>N°</th><th>Cliente</th><th class="hide-mobile">Entrega</th><th>Estado</th><th>Total</th><th id="thPedidoVendedor" style="display:none">Vendedor</th><th></th></tr></thead>
@@ -745,6 +770,7 @@ function showSection(name) {
           </table>
         </div>
       </div>
+      <div class="mobile-cards" id="cardsPedidos"></div>
     </div>
 
     <!-- VENTAS -->
@@ -762,7 +788,7 @@ function showSection(name) {
           <option value="">Todos los vendedores</option>
         </select>
       </div>
-      <div class="card">
+      <div class="card desktop-table">
         <div class="table-wrap">
           <table>
             <thead><tr><th>N°</th><th>Cliente</th><th class="hide-mobile">Facturación / Entrega</th><th>Total</th><th>Pago</th><th id="thVentaVendedor" style="display:none">Vendedor</th><th>Acciones</th></tr></thead>
@@ -770,6 +796,7 @@ function showSection(name) {
           </table>
         </div>
       </div>
+      <div class="mobile-cards" id="cardsVentas"></div>
     </div>
 
     <!-- REMITOS -->
@@ -3290,6 +3317,35 @@ async function loadPedidos() {
         </td>
       </tr>`;
     }).join('');
+
+    // MOBILE CARDS
+    const cardsEl = document.getElementById('cardsPedidos');
+    if (cardsEl) {
+      cardsEl.innerHTML = pedidos.length ? pedidos.map((p, i) => {
+        const yaConvertido = !!p.convertido_venta_id;
+        const puedeConvertir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado');
+        const puedeRemitir = p.estado === 'confirmado' || p.estado === 'entregado';
+        const tieneRemito = origenesConRemito.has(p.id) || (yaConvertido && origenesConRemito.has(p.convertido_venta_id));
+        return `<div class="op-card">
+          <div class="op-card-header">
+            <span class="op-card-num">#${String(i+1).padStart(3,'0')}</span>
+            <span>${badgeEstado(p.estado)}</span>
+            <span class="op-card-fecha">${p.fecha_entrega ? new Date(p.fecha_entrega+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : 'Sin fecha'}</span>
+          </div>
+          <div class="op-card-cliente">${p.clientes ? nombreCliente(p.clientes) : '—'}</div>
+          <div class="op-card-total">$${parseFloat(p.total||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+          <div class="op-card-actions">
+            <button class="btn btn-secondary" onclick="verComprobante('pedido','${p.id}')">📋 Ver</button>
+            ${!yaConvertido ? `<select style="flex:1;padding:8px 6px;border:1px solid var(--border);border-radius:10px;font-size:12px" onchange="updateEstadoPedido('${p.id}',this.value)">
+              ${['pendiente','confirmado','entregado','cancelado'].filter(e => !(p.estado === 'pendiente' && e === 'entregado')).map(e => `<option value="${e}" ${p.estado===e?'selected':''}>${e.charAt(0).toUpperCase()+e.slice(1)}</option>`).join('')}
+            </select>` : `<span class="badge badge-green" style="flex:1;text-align:center">✓ Facturado</span>`}
+            ${puedeConvertir ? `<button class="btn btn-success" onclick="convertirPedidoEnVenta('${p.id}')">🧾 Convertir</button>` : ''}
+            ${tieneRemito ? `<button class="btn btn-secondary" onclick="verRemito('pedido','${p.id}')">👁 Remito</button>`
+              : (puedeRemitir ? `<button class="btn btn-secondary" onclick="imprimirRemito('pedido','${p.id}')">🚚 Remito</button>` : '')}
+          </div>
+        </div>`;
+      }).join('') : '<div style="text-align:center;padding:32px;color:var(--muted)">No hay pedidos todavía</div>';
+    }
     setTimeout(applyTableRolRestrictions, 100);
   } catch(e) { console.error(e); }
 }
@@ -3765,6 +3821,33 @@ async function loadVentas() {
         </td>
       </tr>`;
     }).join('');
+
+    // MOBILE CARDS ventas
+    const cardsVEl = document.getElementById('cardsVentas');
+    if (cardsVEl) {
+      cardsVEl.innerHTML = ventas.length ? ventas.map((v, i) => {
+        const tieneRemito = origenesConRemito.has(v.id);
+        const fechaCorta = v.fecha ? new Date(v.fecha+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '—';
+        return `<div class="op-card">
+          <div class="op-card-header">
+            <span class="op-card-num">#${String(i+1).padStart(3,'0')} · ${fechaCorta}</span>
+            <span>${badgePago(v.estado_pago)}</span>
+            ${!v.fecha_entrega_real ? '<span style="font-size:11px;color:#D97706">Sin entregar</span>' : '<span style="font-size:11px;color:var(--success)">✓ Entregado</span>'}
+          </div>
+          <div class="op-card-cliente">${v.clientes ? nombreCliente(v.clientes) : '—'}</div>
+          <div class="op-card-total">$${parseFloat(v.total||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+          <div class="op-card-actions">
+            <button class="btn btn-secondary" onclick="verComprobante('venta','${v.id}')">🧾 Ver</button>
+            ${!v.fecha_entrega_real ? `<button class="btn btn-secondary" onclick="editarFechaEntregaVenta('${v.id}','')">📦 Entregar</button>` : ''}
+            ${v.estado_pago !== 'pagado' ? `<button class="btn btn-success" onclick="showSection('pagos');setTimeout(()=>openModal('modalPago'),200)">💰 Cobrar</button>` : ''}
+            ${tieneRemito
+              ? `<button class="btn btn-secondary" onclick="verRemito('venta','${v.id}')">👁 Remito</button>`
+              : `<button class="btn btn-secondary" onclick="imprimirRemito('venta','${v.id}')">🚚 Remito</button>`}
+          </div>
+        </div>`;
+      }).join('') : '<div style="text-align:center;padding:32px;color:var(--muted)">No hay ventas todavía</div>';
+    }
+
     setTimeout(applyTableRolRestrictions, 100);
   } catch(e) { console.error(e); }
 }
