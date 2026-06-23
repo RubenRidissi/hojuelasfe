@@ -4279,7 +4279,8 @@ function mobileNav(name) {
     if (n.getAttribute('onclick')?.includes("'" + name + "'")) n.classList.add('active');
   });
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  const sec = document.getElementById('sec-' + name);
+  const secName = (name === 'reportes' && currentRol !== 'admin') ? 'reportes-vendedor' : name;
+  const sec = document.getElementById('sec-' + secName);
   if (sec) sec.classList.add('active');
   if (!SUPABASE_URL || !SUPABASE_KEY) return;
   if (name === 'dashboard') loadDashboard();
@@ -4289,7 +4290,10 @@ function mobileNav(name) {
   if (name === 'ventas') loadVentas();
   if (name === 'pagos') loadPagos();
   if (name === 'stock') loadStock();
-  if (name === 'reportes') initReportes();
+  if (name === 'reportes') {
+    if (currentRol === 'admin') initReportes();
+    else initReportesVendedor();
+  }
   if (name === 'ctacte') initCtaCte();
   if (name === 'finanzas') loadFinanzas();
   if (name === 'recepciones') { loadRecepciones(); loadAjustesProveedor(); }
