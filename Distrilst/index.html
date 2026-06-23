@@ -350,6 +350,26 @@
     .mobile-nav-item { font-size:10px; padding:10px 4px 12px; }
   }
 
+/* TAMAÑO DE FUENTE */
+body.font-small { font-size: 12px; }
+body.font-small .stat-value { font-size: 18px !important; }
+body.font-small .op-card-cliente { font-size: 13px !important; }
+body.font-small .op-card-total { font-size: 17px !important; }
+body.font-small .nav-item span, body.font-small .nav-group-header span { font-size: 12px; }
+
+body.font-normal { font-size: 14px; }
+
+body.font-large { font-size: 16px; }
+body.font-large .stat-value { font-size: 26px !important; }
+body.font-large .op-card-cliente { font-size: 18px !important; }
+body.font-large .op-card-total { font-size: 24px !important; }
+body.font-large .nav-item span, body.font-large .nav-group-header span { font-size: 15px; }
+body.font-large .btn { font-size: 15px; padding: 10px 18px; }
+body.font-large table { font-size: 14px; }
+body.font-large .modal { font-size: 15px; }
+body.font-large label { font-size: 14px; }
+body.font-large input, body.font-large select, body.font-large textarea { font-size: 15px !important; }
+
 /* PRINT / COMPROBANTE */
 @media print {
   .sidebar, .page-header, .search-bar, .btn, .modal-backdrop, .toast { display: none !important; }
@@ -441,6 +461,8 @@ function showSection(name) {
     if (typeof initCtaCte === 'function' && name === 'ctacte') initCtaCte();
     if (name === 'finanzas') loadFinanzas();
     if (name === 'config') loadObjetivosConfig();
+  if (name === 'perfil') initPerfil();
+    if (name === 'perfil') initPerfil();
   } catch(e) { console.error('showSection error:', e); }
 }
 </script>
@@ -540,6 +562,9 @@ function showSection(name) {
       </div>
       <div class="nav-item" onclick="showSection('reportes')">
         <span class="nav-icon">📊</span><span>Reportes</span>
+      </div>
+      <div class="nav-item vendedor-only" onclick="showSection('perfil')">
+        <span class="nav-icon">👤</span><span>Mi Perfil</span>
       </div>
       <div class="nav-item" onclick="showSection('config')">
         <span class="nav-icon">⚙️</span><span>Configuración</span>
@@ -1294,6 +1319,38 @@ function showSection(name) {
     </div>
 
     <!-- CONFIGURACION -->
+    <!-- PERFIL USUARIO -->
+    <div id="sec-perfil" class="section">
+      <div class="page-header"><h1 class="page-title">👤 Mi Perfil</h1></div>
+
+      <!-- Tamaño de fuente -->
+      <div class="card" style="max-width:500px;margin-bottom:16px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">🔤 Tamaño de texto</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Ajustá el tamaño del texto a tu preferencia. Se guarda automáticamente.</p>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button onclick="setFontSize('small')" id="pFontSmall" class="btn btn-secondary" style="flex:1">A<span style="font-size:10px"> Pequeño</span></button>
+          <button onclick="setFontSize('normal')" id="pFontNormal" class="btn btn-secondary" style="flex:1">A <span style="font-size:13px">Normal</span></button>
+          <button onclick="setFontSize('large')" id="pFontLarge" class="btn btn-secondary" style="flex:1">A<span style="font-size:16px"> Grande</span></button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px">Actual: <strong id="pFontSizeLabel">Normal</strong></p>
+      </div>
+
+      <!-- Cambiar contraseña -->
+      <div class="card" style="max-width:500px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">🔒 Cambiar contraseña</h3>
+        <div class="form-group">
+          <label>Nueva contraseña</label>
+          <input type="password" id="perfilNuevaPass" placeholder="Mínimo 6 caracteres">
+        </div>
+        <div class="form-group">
+          <label>Confirmar contraseña</label>
+          <input type="password" id="perfilConfirmaPass" placeholder="Repetí la nueva contraseña">
+        </div>
+        <button class="btn btn-primary" onclick="cambiarPassword()">Guardar contraseña</button>
+        <p id="perfilPassStatus" style="margin-top:10px;font-size:12px"></p>
+      </div>
+    </div>
+
     <div id="sec-config" class="section">
       <div class="page-header"><h1 class="page-title">Configuración</h1></div>
 
@@ -1308,7 +1365,7 @@ function showSection(name) {
         </div>
         <p style="font-size:12px;color:var(--muted);margin-top:10px">Actual: <strong id="fontSizeLabel">Normal</strong></p>
       </div>
-      <div class="card" style="max-width:500px">
+      <div class="card admin-only" style="max-width:500px">
         <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">Conexión a Supabase</h3>
         <div class="form-group">
           <label>Project URL</label>
@@ -1321,12 +1378,12 @@ function showSection(name) {
         <button class="btn btn-primary" onclick="saveConfig()">Guardar y conectar</button>
         <p id="cfgStatus" style="margin-top:12px;font-size:12px;color:var(--muted)"></p>
       </div>
-      <div class="card" style="max-width:500px;margin-top:16px">
+      <div class="card admin-only" style="max-width:500px;margin-top:16px">
         <h3 style="font-size:14px;font-weight:600;margin-bottom:12px">Backup de datos</h3>
         <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Exportá todos tus datos en formato JSON para respaldo local.</p>
         <button class="btn btn-secondary" onclick="exportBackup()">⬇ Descargar backup JSON</button>
       </div>
-      <div class="card" style="max-width:500px;margin-top:16px">
+      <div class="card admin-only" style="max-width:500px;margin-top:16px">
         <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">🎯 Objetivos de ventas</h3>
         <div class="form-row" style="margin-bottom:14px">
           <div class="form-group">
@@ -2227,7 +2284,8 @@ function showSection(name) {
   <div class="more-drawer-item" onclick="mobileNav('productos')"><span class="mn-icon">📦</span>Productos</div>
   <div class="more-drawer-item" onclick="mobileNav('stock')"><span class="mn-icon">🏪</span>Stock</div>
   <div class="more-drawer-item" id="moreReportes" onclick="mobileNav('reportes')"><span class="mn-icon">📊</span>Reportes</div>
-  <div class="more-drawer-item" id="moreConfig" onclick="mobileNav('config')"><span class="mn-icon">⚙️</span>Configuración</div>
+  <div class="more-drawer-item vendedor-only" id="morePerfil" onclick="mobileNav('perfil')"><span class="mn-icon">👤</span>Mi Perfil</div>
+  <div class="more-drawer-item admin-only" id="moreConfig" onclick="mobileNav('config')"><span class="mn-icon">⚙️</span>Configuración</div>
   <div style="border-top:1px solid var(--border);margin:8px 0"></div>
   <div style="padding:10px 20px 4px;display:flex;align-items:center;gap:10px">
     <div style="width:34px;height:34px;border-radius:50%;background:var(--honey-light);display:flex;align-items:center;justify-content:center;font-size:16px">👤</div>
@@ -4582,19 +4640,68 @@ function closeCobrosDrawer() {
   document.getElementById('moreOverlay').classList.remove('open');
 }
 
+// ==================== PERFIL USUARIO ====================
+function initPerfil() {
+  const saved = localStorage.getItem('app_font_size') || 'normal';
+  const labels = { small: 'Pequeño', normal: 'Normal', large: 'Grande' };
+  ['small','normal','large'].forEach(s => {
+    const btn = document.getElementById('pFont' + s.charAt(0).toUpperCase() + s.slice(1));
+    if (btn) {
+      btn.style.background = s === saved ? 'var(--honey)' : '';
+      btn.style.color = s === saved ? '#fff' : '';
+    }
+  });
+  const lbl = document.getElementById('pFontSizeLabel');
+  if (lbl) lbl.textContent = labels[saved] || 'Normal';
+  document.getElementById('perfilNuevaPass').value = '';
+  document.getElementById('perfilConfirmaPass').value = '';
+  document.getElementById('perfilPassStatus').textContent = '';
+}
+
+async function cambiarPassword() {
+  const nueva = document.getElementById('perfilNuevaPass').value;
+  const confirma = document.getElementById('perfilConfirmaPass').value;
+  const status = document.getElementById('perfilPassStatus');
+  if (!nueva || nueva.length < 6) { status.textContent = '⚠ La contraseña debe tener al menos 6 caracteres'; status.style.color = '#DC2626'; return; }
+  if (nueva !== confirma) { status.textContent = '⚠ Las contraseñas no coinciden'; status.style.color = '#DC2626'; return; }
+  try {
+    const token = localStorage.getItem('sb_token');
+    const sbUrl = localStorage.getItem('sb_url');
+    const sbKey = localStorage.getItem('sb_key');
+    const res = await fetch(`${sbUrl}/auth/v1/user`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'apikey': sbKey, 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ password: nueva })
+    });
+    if (res.ok) {
+      status.textContent = '✓ Contraseña actualizada correctamente';
+      status.style.color = 'var(--success)';
+      document.getElementById('perfilNuevaPass').value = '';
+      document.getElementById('perfilConfirmaPass').value = '';
+    } else {
+      const err = await res.json();
+      status.textContent = '⚠ Error: ' + (err.message || 'No se pudo actualizar');
+      status.style.color = '#DC2626';
+    }
+  } catch(e) { status.textContent = '⚠ Error de conexión'; status.style.color = '#DC2626'; }
+}
+
 // ==================== FONT SIZE ====================
 function setFontSize(size) {
-  const sizes = { small: '13px', normal: '15px', large: '17px' };
   const labels = { small: 'Pequeño', normal: 'Normal', large: 'Grande' };
-  document.documentElement.style.fontSize = sizes[size] || '15px';
+  document.body.classList.remove('font-small','font-normal','font-large');
+  document.body.classList.add('font-' + size);
   localStorage.setItem('app_font_size', size);
-  ['small','normal','large'].forEach(s => {
-    const btn = document.getElementById('btnFont' + s.charAt(0).toUpperCase() + s.slice(1));
-    if (btn) btn.style.background = s === size ? 'var(--honey)' : '';
-    if (btn) btn.style.color = s === size ? '#fff' : '';
+  ['btnFont','pFont'].forEach(prefix => {
+    ['small','normal','large'].forEach(s => {
+      const btn = document.getElementById(prefix + s.charAt(0).toUpperCase() + s.slice(1));
+      if (btn) { btn.style.background = s === size ? 'var(--honey)' : ''; btn.style.color = s === size ? '#fff' : ''; }
+    });
   });
-  const lbl = document.getElementById('fontSizeLabel');
-  if (lbl) lbl.textContent = labels[size] || 'Normal';
+  ['fontSizeLabel','pFontSizeLabel'].forEach(id => {
+    const lbl = document.getElementById(id);
+    if (lbl) lbl.textContent = labels[size] || 'Normal';
+  });
 }
 
 function initFontSize() {
@@ -4779,10 +4886,12 @@ function applyRolRestrictions() {
     }
   }
 
-  // Hide admin-only buttons for vendedor
+  // Hide admin-only buttons for vendedor, hide vendedor-only for admin
   const style = document.getElementById('adminOnlyStyle') || document.createElement('style');
   style.id = 'adminOnlyStyle';
-  style.textContent = isAdmin ? '' : '.admin-only { display: none !important; }';
+  style.textContent = isAdmin
+    ? '.vendedor-only { display: none !important; }'
+    : '.admin-only { display: none !important; }';
   document.head.appendChild(style);
 
   // Apply mobile restrictions
@@ -4790,12 +4899,9 @@ function applyRolRestrictions() {
 
   if (isAdmin) return;
 
-  // Vendedor: hide config nav item only (reportes se muestra para vendedor)
-  document.querySelectorAll('.nav-item').forEach(el => {
-    if (el.getAttribute('onclick')?.includes('config')) {
-      el.style.display = 'none';
-    }
-  });
+  // Vendedor: ocultar items admin-only de config pero mostrar config
+  // El bloque de Supabase, Backup y Objetivos tienen clase admin-only
+  // Solo el tamaño de fuente es visible para todos
 }
 
 function applyTableRolRestrictions() {
@@ -4807,11 +4913,7 @@ function applyTableRolRestrictions() {
 
 
 function applyMobileRolRestrictions() {
-  if (currentRol !== 'admin') {
-    // Vendedor puede ver reportes (su versión), solo ocultamos config
-    const el2 = document.getElementById('moreConfig');
-    if (el2) el2.style.display = 'none';
-  }
+  // Config ya no se oculta — el vendedor ve solo el bloque de fuente
 }
 
 // ==================== LISTA DE PRECIOS ====================
