@@ -748,7 +748,7 @@ function showSection(name) {
         </select>
         <span id="clientesTotalizador" style="font-size:13px;color:var(--muted);white-space:nowrap;padding:8px 4px;align-self:center"></span>
       </div>
-      <div class="card">
+      <div class="card desktop-table">
         <div class="table-wrap">
           <table>
             <thead><tr><th>Nombre</th><th>Estado</th><th>Tipo</th><th>Cartera</th><th>Facturación</th><th>Saldo</th><th>Loc.</th><th></th></tr></thead>
@@ -756,6 +756,7 @@ function showSection(name) {
           </table>
         </div>
       </div>
+      <div class="mobile-cards" id="cardsClientes"></div>
     </div>
 
     <!-- PRODUCTOS -->
@@ -2277,15 +2278,15 @@ function showSection(name) {
 
 <!-- MODAL COMPROBANTE -->
 <div class="modal-backdrop" id="modalComprobante" style="align-items:flex-start;padding:20px;overflow-y:auto">
-  <div style="background:white;border-radius:12px;width:100%;max-width:760px;box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #E8E2D8">
+  <div style="background:white;border-radius:12px;width:100%;max-width:760px;box-shadow:0 20px 60px rgba(0,0,0,0.2);overflow:hidden;max-height:90vh;display:flex;flex-direction:column">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #E8E2D8;flex-shrink:0">
       <span style="font-weight:600;font-size:14px" id="compModalTitle">Comprobante</span>
       <div style="display:flex;gap:8px">
         <button class="btn btn-primary btn-sm" onclick="printComp()">🖨 Imprimir</button>
         <button class="btn btn-secondary btn-sm" onclick="closeModal('modalComprobante')">Cerrar</button>
       </div>
     </div>
-    <div id="compContenido" style="padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch"></div>
+    <div id="compContenido" style="padding:0;overflow:auto;-webkit-overflow-scrolling:touch;flex:1"></div>
   </div>
 </div>
 
@@ -2797,6 +2798,50 @@ function renderClientes(list) {
       <td style="white-space:nowrap;width:1%">${acciones}</td>
     </tr>`;
   }).join('');
+
+  // MOBILE CARDS clientes
+  const cardsEl = document.getElementById('cardsClientes');
+  if (cardsEl) {
+    cardsEl.innerHTML = list.length ? list.map(c => {
+      const estadoColor = { Activo:'var(--success)', Pendiente:'#D97706', Inactivo:'#DC2626' }[c.estado_cliente] || '#D97706';
+      const inicial = (c.nombre_fantasia || c.nombre || '?').charAt(0).toUpperCase();
+      const esPropio = c.vendedor_id === currentUser;
+      const tieneSolicitud = cachedSolicitudes.some(s => s.cliente_id === c.id && s.vendedor_id === currentUser);
+      const tieneCoordenadas = c.latitud && c.longitud;
+
+      let accionesMobile = '';
+      if (currentRol === 'admin') {
+        accionesMobile = `
+          <button class="btn btn-secondary" onclick="handleClienteAction('edit','${c.id}')">✏ Editar</button>
+          <button class="btn btn-secondary" onclick="abrirAsignarCliente('${c.id}')">👤 Asignar</button>`;
+      } else {
+        if (esPropio) {
+          accionesMobile = `<button class="btn btn-secondary" onclick="editCliente('${c.id}')">✏ Editar</button>`;
+        } else if (tieneSolicitud) {
+          accionesMobile = `<span style="font-size:12px;color:var(--muted);padding:8px">📬 Solicitud enviada</span>`;
+        } else {
+          accionesMobile = `<button class="btn btn-secondary" style="background:#FEF3DC;color:#92400E" onclick="solicitarCliente('${c.id}')">📬 Solicitar</button>`;
+        }
+      }
+
+      return `<div class="op-card" data-estado="${c.estado_cliente||'Pendiente'}" data-cartera="${c.vendedor_id ? 'asignado' : 'sinasignar'}" data-propio="${esPropio}" data-vendedor="${c.vendedor_id||''}" data-solicitado="${tieneSolicitud}">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:44px;height:44px;border-radius:50%;background:var(--honey-light);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--honey-dark);flex-shrink:0">${inicial}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${nombreCliente(c)}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">${c.tipo||'Minorista'} · <span style="color:${estadoColor};font-weight:600">${c.estado_cliente||'Pendiente'}</span></div>
+          </div>
+          ${tieneCoordenadas ? `<a href="https://www.google.com/maps?q=${c.latitud},${c.longitud}" target="_blank" style="font-size:20px;text-decoration:none">📍</a>` : ''}
+        </div>
+        ${c.telefono ? `<a href="tel:${c.telefono}" style="display:flex;align-items:center;gap:8px;padding:8px 0;color:var(--honey);font-size:14px;font-weight:500;text-decoration:none;border-top:1px solid var(--border);margin-top:8px">📞 ${c.telefono}</a>` : ''}
+        ${c.localidad ? `<div style="font-size:12px;color:var(--muted)">📍 ${c.localidad}</div>` : ''}
+        <div class="op-card-actions" style="margin-top:8px">
+          ${accionesMobile}
+        </div>
+      </div>`;
+    }).join('') : '<div style="text-align:center;padding:32px;color:var(--muted)">No hay clientes todavía</div>';
+  }
+
   // Actualizar totalizador con el total sin filtros activos
   setTimeout(filterClientes, 0);
 }
@@ -5151,9 +5196,10 @@ function filterClientes() {
   const query = (document.getElementById('searchClientes')?.value || '').toLowerCase();
   const estado = document.getElementById('filtroEstadoCliente').value;
   const cartera = document.getElementById('filtroCarteraCliente').value;
-  const rows = document.getElementById('tablaClientes').querySelectorAll('tr');
   let visible = 0;
-  rows.forEach(row => {
+
+  // Filtrar filas de tabla (desktop)
+  document.getElementById('tablaClientes').querySelectorAll('tr').forEach(row => {
     const matchQuery = !query || row.textContent.toLowerCase().includes(query);
     const matchEstado = !estado || row.dataset.estado === estado;
     let matchCartera = true;
@@ -5165,6 +5211,19 @@ function filterClientes() {
     row.style.display = show ? '' : 'none';
     if (show) visible++;
   });
+
+  // Filtrar cards (mobile)
+  document.querySelectorAll('#cardsClientes .op-card').forEach(card => {
+    const matchQuery = !query || card.textContent.toLowerCase().includes(query);
+    const matchEstado = !estado || card.dataset.estado === estado;
+    let matchCartera = true;
+    if (cartera === 'mis') matchCartera = card.dataset.propio === 'true';
+    else if (cartera === 'sin_asignar') matchCartera = card.dataset.cartera === 'sinasignar';
+    else if (cartera === 'solicitados') matchCartera = card.dataset.solicitado === 'true';
+    else if (cartera) matchCartera = card.dataset.vendedor === cartera;
+    card.style.display = matchQuery && matchEstado && matchCartera ? '' : 'none';
+  });
+
   const tot = document.getElementById('clientesTotalizador');
   if (tot) tot.textContent = visible > 0 ? `${visible} cliente${visible !== 1 ? 's' : ''}` : '';
 }
