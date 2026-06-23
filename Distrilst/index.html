@@ -306,8 +306,11 @@
     }
     .fab-overlay.open { display:block; }
 
-    /* CARDS MÓVIL - Pedidos y Ventas */
+  } /* fin @media 768px */
+
+  /* CARDS MÓVIL - ocultas en desktop */
   .mobile-cards { display:none; }
+
   @media (max-width: 768px) {
     .mobile-cards { display:flex; flex-direction:column; gap:10px; }
     .desktop-table { display:none !important; }
@@ -2833,7 +2836,7 @@ function renderClientes(list) {
           </div>
           ${tieneCoordenadas ? `<a href="https://www.google.com/maps?q=${c.latitud},${c.longitud}" target="_blank" style="font-size:20px;text-decoration:none">📍</a>` : ''}
         </div>
-        ${c.telefono ? `<a href="tel:${c.telefono}" style="display:flex;align-items:center;gap:8px;padding:8px 0;color:var(--honey);font-size:14px;font-weight:500;text-decoration:none;border-top:1px solid var(--border);margin-top:8px">📞 ${c.telefono}</a>` : ''}
+        ${c.telefono ? `<a href="https://wa.me/549${c.telefono.replace(/\D/g,'')}" target="_blank" style="display:flex;align-items:center;gap:8px;padding:8px 0;color:#25D366;font-size:14px;font-weight:500;text-decoration:none;border-top:1px solid var(--border);margin-top:8px">💬 ${c.telefono}</a>` : ''}
         ${c.localidad ? `<div style="font-size:12px;color:var(--muted)">📍 ${c.localidad}</div>` : ''}
         <div class="op-card-actions" style="margin-top:8px">
           ${accionesMobile}
