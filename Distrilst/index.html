@@ -26,7 +26,34 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; min-height: 100vh; }
+<div id="splashScreen" style="
+  position: fixed;
+  inset: 0;
+  background: #FEF3DC;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+">
+  <img src="/icon-192.png" alt="Hojuelas" style="width:96px;height:96px;border-radius:24px;margin-bottom:18px;">
+  <div style="font-size:20px;font-weight:700;color:#9A5F00;">Hojuelas SFE</div>
+  <div style="font-size:13px;color:#78716C;margin-top:6px;">Cargando panel...</div>
+</div>
 
+<script>
+  window.addEventListener('load', () => {
+    const splash = document.getElementById('splashScreen');
+    if (splash) {
+      setTimeout(() => {
+        splash.style.opacity = '0';
+        splash.style.transition = 'opacity 300ms ease';
+        setTimeout(() => splash.remove(), 300);
+      }, 600);
+    }
+  });
+</script>
   /* LAYOUT */
   .app { display: flex; min-height: 100vh; }
   .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 0; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 10; }
