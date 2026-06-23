@@ -2357,7 +2357,8 @@ function showSection(name) {
     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #E8E2D8;flex-shrink:0">
       <span style="font-weight:600;font-size:14px" id="compModalTitle">Comprobante</span>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-primary btn-sm" onclick="printComp()">🖨 Imprimir</button>
+        <button class="btn btn-primary btn-sm hide-mobile" onclick="printComp()">🖨 Imprimir</button>
+        <button class="btn btn-secondary btn-sm" onclick="descargarComp()">⬇ Descargar</button>
         <button class="btn btn-secondary btn-sm" onclick="closeModal('modalComprobante')">Cerrar</button>
       </div>
     </div>
@@ -2960,9 +2961,15 @@ async function saveCliente() {
       }
       toast('Cliente actualizado');
     } else {
-      data.estado_cliente = 'Pendiente';
+      if (currentRol === 'admin') {
+        // Admin puede elegir el estado
+      } else {
+        // Vendedor: cliente queda Activo y asignado a él
+        data.estado_cliente = 'Activo';
+        data.vendedor_id = currentUser;
+      }
       await api('clientes', 'POST', data);
-      toast('Cliente creado — quedó como Pendiente para aprobación');
+      toast(currentRol === 'admin' ? 'Cliente creado' : 'Cliente creado y asignado a tu cartera');
     }
     closeModal('modalCliente');
     clearClienteForm();
@@ -3628,7 +3635,10 @@ async function loadPedidos() {
             <span class="op-card-fecha">${p.fecha_entrega ? new Date(p.fecha_entrega+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : 'Sin fecha'}</span>
           </div>
           <div class="op-card-cliente">${p.clientes ? nombreCliente(p.clientes) : '—'}</div>
-          <div class="op-card-total">$${parseFloat(p.total||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="op-card-total">$${parseFloat(p.total||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+            ${p.estado === 'pendiente' && !yaConvertido ? `<button class="btn btn-sm btn-secondary" onclick="editPedido('${p.id}')">✏ Editar</button>` : ''}
+          </div>
           <div class="op-card-actions">
             <button class="btn btn-secondary" onclick="verComprobante('pedido','${p.id}')">📋 Ver</button>
             ${!yaConvertido ? `<select style="flex:1;padding:8px 6px;border:1px solid var(--border);border-radius:10px;font-size:12px" onchange="updateEstadoPedido('${p.id}',this.value)">
@@ -3857,7 +3867,6 @@ function addItemPedido() {
   const nombre = opt?.text.split(' — ')[0];
   const promo = opt?.dataset.promo || '';
   if (!pid) { toast('Elegí un producto', 'error'); return; }
-  // Usar precio editable si el producto lo permite, sino el de lista/versión
   const esEditable = opt?.dataset.editable === '1';
   const precioData = getPrecioProducto(pid, 'pedido');
   const precio = esEditable
@@ -3888,6 +3897,55 @@ function addItemPedido() {
     pedidoItems.push({ producto_id: pid, nombre, cantidad: cant, bonificado, precio_unitario: precio, subtotal: cant * precio, promo });
   }
   renderPedidoItems();
+
+  // Verificar promo combinada por familia
+  verificarPromoCombinada('pedido');
+}
+
+function verificarPromoCombinada(tipo) {
+  const items = tipo === 'pedido' ? pedidoItems : ventaItems;
+  // Agrupar por familia los items con promo
+  const itemsConPromo = items.filter(i => i.promo);
+  if (itemsConPromo.length < 2) return;
+
+  // Obtener familias de cada item
+  const familiaMap = {};
+  itemsConPromo.forEach(item => {
+    const prod = cachedProductos.find(p => p.id === item.producto_id);
+    if (!prod?.familia) return;
+    const familia = prod.familia;
+    if (!familiaMap[familia]) familiaMap[familia] = [];
+    familiaMap[familia].push({ ...item, familia });
+  });
+
+  // Verificar si alguna familia tiene suma >= umbral de promo
+  Object.entries(familiaMap).forEach(([familia, grupoItems]) => {
+    if (grupoItems.length < 2) return;
+    const promo = grupoItems[0].promo;
+    if (!promo) return;
+    const [paga, lleva] = promo.split('+').map(Number);
+    const totalCant = grupoItems.reduce((s, i) => s + i.cantidad, 0);
+    const totalBonif = grupoItems.reduce((s, i) => s + (i.bonificado || 0), 0);
+    const bonifPosible = Math.floor(totalCant / paga) - totalBonif;
+    if (bonifPosible <= 0) return;
+
+    // Preguntar al vendedor
+    const opciones = grupoItems.map(i => i.nombre).join('\n');
+    const resp = confirm(`¡Promo combinada en familia "${familia}"!\nEntre todos los productos sumás ${totalCant} unidades (promo ${promo}).\nPodés agregar ${bonifPosible} unidad(es) bonificada(s).\n\n¿Querés agregarlas?`);
+    if (!resp) return;
+
+    const elegido = prompt(`¿A qué producto agregamos las ${bonifPosible} unidad(es) bonificada(s)?\n\n${grupoItems.map((i, idx) => `${idx+1}. ${i.nombre}`).join('\n')}\n\nIngresá el número:`);
+    const idx = parseInt(elegido) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= grupoItems.length) { toast('Selección inválida', 'error'); return; }
+
+    const itemElegido = items.find(i => i.producto_id === grupoItems[idx].producto_id);
+    if (itemElegido) {
+      itemElegido.bonificado = (itemElegido.bonificado || 0) + bonifPosible;
+    }
+    if (tipo === 'pedido') renderPedidoItems();
+    else renderVentaItems();
+    toast(`✓ ${bonifPosible} unidad(es) bonificada(s) agregada(s) a ${grupoItems[idx].nombre}`);
+  });
 }
 
 function recalcPromoPedido() {
@@ -4198,6 +4256,9 @@ function addItemVenta() {
     ventaItems.push({ producto_id: pid, nombre, cantidad: cant, bonificado, precio_unitario: precio, subtotal: cant * precio, promo });
   }
   renderVentaItems();
+
+  // Verificar promo combinada por familia
+  verificarPromoCombinada('venta');
 }
 
 function recalcPromo() {
@@ -7577,6 +7638,22 @@ function buildRemitoEntrega(datos) {
     '<div style="text-align:center"><div style="border-top:1px solid #1C1917;padding-top:6px;margin-top:40px">Firma transportista</div></div></div>';
   html += buildFooter(datos.notas);
   return html;
+}
+
+function descargarComp() {
+  const titulo = document.getElementById('compModalTitle')?.textContent || 'Comprobante';
+  const contenido = document.getElementById('compContenido')?.innerHTML || '';
+  const estilos = document.querySelector('style')?.textContent || '';
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${titulo}</title>
+    <style>* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #1C1917; } ${estilos}</style>
+    </head><body>${contenido}</body></html>`;
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${titulo.replace(/[^a-zA-Z0-9\s]/g, '').trim()}.html`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function printComp() {
