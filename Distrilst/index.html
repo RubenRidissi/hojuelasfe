@@ -213,17 +213,113 @@
     /* Múltiples botones en header también se adaptan */
     .page-header > div { width:100%; display:flex; flex-wrap:wrap; gap:6px; }
     .page-header > div .btn { flex:1; justify-content:center; min-width:120px; }
-    .stats-grid { grid-template-columns:repeat(2, 1fr) !important; gap:8px; }
-    .stat-value { font-size:18px !important; }
-    .card { padding:14px; }
+    .stats-grid { grid-template-columns:repeat(2, 1fr) !important; gap:10px; }
+    .stat-card {
+      padding:16px 14px !important;
+      border-radius:16px !important;
+      border:none !important;
+      background:var(--surface) !important;
+      box-shadow:0 2px 8px rgba(0,0,0,0.07) !important;
+      display:flex; flex-direction:column; gap:6px;
+    }
+    .stat-label {
+      font-size:10px !important;
+      letter-spacing:.06em !important;
+      color:var(--muted) !important;
+    }
+    .stat-value {
+      font-size:24px !important;
+      font-weight:700 !important;
+      line-height:1.1 !important;
+    }
+    .stat-sub { font-size:11px !important; }
+
+    .fab, .fab-menu, .fab-overlay { display:none; }
+  @media (max-width: 768px) {
+    .fab { display:flex; }
+  }
+      position:fixed;
+      bottom:76px;
+      right:16px;
+      width:56px;
+      height:56px;
+      border-radius:50%;
+      background:var(--honey);
+      color:#fff;
+      font-size:28px;
+      border:none;
+      box-shadow:0 4px 16px rgba(0,0,0,0.25);
+      cursor:pointer;
+      z-index:47;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      transition:transform 0.15s, box-shadow 0.15s;
+    }
+    .fab:active { transform:scale(0.93); box-shadow:0 2px 8px rgba(0,0,0,0.2); }
+    .fab-menu {
+      position:fixed;
+      bottom:140px;
+      right:16px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      z-index:47;
+    }
+    .fab-menu-item {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      justify-content:flex-end;
+    }
+    .fab-menu-label {
+      background:var(--text);
+      color:#fff;
+      padding:6px 12px;
+      border-radius:20px;
+      font-size:13px;
+      font-weight:500;
+      white-space:nowrap;
+      box-shadow:0 2px 8px rgba(0,0,0,0.2);
+    }
+    .fab-mini {
+      width:44px;
+      height:44px;
+      border-radius:50%;
+      background:var(--surface);
+      border:2px solid var(--honey);
+      color:var(--honey);
+      font-size:20px;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow:0 2px 8px rgba(0,0,0,0.15);
+    }
+    .fab-overlay {
+      position:fixed;
+      inset:0;
+      z-index:46;
+      background:rgba(0,0,0,0.3);
+      display:none;
+    }
+    .fab-overlay.open { display:block; }
+
+    /* FAB solo visible en móvil */
+
+    .card { padding:14px; border-radius:14px !important; }
     table { font-size:12px; }
     th, td { padding:8px 6px; }
     .modal { padding:16px; max-width:calc(100vw - 16px) !important; }
     .modal-backdrop { padding:0 !important; align-items:flex-end !important; }
-    .modal { border-radius:16px 16px 0 0 !important; max-height:92vh; }
+    .modal { border-radius:20px 20px 0 0 !important; max-height:92vh; }
     .form-row { grid-template-columns:1fr !important; }
     .login-box { margin:16px; padding:24px 20px; }
     .hide-mobile { display:none !important; }
+    .btn { border-radius:10px !important; }
+    input, select, textarea { border-radius:10px !important; font-size:16px !important; }
+    .mobile-nav-item .mn-icon { font-size:22px; }
+    .mobile-nav-item { font-size:10px; padding:10px 4px 12px; }
   }
 
 /* PRINT / COMPROBANTE */
@@ -2115,6 +2211,28 @@ function showSection(name) {
   <div class="more-drawer-item" onclick="mobileNav('pagos');closeCobrosDrawer()"><span class="mn-icon">💰</span>Pagos</div>
   <div class="more-drawer-item" onclick="mobileNav('ctacte');closeCobrosDrawer()"><span class="mn-icon">💳</span>Cta. Corriente</div>
 </div>
+
+<!-- FAB OVERLAY -->
+<div class="fab-overlay" id="fabOverlay" onclick="closeFab()"></div>
+
+<!-- FAB MENU -->
+<div class="fab-menu" id="fabMenu" style="display:none">
+  <div class="fab-menu-item">
+    <span class="fab-menu-label">Nuevo pedido</span>
+    <button class="fab-mini" onclick="closeFab();showSection('pedidos');setTimeout(()=>openModal('modalPedido'),200)">📋</button>
+  </div>
+  <div class="fab-menu-item">
+    <span class="fab-menu-label">Nueva venta</span>
+    <button class="fab-mini" onclick="closeFab();showSection('ventas');setTimeout(()=>openModal('modalVenta'),200)">🧾</button>
+  </div>
+  <div class="fab-menu-item">
+    <span class="fab-menu-label">Registrar cobro</span>
+    <button class="fab-mini" onclick="closeFab();showSection('pagos');setTimeout(()=>openModal('modalPago'),200)">💰</button>
+  </div>
+</div>
+
+<!-- FAB BUTTON -->
+<button class="fab" id="fabBtn" onclick="toggleFab()">＋</button>
 
 <!-- MOBILE NAV -->
 <nav class="mobile-nav" id="mobileNav">
@@ -4301,6 +4419,25 @@ function mobileNav(name) {
   if (name === 'ctacte') initCtaCte();
   if (name === 'finanzas') loadFinanzas();
   if (name === 'recepciones') { loadRecepciones(); loadAjustesProveedor(); }
+}
+
+function toggleFab() {
+  const menu = document.getElementById('fabMenu');
+  const overlay = document.getElementById('fabOverlay');
+  const btn = document.getElementById('fabBtn');
+  const isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'flex';
+  overlay.classList.toggle('open', !isOpen);
+  btn.textContent = isOpen ? '＋' : '✕';
+  btn.style.transform = isOpen ? '' : 'rotate(45deg)';
+}
+
+function closeFab() {
+  document.getElementById('fabMenu').style.display = 'none';
+  document.getElementById('fabOverlay').classList.remove('open');
+  const btn = document.getElementById('fabBtn');
+  btn.textContent = '＋';
+  btn.style.transform = '';
 }
 
 function toggleMoreDrawer() {
