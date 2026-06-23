@@ -790,12 +790,15 @@ function showSection(name) {
         <button class="btn btn-secondary admin-only" onclick="abrirVersiones()">📋 Versiones</button>
       </div>
       <div class="search-bar">
-        <input class="search-input" type="text" placeholder="Buscar producto..." oninput="filterTable('tablaProductos',this.value)">
+        <input class="search-input" type="text" placeholder="Buscar producto..." oninput="filterTable('tablaProductos',this.value)" style="flex:2">
+        <select id="productoFiltroFamilia" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="filterProductosFamilia()">
+          <option value="">Todas las familias</option>
+        </select>
       </div>
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Código</th><th>Nombre</th><th>Familia</th><th>Precio s/IVA</th><th>Precio c/IVA</th><th>Costo</th><th>Margen</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
+            <thead><tr><th>Código</th><th>Nombre</th><th>Precio Dist. s/IVA</th><th>Precio Mayo. s/IVA</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
             <tbody id="tablaProductos"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
@@ -1920,9 +1923,12 @@ function showSection(name) {
         🎁 Permite precio editable en pedido/venta (para muestras)
       </label>
     </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('modalProducto')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveProducto()">Guardar</button>
+    <div class="modal-footer" style="justify-content:space-between">
+      <button class="btn btn-danger" id="btnBorrarProducto" style="display:none" onclick="borrarProductoDesdeModal()">🗑 Borrar producto</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" onclick="closeModal('modalProducto')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveProducto()">Guardar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3010,44 +3016,72 @@ async function loadProductos() {
   if (!SUPABASE_URL) return;
   try {
     cachedProductos = await api('productos', 'GET', null, '?order=codigo.asc');
+    // Poblar selector de familias
+    const sel = document.getElementById('productoFiltroFamilia');
+    if (sel) {
+      const familias = [...new Set(cachedProductos.map(p => p.familia).filter(Boolean))].sort();
+      const current = sel.value;
+      sel.innerHTML = '<option value="">Todas las familias</option>' +
+        familias.map(f => `<option value="${f}" ${f===current?'selected':''}>${f}</option>`).join('');
+    }
     renderProductos(cachedProductos);
   } catch(e) { console.error(e); }
 }
 
+function filterProductosFamilia() {
+  const familia = document.getElementById('productoFiltroFamilia')?.value || '';
+  const filtered = familia ? cachedProductos.filter(p => p.familia === familia) : cachedProductos;
+  renderProductos(filtered);
+}
+
 function renderProductos(list) {
   const tbody = document.getElementById('tablaProductos');
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="10"><div class="empty"><div class="empty-icon">📦</div><p>No hay productos todavía</p></div></td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-icon">📦</div><p>No hay productos todavía</p></div></td></tr>'; return; }
   tbody.innerHTML = list.map(p => {
-    const costo = parseFloat(p.costo || 0);
     const precio = parseFloat(p.precio || 0);
-    const margen = precio > 0 ? ((precio - costo) / precio * 100) : 0;
-    const margenColor = margen >= 20 ? 'badge-green' : margen >= 10 ? 'badge-yellow' : 'badge-red';
-    const stockBadge = p.stock <= p.stock_minimo
-      ? `<span class="badge badge-red">⚠ ${p.stock}</span>`
-      : `<span class="badge badge-green">${p.stock}</span>`;
+    const precioMay = parseFloat(p.precio_mayorista || 0);
+    const stock = parseFloat(p.stock || 0);
+    const stockBadge = stock <= (p.stock_minimo || 0) && p.stock_minimo > 0
+      ? `<span class="badge badge-red">⚠ ${stock}</span>`
+      : `<span class="badge badge-green">${stock}</span>`;
     return `
     <tr>
       <td>
         <code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px;font-weight:600">${p.codigo||'—'}</code>
         ${p.codigo_viejo ? `<span style="font-size:11px;color:var(--muted);margin-left:4px">(${p.codigo_viejo})</span>` : ''}
       </td>
-      <td><strong>${p.nombre}</strong>${p.promo_costo_activa ? ' <span style="background:#FEF3C7;color:#92400E;font-size:10px;padding:2px 6px;border-radius:10px">📉 Costo promo</span>' : ''}${p.descripcion ? `<br><span style="color:var(--muted);font-size:12px">${p.descripcion}</span>` : ''}</td>
-      <td>${p.familia ? `<span class="badge badge-blue">${p.familia}</span>` : '—'}${p.variante ? `<br><span style="font-size:11px;color:var(--muted)">${p.variante}</span>` : ''}</td>
-      <td>$${precio.toLocaleString('es-AR')}</td>
-      <td style="color:var(--info)">$${(precio * 1.21).toLocaleString('es-AR', {maximumFractionDigits:2})}</td>
-      ${currentRol === 'admin' ? `<td style="color:var(--muted)">$${costo.toLocaleString('es-AR')}</td><td><span class="badge ${margenColor}">${margen.toFixed(1)}%</span></td>` : '<td>—</td><td>—</td>'}
+      <td>
+        <strong>${p.nombre}</strong>
+        ${p.promo_costo_activa ? ' <span style="background:#FEF3C7;color:#92400E;font-size:10px;padding:2px 6px;border-radius:10px">📉 Costo promo</span>' : ''}
+        ${p.descripcion ? `<br><span style="color:var(--muted);font-size:12px">${p.descripcion}</span>` : ''}
+        ${p.familia ? `<br><span style="font-size:11px;color:var(--muted)">${p.familia}${p.variante ? ' · ' + p.variante : ''}</span>` : ''}
+      </td>
+      <td style="font-weight:600">$${precio.toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
+      <td style="color:#2563EB;font-weight:600">${precioMay > 0 ? '$' + precioMay.toLocaleString('es-AR',{maximumFractionDigits:2}) : '<span style="color:var(--muted)">—</span>'}</td>
       <td>${stockBadge} <span style="font-size:11px;color:var(--muted)">${p.unidad||''}</span></td>
-      <td>${p.activo ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-gray">Inactivo</span>'}</td>
+      <td>${p.activo !== false ? '<span class="badge badge-green">Activo</span>' : '<span class="badge badge-gray">Inactivo</span>'}</td>
       <td style="white-space:nowrap">
         ${currentRol === 'admin' ? `
           <button class="btn btn-sm btn-secondary" onclick="editProducto('${p.id}')">Editar</button>
           ${p.promo_costo_activa
             ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="restaurarCostoNormal('${p.id}')" title="Volver al costo normal">↩ Restaurar</button>`
             : `<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E" onclick="abrirCostoPromo('${p.id}')" title="Aplicar costo promocional">📉 Promo costo</button>`}
-          <button class="btn btn-sm btn-danger" onclick="deleteProducto('${p.id}')">Borrar</button>
         ` : '<span style="font-size:11px;color:var(--muted)">—</span>'}
       </td>
     </tr>`}).join('');
+}
+
+async function borrarProductoDesdeModal() {
+  const id = document.getElementById('productoId').value;
+  const nombre = document.getElementById('productoNombre').value;
+  if (!id) return;
+  if (!confirm(`¿Eliminar el producto "${nombre}"? Esta acción no se puede deshacer.`)) return;
+  try {
+    await api('productos', 'DELETE', null, `?id=eq.${id}`);
+    toast('Producto eliminado');
+    closeModal('modalProducto');
+    loadProductos();
+  } catch(e) { toast('Error al eliminar: ' + e.message, 'error'); }
 }
 
 function calcPrecioProducto() {
@@ -3112,6 +3146,7 @@ function editProducto(id) {
   const p = cachedProductos.find(x => x.id === id);
   if (!p) return;
   document.getElementById('modalProductoTitle').textContent = 'Editar producto';
+  document.getElementById('btnBorrarProducto').style.display = '';
   document.getElementById('productoId').value = p.id;
   document.getElementById('productoCodigo').value = p.codigo || '';
   document.getElementById('productoCodigoViejo').value = p.codigo_viejo || '';
@@ -3153,6 +3188,7 @@ async function deleteProducto(id) {
 
 function clearProductoForm() {
   ['productoId','productoCodigo','productoCodigoViejo','productoFamilia','productoVariante','productoNombre','productoDesc','productoCosto','productoMargen','productoMargenMayorista','productoUnidad','productoStock','productoStockMin','productoPromoPaga','productoPromoLleva'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('btnBorrarProducto').style.display = 'none';
   document.getElementById('productoPrecioPreview').textContent = '—';
   document.getElementById('productoTienePromo').checked = false;
   document.getElementById('productoPromoWrap').style.display = 'none';
