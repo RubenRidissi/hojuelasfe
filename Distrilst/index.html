@@ -866,7 +866,7 @@ function showSection(name) {
           <option value="">Todos los vendedores</option>
         </select>
       </div>
-      <div class="card">
+      <div class="card desktop-table">
         <div class="table-wrap">
           <table>
             <thead><tr><th>N° Remito</th><th>Cliente</th><th>Origen</th><th>Fecha generado</th><th>Entrega real</th><th>Total</th><th id="thRemitoVendedor" style="display:none">Vendedor</th><th></th></tr></thead>
@@ -874,6 +874,7 @@ function showSection(name) {
           </table>
         </div>
       </div>
+      <div class="mobile-cards" id="cardsRemitos"></div>
     </div>
 
     <!-- PEDIDOS A PROVEEDOR -->
@@ -3387,6 +3388,28 @@ async function loadRemitos() {
         <td><button class="btn btn-sm btn-secondary" onclick="verRemito('${r.origen_tipo}','${r.origen_id}')" title="Ver remito">👁 Ver</button></td>
       </tr>`;
     }).join('');
+
+    // MOBILE CARDS remitos
+    const cardsEl = document.getElementById('cardsRemitos');
+    if (cardsEl) {
+      cardsEl.innerHTML = remitos.length ? remitos.map(r => {
+        const cliente = cachedClientes.find(c => c.id === r.cliente_id);
+        const fechaGen = r.fecha_generado ? new Date(r.fecha_generado+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '—';
+        const entregado = !!r.fecha_entrega_real;
+        return `<div class="op-card">
+          <div class="op-card-header">
+            <span class="op-card-num">#${String(r.numero).padStart(6,'0')} · ${fechaGen}</span>
+            <span>${r.origen_tipo === 'pedido' ? '<span class="badge badge-yellow">📋 Pedido</span>' : '<span class="badge badge-green">🧾 Venta</span>'}</span>
+            <span style="font-size:11px;color:${entregado ? 'var(--success)' : '#D97706'}">${entregado ? '✓ Entregado' : 'Sin entregar'}</span>
+          </div>
+          <div class="op-card-cliente">${cliente ? nombreCliente(cliente) : '—'}</div>
+          <div class="op-card-total">$${parseFloat(r.total||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+          <div class="op-card-actions">
+            <button class="btn btn-secondary" onclick="verRemito('${r.origen_tipo}','${r.origen_id}')">👁 Ver remito</button>
+          </div>
+        </div>`;
+      }).join('') : '<div style="text-align:center;padding:32px;color:var(--muted)">No hay remitos todavía</div>';
+    }
   } catch(e) { console.error(e); toast('Error cargando remitos', 'error'); }
 }
 
@@ -4632,6 +4655,7 @@ function mobileNav(name) {
   if (name === 'productos') loadProductos();
   if (name === 'pedidos') loadPedidos();
   if (name === 'ventas') loadVentas();
+  if (name === 'remitos') loadRemitos();
   if (name === 'pagos') loadPagos();
   if (name === 'stock') loadStock();
   if (name === 'reportes') {
