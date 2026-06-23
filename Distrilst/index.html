@@ -4991,7 +4991,7 @@ let cachedVendedores = []; // { user_id, nombre }
 // Formato de nombre de cliente: "Razón Social (Fantasía)" o solo "Razón Social"
 function nombreCliente(c) {
   if (!c) return '—';
-  return c.nombre_fantasia ? `${c.nombre} (${c.nombre_fantasia})` : c.nombre;
+  return c.nombre_fantasia ? `${c.nombre_fantasia} (${c.nombre})` : c.nombre;
 }
 let cachedProductos = [];
 let pedidoItems = [];
