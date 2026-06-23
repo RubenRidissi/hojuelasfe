@@ -185,6 +185,9 @@
     .form-row { grid-template-columns: 1fr; }
     .hide-on-mobile { display: none !important; }
   }
+  @media (min-width: 769px) {
+    .hide-on-desktop { display: none !important; }
+  }
 
   /* MOBILE */
   .mobile-nav { display:none; position:fixed; bottom:0; left:0; right:0; background:var(--surface); border-top:1px solid var(--border); z-index:50; padding:0 4px; }
@@ -719,10 +722,15 @@ function showSection(name) {
     <div id="sec-clientes" class="section">
       <div class="page-header">
         <h1 class="page-title">Clientes</h1>
-        <div class="page-header-actions" style="display:flex;gap:8px">
-          <button class="btn btn-secondary admin-only" onclick="exportarExcel('clientes')">📥 Excel</button>
-          <button class="btn btn-secondary admin-only" onclick="imprimirClientes()">📄 Imprimir listado</button>
+        <!-- Admin: Excel + Imprimir + Nuevo (grilla 2x2 en móvil está ok) -->
+        <div class="page-header-actions admin-only" style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="exportarExcel('clientes')">📥 Excel</button>
+          <button class="btn btn-secondary" onclick="imprimirClientes()">📄 Imprimir listado</button>
           <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
+        </div>
+        <!-- Vendedor: solo Nuevo cliente, ancho completo en móvil -->
+        <div class="vendedor-only" style="display:flex;gap:8px">
+          <button class="btn btn-primary" style="flex:1" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
         </div>
       </div>
 
@@ -742,8 +750,10 @@ function showSection(name) {
         </div>
       </div>
 
-      <div class="search-bar">
-        <input class="search-input" id="searchClientes" type="text" placeholder="Buscar cliente..." oninput="filterClientes()" style="flex:2;min-width:0">
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input class="search-input" id="searchClientes" type="text" placeholder="Buscar cliente..." oninput="filterClientes()" style="flex:1;min-width:0">
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
         <select id="filtroEstadoCliente" onchange="filterClientes()" style="flex:1;min-width:0;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
           <option value="">Todos los estados</option>
           <option value="Pendiente">⏳ Pendiente</option>
@@ -797,20 +807,30 @@ function showSection(name) {
     <div id="sec-pedidos" class="section">
       <div class="page-header">
         <h1 class="page-title">Pedidos</h1>
-        <div class="page-header-actions" style="display:flex;gap:8px">
-          <button class="btn btn-primary hide-on-mobile" onclick="openModal('modalPedido')">+ Nuevo pedido</button>
+        <div class="page-header-actions hide-on-mobile" style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="openModal('modalPedido')">+ Nuevo pedido</button>
           <button class="btn btn-secondary" onclick="exportarExcel('pedidos')">📥 Excel</button>
         </div>
       </div>
-      <div class="search-bar">
-        <select id="pedidoFiltroEstado" style="width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPedidos()">
+
+      <!-- Línea 2 móvil: Selector cliente + Excel -->
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px" class="hide-on-desktop">
+        <select id="pedidoFiltroCliente" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPedidos()">
+          <option value="">Todos los clientes</option>
+        </select>
+        <button class="btn btn-secondary" onclick="exportarExcel('pedidos')">📥 Excel</button>
+      </div>
+
+      <!-- Línea 3: Filtros estado + vendedor (solo admin) -->
+      <div class="admin-only" style="display:flex;gap:8px;margin-bottom:12px">
+        <select id="pedidoFiltroEstado" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPedidos()">
           <option value="">Todos los estados</option>
           <option value="pendiente">Pendiente</option>
           <option value="confirmado">Confirmado</option>
           <option value="entregado">Entregado</option>
           <option value="cancelado">Cancelado</option>
         </select>
-        <select id="pedidoFiltroVendedor" style="display:none;width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPedidos()">
+        <select id="pedidoFiltroVendedor" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPedidos()">
           <option value="">Todos los vendedores</option>
         </select>
       </div>
@@ -829,14 +849,24 @@ function showSection(name) {
     <div id="sec-ventas" class="section">
       <div class="page-header">
         <h1 class="page-title">Ventas</h1>
-        <div class="page-header-actions" style="display:flex;gap:8px">
-          <button class="btn btn-primary hide-on-mobile" onclick="openModal('modalVenta')">+ Nueva venta</button>
+        <div class="page-header-actions hide-on-mobile" style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="openModal('modalVenta')">+ Nueva venta</button>
           <button class="btn btn-secondary admin-only" onclick="abrirAjusteCliente()">± NC/ND Cliente</button>
           <button class="btn btn-secondary" onclick="exportarExcel('ventas')">📥 Excel</button>
         </div>
       </div>
-      <div class="search-bar" id="ventasSearchBar">
-        <select id="ventaFiltroVendedor" style="display:none;width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadVentas()">
+
+      <!-- Línea 2 móvil: Selector cliente + Excel -->
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px" class="hide-on-desktop">
+        <select id="ventaFiltroCliente" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadVentas()">
+          <option value="">Todos los clientes</option>
+        </select>
+        <button class="btn btn-secondary" onclick="exportarExcel('ventas')">📥 Excel</button>
+      </div>
+
+      <!-- Línea 3: Filtro vendedor (solo admin) -->
+      <div class="admin-only" style="display:flex;gap:8px;margin-bottom:12px">
+        <select id="ventaFiltroVendedor" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadVentas()">
           <option value="">Todos los vendedores</option>
         </select>
       </div>
@@ -952,13 +982,23 @@ function showSection(name) {
     <div id="sec-pagos" class="section">
       <div class="page-header">
         <h1 class="page-title">💰 Pagos</h1>
-        <div class="page-header-actions" style="display:flex;gap:8px">
-          <button class="btn btn-primary hide-on-mobile" onclick="openModal('modalPago')">+ Registrar cobro</button>
+        <div class="page-header-actions hide-on-mobile" style="display:flex;gap:8px">
+          <button class="btn btn-primary" onclick="openModal('modalPago')">+ Registrar cobro</button>
           <button class="btn btn-secondary" onclick="exportarExcel('pagos')">📥 Excel</button>
         </div>
       </div>
-      <div class="search-bar admin-only">
-        <select id="pagoFiltroVendedor" style="width:auto;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPagos()">
+
+      <!-- Línea 2 móvil: Selector cliente + Excel -->
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px" class="hide-on-desktop">
+        <select id="pagoFiltroCliente" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPagos()">
+          <option value="">Todos los clientes</option>
+        </select>
+        <button class="btn btn-secondary" onclick="exportarExcel('pagos')">📥 Excel</button>
+      </div>
+
+      <!-- Línea 3: Filtro vendedor (solo admin) -->
+      <div class="admin-only" style="display:flex;gap:8px;margin-bottom:12px">
+        <select id="pagoFiltroVendedor" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPagos()">
           <option value="">Todos los vendedores</option>
         </select>
       </div>
@@ -3421,6 +3461,17 @@ async function loadPedidos() {
   if (!SUPABASE_URL) return;
   try {
     await loadVendedores();
+    await ensureCache();
+    // Poblar selector de clientes en móvil
+    const selCliente = document.getElementById('pedidoFiltroCliente');
+    if (selCliente && selCliente.options.length <= 1) {
+      const misClientes = currentRol === 'admin'
+        ? cachedClientes
+        : cachedClientes.filter(c => c.vendedor_id === currentUser);
+      selCliente.innerHTML = '<option value="">Todos los clientes</option>' +
+        misClientes.map(c => `<option value="${c.id}">${nombreCliente(c)}</option>`).join('');
+    }
+    const clienteFiltro = document.getElementById('pedidoFiltroCliente')?.value || '';
     const estado = document.getElementById('pedidoFiltroEstado')?.value || '';
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('pedidoFiltroVendedor')?.value || '')
@@ -3428,6 +3479,7 @@ async function loadPedidos() {
     let q = `?select=id,fecha,fecha_entrega,fecha_entrega_real,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
     if (estado) q += `&estado=eq.${estado}`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
+    if (clienteFiltro) q += `&cliente_id=eq.${clienteFiltro}`;
     const pedidos = await api('pedidos', 'GET', null, q);
     cachedPedidos = pedidos;
     // Traer todos los remitos existentes para saber cuáles pedidos ya tienen uno (directo o vía la venta relacionada)
@@ -3928,11 +3980,23 @@ async function loadVentas() {
   if (!SUPABASE_URL) return;
   try {
     await loadVendedores();
+    await ensureCache();
+    // Poblar selector de clientes en móvil
+    const selCliente = document.getElementById('ventaFiltroCliente');
+    if (selCliente && selCliente.options.length <= 1) {
+      const misClientes = currentRol === 'admin'
+        ? cachedClientes
+        : cachedClientes.filter(c => c.vendedor_id === currentUser);
+      selCliente.innerHTML = '<option value="">Todos los clientes</option>' +
+        misClientes.map(c => `<option value="${c.id}">${nombreCliente(c)}</option>`).join('');
+    }
+    const clienteFiltro = document.getElementById('ventaFiltroCliente')?.value || '';
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('ventaFiltroVendedor')?.value || '')
       : currentUser;
     let q = `?select=id,fecha,fecha_entrega_real,total,estado_pago,vendedor_id,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
+    if (clienteFiltro) q += `&cliente_id=eq.${clienteFiltro}`;
     const ventas = await api('ventas', 'GET', null, q);
     cachedVentas = ventas;
     // Buscar pedidos que se hayan convertido en alguna de estas ventas, para considerar el remito relacionado
@@ -4167,21 +4231,28 @@ async function loadPagos() {
   if (!SUPABASE_URL) return;
   try {
     await loadVendedores();
+    await ensureCache();
+    // Poblar selector de clientes en móvil
+    const selCliente = document.getElementById('pagoFiltroCliente');
+    if (selCliente && selCliente.options.length <= 1) {
+      const misClientes = currentRol === 'admin'
+        ? cachedClientes
+        : cachedClientes.filter(c => c.vendedor_id === currentUser);
+      selCliente.innerHTML = '<option value="">Todos los clientes</option>' +
+        misClientes.map(c => `<option value="${c.id}">${nombreCliente(c)}</option>`).join('');
+    }
+    const clienteFiltro = document.getElementById('pagoFiltroCliente')?.value || '';
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('pagoFiltroVendedor')?.value || '')
       : currentUser;
-    let q = `?select=id,fecha,monto,medio,notas,vendedor_id,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    let q = `?select=id,fecha,monto,medio,notas,vendedor_id,centro_costo,clientes(id,nombre,nombre_fantasia)&order=created_at.desc`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
+    if (clienteFiltro) q += `&cliente_id=eq.${clienteFiltro}`;
     const pagos = await api('pagos', 'GET', null, q);
     const isAdmin = currentRol === 'admin';
-    // Mostrar/ocultar columna vendedor y filtro (solo admin)
     const thVendedor = document.getElementById('thPagoVendedor');
-    const filtroVendedor = document.getElementById('pagoFiltroVendedor');
     if (thVendedor) thVendedor.style.display = isAdmin ? '' : 'none';
-    if (filtroVendedor) {
-      filtroVendedor.style.display = isAdmin ? '' : 'none';
-      if (isAdmin && filtroVendedor.options.length <= 1) poblarSelectVendedor('pagoFiltroVendedor');
-    }
+    if (isAdmin) poblarSelectVendedor('pagoFiltroVendedor');
     const tbody = document.getElementById('tablaPagos');
     if (!pagos.length) { tbody.innerHTML = `<tr><td colspan="${isAdmin ? 8 : 7}"><div class="empty"><div class="empty-icon">💰</div><p>No hay cobros registrados</p></div></td></tr>`; return; }
     tbody.innerHTML = pagos.map(p => {
