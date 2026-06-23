@@ -2309,8 +2309,10 @@ async function loadDashboardAdmin() {
   if (labelEl) labelEl.textContent = vLabel ? `Mostrando: ${vLabel}` : '';
 
   try {
-    const today = new Date().toISOString().split('T')[0];
-    const manana = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate()+1);
+    const manana = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,'0')}-${String(tomorrow.getDate()).padStart(2,'0')}`;
     const [pedidos, pagos, ventas, ventasHoy, entregasHoy, entregasManana] = await Promise.all([
       api('pedidos', 'GET', null, `?select=id&estado=eq.pendiente${vFiltro}`),
       api('pagos',   'GET', null, `?select=monto&fecha=eq.${today}${vFiltro}`),
@@ -2359,15 +2361,17 @@ async function loadDashboardVendedor() {
   document.getElementById('dashAdmin').style.display = 'none';
   document.getElementById('dashVendedor').style.display = '';
   document.getElementById('dashTitle').textContent = 'Inicio';
-  const today = new Date().toISOString().split('T')[0];
+  const _now = new Date();
+  const today = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
 
   // Lunes de la semana actual
   const d = new Date(); d.setHours(0,0,0,0);
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  const lunnes = d.toISOString().split('T')[0];
+  const lunnes = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
   try {
-    const manana = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+    const _tmr = new Date(_now); _tmr.setDate(_tmr.getDate()+1);
+    const manana = `${_tmr.getFullYear()}-${String(_tmr.getMonth()+1).padStart(2,'0')}-${String(_tmr.getDate()).padStart(2,'0')}`;
     const [pedidosPend, entregasHoy, ventasPend, clientesActivos] = await Promise.all([
       api('pedidos', 'GET', null, `?select=id&vendedor_id=eq.${currentUser}&estado=eq.pendiente`),
       api('pedidos', 'GET', null, `?select=id&vendedor_id=eq.${currentUser}&fecha_entrega=eq.${today}&estado=eq.pendiente`),
