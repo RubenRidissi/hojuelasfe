@@ -1296,6 +1296,18 @@ function showSection(name) {
     <!-- CONFIGURACION -->
     <div id="sec-config" class="section">
       <div class="page-header"><h1 class="page-title">Configuración</h1></div>
+
+      <!-- Tamaño de fuente -->
+      <div class="card" style="max-width:500px;margin-bottom:16px">
+        <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">🔤 Tamaño de texto</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Ajustá el tamaño del texto de la app a tu preferencia. Se guarda automáticamente.</p>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button onclick="setFontSize('small')" id="btnFontSmall" class="btn btn-secondary" style="flex:1">A<span style="font-size:10px"> Pequeño</span></button>
+          <button onclick="setFontSize('normal')" id="btnFontNormal" class="btn btn-secondary" style="flex:1">A <span style="font-size:13px">Normal</span></button>
+          <button onclick="setFontSize('large')" id="btnFontLarge" class="btn btn-secondary" style="flex:1">A<span style="font-size:16px"> Grande</span></button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px">Actual: <strong id="fontSizeLabel">Normal</strong></p>
+      </div>
       <div class="card" style="max-width:500px">
         <h3 style="font-size:14px;font-weight:600;margin-bottom:16px">Conexión a Supabase</h3>
         <div class="form-group">
@@ -2202,7 +2214,7 @@ function showSection(name) {
         <button class="btn btn-secondary btn-sm" onclick="closeModal('modalComprobante')">Cerrar</button>
       </div>
     </div>
-    <div id="compContenido" style="padding:0"></div>
+    <div id="compContenido" style="padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch"></div>
   </div>
 </div>
 
@@ -2378,6 +2390,7 @@ function closeModal(id) {
 
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', async () => {
+  initFontSize();
   document.getElementById('dashDate').textContent = new Date().toLocaleDateString('es-AR', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
 
   const today = new Date().toISOString().split('T')[0];
@@ -4567,6 +4580,26 @@ function closeCobrosDrawer() {
   d.classList.remove('open');
   d.style.display = 'none';
   document.getElementById('moreOverlay').classList.remove('open');
+}
+
+// ==================== FONT SIZE ====================
+function setFontSize(size) {
+  const sizes = { small: '13px', normal: '15px', large: '17px' };
+  const labels = { small: 'Pequeño', normal: 'Normal', large: 'Grande' };
+  document.documentElement.style.fontSize = sizes[size] || '15px';
+  localStorage.setItem('app_font_size', size);
+  ['small','normal','large'].forEach(s => {
+    const btn = document.getElementById('btnFont' + s.charAt(0).toUpperCase() + s.slice(1));
+    if (btn) btn.style.background = s === size ? 'var(--honey)' : '';
+    if (btn) btn.style.color = s === size ? '#fff' : '';
+  });
+  const lbl = document.getElementById('fontSizeLabel');
+  if (lbl) lbl.textContent = labels[size] || 'Normal';
+}
+
+function initFontSize() {
+  const saved = localStorage.getItem('app_font_size') || 'normal';
+  setFontSize(saved);
 }
 
 // ==================== CONFIG ====================
