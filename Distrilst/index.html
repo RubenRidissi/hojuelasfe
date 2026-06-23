@@ -1924,7 +1924,11 @@ function showSection(name) {
       </label>
     </div>
     <div class="modal-footer" style="justify-content:space-between">
-      <button class="btn btn-danger" id="btnBorrarProducto" style="display:none" onclick="borrarProductoDesdeModal()">🗑 Borrar producto</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-danger" id="btnBorrarProducto" style="display:none" onclick="borrarProductoDesdeModal()">🗑 Borrar</button>
+        <button class="btn btn-sm" id="btnPromoCostoModal" style="display:none;background:#FEF3C7;color:#92400E" onclick="abrirCostoPromoDesdeModal()">📉 Promo costo</button>
+        <button class="btn btn-sm" id="btnRestaurarCostoModal" style="display:none;background:#DBEAFE;color:#1D4ED8" onclick="restaurarCostoNormalDesdeModal()">↩ Restaurar costo</button>
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary" onclick="closeModal('modalProducto')">Cancelar</button>
         <button class="btn btn-primary" onclick="saveProducto()">Guardar</button>
@@ -3015,7 +3019,13 @@ function clearClienteForm() {
 async function loadProductos() {
   if (!SUPABASE_URL) return;
   try {
-    cachedProductos = await api('productos', 'GET', null, '?order=codigo.asc');
+    const [prods, stockData] = await Promise.all([
+      api('productos', 'GET', null, '?order=codigo.asc'),
+      api('stock_actual', 'GET', null, '?select=id,stock')
+    ]);
+    const stockMap = {};
+    stockData.forEach(s => { stockMap[s.id] = parseFloat(s.stock || 0); });
+    cachedProductos = prods.map(p => ({ ...p, stock_real: stockMap[p.id] ?? 0 }));
     // Poblar selector de familias
     const sel = document.getElementById('productoFiltroFamilia');
     if (sel) {
@@ -3040,7 +3050,7 @@ function renderProductos(list) {
   tbody.innerHTML = list.map(p => {
     const precio = parseFloat(p.precio || 0);
     const precioMay = parseFloat(p.precio_mayorista || 0);
-    const stock = parseFloat(p.stock || 0);
+    const stock = p.stock_real ?? parseFloat(p.stock || 0);
     const stockBadge = stock <= (p.stock_minimo || 0) && p.stock_minimo > 0
       ? `<span class="badge badge-red">⚠ ${stock}</span>`
       : `<span class="badge badge-green">${stock}</span>`;
@@ -3063,12 +3073,23 @@ function renderProductos(list) {
       <td style="white-space:nowrap">
         ${currentRol === 'admin' ? `
           <button class="btn btn-sm btn-secondary" onclick="editProducto('${p.id}')">Editar</button>
-          ${p.promo_costo_activa
-            ? `<button class="btn btn-sm" style="background:#DBEAFE;color:#1D4ED8" onclick="restaurarCostoNormal('${p.id}')" title="Volver al costo normal">↩ Restaurar</button>`
-            : `<button class="btn btn-sm" style="background:#FEF3C7;color:#92400E" onclick="abrirCostoPromo('${p.id}')" title="Aplicar costo promocional">📉 Promo costo</button>`}
         ` : '<span style="font-size:11px;color:var(--muted)">—</span>'}
       </td>
     </tr>`}).join('');
+}
+
+function abrirCostoPromoDesdeModal() {
+  const id = document.getElementById('productoId').value;
+  if (!id) return;
+  closeModal('modalProducto');
+  abrirCostoPromo(id);
+}
+
+function restaurarCostoNormalDesdeModal() {
+  const id = document.getElementById('productoId').value;
+  if (!id) return;
+  closeModal('modalProducto');
+  restaurarCostoNormal(id);
 }
 
 async function borrarProductoDesdeModal() {
@@ -3147,6 +3168,8 @@ function editProducto(id) {
   if (!p) return;
   document.getElementById('modalProductoTitle').textContent = 'Editar producto';
   document.getElementById('btnBorrarProducto').style.display = '';
+  document.getElementById('btnPromoCostoModal').style.display = p.promo_costo_activa ? 'none' : '';
+  document.getElementById('btnRestaurarCostoModal').style.display = p.promo_costo_activa ? '' : 'none';
   document.getElementById('productoId').value = p.id;
   document.getElementById('productoCodigo').value = p.codigo || '';
   document.getElementById('productoCodigoViejo').value = p.codigo_viejo || '';
@@ -3189,6 +3212,8 @@ async function deleteProducto(id) {
 function clearProductoForm() {
   ['productoId','productoCodigo','productoCodigoViejo','productoFamilia','productoVariante','productoNombre','productoDesc','productoCosto','productoMargen','productoMargenMayorista','productoUnidad','productoStock','productoStockMin','productoPromoPaga','productoPromoLleva'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('btnBorrarProducto').style.display = 'none';
+  document.getElementById('btnPromoCostoModal').style.display = 'none';
+  document.getElementById('btnRestaurarCostoModal').style.display = 'none';
   document.getElementById('productoPrecioPreview').textContent = '—';
   document.getElementById('productoTienePromo').checked = false;
   document.getElementById('productoPromoWrap').style.display = 'none';
