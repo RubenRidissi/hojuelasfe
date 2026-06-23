@@ -471,7 +471,7 @@ function showSection(name) {
   try {
     if (typeof loadDashboard === 'function' && name === 'dashboard') loadDashboard();
     if (typeof loadClientes === 'function' && name === 'clientes') loadClientes();
-    if (typeof loadProductos === 'function' && name === 'productos') loadProductos();
+    if (name === 'productos') { loadProductos(); loadListasRepo(); }
     if (typeof loadPedidos === 'function' && name === 'pedidos') loadPedidos();
     if (typeof loadVentas === 'function' && name === 'ventas') loadVentas();
     if (name === 'remitos') loadRemitos();
@@ -799,6 +799,15 @@ function showSection(name) {
             <tbody id="tablaProductos"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- REPOSITORIO LISTAS DE PRECIOS -->
+      <div class="card" style="margin-top:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <h3 style="font-size:14px;font-weight:600">📋 Listas de precios guardadas</h3>
+          <button class="btn btn-secondary btn-sm" onclick="loadListasRepo()">🔄 Actualizar</button>
+        </div>
+        <div id="listaRepo"><p style="color:var(--muted);font-size:13px">Cargando listas...</p></div>
       </div>
     </div>
 
@@ -1881,11 +1890,15 @@ function showSection(name) {
     <div id="productoCostoPromoAviso" style="display:none;background:#FEF3C7;color:#92400E;font-size:12px;padding:8px 10px;border-radius:7px;margin-bottom:10px">📉 Este producto tiene un costo promocional activo. Si cambiás el costo acá, se va a perder el costo normal guardado para restaurar.</div>
     <div class="form-row">
       <div class="form-group"><label>Costo *</label><input id="productoCosto" type="number" min="0" step="0.01" placeholder="0.00" oninput="calcPrecioProducto()"></div>
-      <div class="form-group"><label>Margen % *</label><input id="productoMargen" type="number" min="0" step="0.1" placeholder="Ej: 35" oninput="calcPrecioProducto()"></div>
+      <div class="form-group"><label>Margen Distribuidor % *</label><input id="productoMargen" type="number" min="0" step="0.1" placeholder="Ej: 35" oninput="calcPrecioProducto()"></div>
     </div>
     <div class="form-row">
+      <div class="form-group"><label style="margin-bottom:5px">Precio Distribuidor</label><div id="productoPrecioPreview" style="padding:8px 10px;background:var(--bg);border-radius:7px;font-size:14px;font-weight:600;color:var(--honey-dark)">—</div><input type="hidden" id="productoPrecio"></div>
+      <div class="form-group"><label>Margen Mayorista %</label><input id="productoMargenMayorista" type="number" min="0" step="0.1" placeholder="Ej: 25" oninput="calcPrecioProducto()"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label style="margin-bottom:5px">Precio Mayorista</label><div id="productoPrecioMayoristaPreview" style="padding:8px 10px;background:var(--bg);border-radius:7px;font-size:14px;font-weight:600;color:#2563EB">—</div><input type="hidden" id="productoPrecioMayorista"></div>
       <div class="form-group"><label>Unidad</label><input id="productoUnidad" placeholder="unidad, kg, paquete..."></div>
-      <div class="form-group"><label style="margin-bottom:5px">Precio de venta</label><div id="productoPrecioPreview" style="padding:8px 10px;background:var(--bg);border-radius:7px;font-size:14px;font-weight:600;color:var(--honey-dark)">—</div><input type="hidden" id="productoPrecio"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>Stock actual</label><input id="productoStock" type="number" min="0" placeholder="0"></div>
@@ -2169,8 +2182,9 @@ function showSection(name) {
     <div class="form-group">
       <label>Tipo de lista</label>
       <select id="listaTipo" onchange="toggleListaCliente()">
-        <option value="general">General — precio de lista</option>
-        <option value="cliente">Por cliente — con descuento aplicado</option>
+        <option value="distribuidor">Distribuidor — precio distribuidor</option>
+        <option value="mayorista">Mayorista — precio mayorista</option>
+        <option value="cliente">Por cliente — con descuento especial</option>
       </select>
     </div>
     <div class="form-group" id="listaClienteWrap" style="display:none">
@@ -3039,9 +3053,13 @@ function renderProductos(list) {
 function calcPrecioProducto() {
   const costo = parseFloat(document.getElementById('productoCosto').value) || 0;
   const margen = parseFloat(document.getElementById('productoMargen').value) || 0;
+  const margenMay = parseFloat(document.getElementById('productoMargenMayorista').value) || 0;
   const precio = margen > 0 ? costo / (1 - margen / 100) : costo;
+  const precioMay = margenMay > 0 ? costo / (1 - margenMay / 100) : costo;
   document.getElementById('productoPrecio').value = precio.toFixed(2);
   document.getElementById('productoPrecioPreview').textContent = precio > 0 ? `$${precio.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
+  document.getElementById('productoPrecioMayorista').value = precioMay.toFixed(2);
+  document.getElementById('productoPrecioMayoristaPreview').textContent = precioMay > 0 ? `$${precioMay.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '—';
 }
 
 function toggleProductoPromo() {
@@ -3061,6 +3079,8 @@ async function saveProducto() {
     costo: parseFloat(document.getElementById('productoCosto').value) || 0,
     margen_pct: parseFloat(document.getElementById('productoMargen').value) || 0,
     precio: parseFloat(document.getElementById('productoPrecio').value) || 0,
+    margen_mayorista: parseFloat(document.getElementById('productoMargenMayorista').value) || 0,
+    precio_mayorista: parseFloat(document.getElementById('productoPrecioMayorista').value) || 0,
     unidad: document.getElementById('productoUnidad').value.trim() || 'unidad',
     stock: parseInt(document.getElementById('productoStock').value) || 0,
     stock_minimo: parseInt(document.getElementById('productoStockMin').value) || 0,
@@ -3101,6 +3121,7 @@ function editProducto(id) {
   document.getElementById('productoDesc').value = p.descripcion || '';
   document.getElementById('productoCosto').value = p.costo || 0;
   document.getElementById('productoMargen').value = p.margen_pct || '';
+  document.getElementById('productoMargenMayorista').value = p.margen_mayorista || '';
   document.getElementById('productoCostoPromoAviso').style.display = p.promo_costo_activa ? '' : 'none';
   document.getElementById('productoUnidad').value = p.unidad || '';
   document.getElementById('productoStock').value = p.stock || 0;
@@ -3131,7 +3152,7 @@ async function deleteProducto(id) {
 }
 
 function clearProductoForm() {
-  ['productoId','productoCodigo','productoCodigoViejo','productoFamilia','productoVariante','productoNombre','productoDesc','productoCosto','productoMargen','productoUnidad','productoStock','productoStockMin','productoPromoPaga','productoPromoLleva'].forEach(id => document.getElementById(id).value = '');
+  ['productoId','productoCodigo','productoCodigoViejo','productoFamilia','productoVariante','productoNombre','productoDesc','productoCosto','productoMargen','productoMargenMayorista','productoUnidad','productoStock','productoStockMin','productoPromoPaga','productoPromoLleva'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('productoPrecioPreview').textContent = '—';
   document.getElementById('productoTienePromo').checked = false;
   document.getElementById('productoPromoWrap').style.display = 'none';
@@ -5159,7 +5180,7 @@ async function generarListaPrecios() {
     descPct = parseFloat(cliente?.descuento_pct || 0);
   }
 
-  // Group by familia
+  // Grupos por familia
   const grupos = {};
   productos.forEach(p => {
     const fam = p.familia || 'Otros';
@@ -5167,14 +5188,16 @@ async function generarListaPrecios() {
     grupos[fam].push(p);
   });
 
-  // Build HTML
   const colSpan = mostrarCodigo ? 4 : 3;
   let tablaRows = '';
   Object.entries(grupos).forEach(([fam, prods]) => {
     tablaRows += `<tr><td colspan="${colSpan}" style="background:#FEF3DC;font-weight:700;font-size:13px;color:#9A5F00;padding:8px 10px">${fam}</td></tr>`;
     prods.forEach(p => {
-      const precioLista = parseFloat(p.precio || 0);
-      const precioFinal = descPct > 0 ? precioLista * (1 - descPct / 100) : precioLista;
+      // Precio según tipo
+      const precioBase = tipo === 'mayorista'
+        ? parseFloat(p.precio_mayorista || p.precio || 0)
+        : parseFloat(p.precio || 0);
+      const precioFinal = descPct > 0 ? precioBase * (1 - descPct / 100) : precioBase;
       const precioFinalIVA = precioFinal * 1.21;
       const promoStr = p.promo && mostrarPromo ? `<span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:2px 6px;border-radius:10px;margin-left:6px">${p.promo}</span>` : '';
       tablaRows += `<tr>
@@ -5182,7 +5205,7 @@ async function generarListaPrecios() {
         <td>${p.nombre}${promoStr}</td>
         <td style="text-align:center;color:#78716C;font-size:12px">${p.unidad||''}</td>
         <td style="text-align:right;font-weight:600">
-          ${descPct > 0 ? `<span style="text-decoration:line-through;color:#A8A29E;font-size:11px;font-weight:400">$${(ivaOpcion==='coniva'?precioLista*1.21:precioLista).toLocaleString('es-AR',{maximumFractionDigits:2})}</span><br>` : ''}
+          ${descPct > 0 ? `<span style="text-decoration:line-through;color:#A8A29E;font-size:11px;font-weight:400">$${(ivaOpcion==='coniva'?precioBase*1.21:precioBase).toLocaleString('es-AR',{maximumFractionDigits:2})}</span><br>` : ''}
           ${ivaOpcion === 'ambos'
             ? `$${precioFinal.toLocaleString('es-AR',{maximumFractionDigits:2})} <span style="color:#1D4ED8;font-size:11px">($${precioFinalIVA.toLocaleString('es-AR',{maximumFractionDigits:2})})</span>`
             : ivaOpcion === 'coniva'
@@ -5194,7 +5217,13 @@ async function generarListaPrecios() {
     });
   });
 
-  const tituloLista = tipo === 'general' ? 'Lista de Precios General' : `Lista de Precios — ${cliente?.nombre}`;
+  // Título según tipo
+  const tituloLista = tipo === 'distribuidor'
+    ? 'Lista de Precios Distribuidor'
+    : tipo === 'mayorista'
+      ? 'Lista de Precios Mayorista'
+      : `Lista de Precios — ${cliente?.nombre_fantasia || cliente?.nombre || ''}`;
+
   const subtitulo = tipo === 'cliente' && descPct > 0
     ? `<p style="color:#15803D;font-size:13px;font-weight:600;margin:4px 0 0">Descuento aplicado: ${descPct}% sobre precio de lista</p>`
     : '';
@@ -5273,24 +5302,123 @@ async function generarListaPrecios() {
         <p style="font-weight:700;font-size:13px;margin:0">HOJUELAS S.R.L.</p>
         <p style="font-size:12px;color:#78716C;margin:2px 0 0"><a href="https://hojuelassrl.com/" style="color:#9A5F00">https://hojuelassrl.com/</a></p>
       </div>
-
       <div class="comp-footer">
         <div></div>
         <div>Generado el ${new Date().toLocaleDateString('es-AR')} · ${EMPRESA.nombre}</div>
       </div>
     </div>`;
 
-  // Open print window
+  // Nombre sugerido para el repositorio
+  const mes = new Date().toLocaleDateString('es-AR',{month:'short',year:'2-digit'}).replace(' ','-').replace('.','');
+  const nombreSugerido = tipo === 'distribuidor' ? `Lista Distribuidor ${mes}`
+    : tipo === 'mayorista' ? `Lista Mayorista ${mes}`
+    : `Lista ${cliente?.nombre_fantasia || cliente?.nombre || 'Cliente'} ${mes}`;
+
+  // Abrir ventana con opciones Imprimir y Guardar
   const win = window.open('', '_blank');
   win.document.write(`<!DOCTYPE html><html><head><title>${tituloLista}</title>
     <style>
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       body { font-family: Arial, sans-serif; margin:0; padding:0; color:#1C1917; }
       ${document.querySelector('style').textContent}
-    </style></head><body>${html}</body></html>`);
+      .lista-toolbar { display:flex;gap:10px;padding:12px 20px;background:#f8f7f4;border-bottom:1px solid #e0d9d0;align-items:center; }
+      .lista-toolbar button { padding:8px 16px;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600; }
+      .btn-imprimir { background:#9A5F00;color:#fff; }
+      .btn-guardar { background:#1D4ED8;color:#fff; }
+      @media print { .lista-toolbar { display:none !important; } }
+    </style>
+  </head><body>
+    <div class="lista-toolbar">
+      <button class="btn-imprimir" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+      <button class="btn-guardar" onclick="guardarEnRepo()">💾 Guardar en repositorio</button>
+      <span style="font-size:12px;color:#78716C">Nombre: <input id="repoNombre" value="${nombreSugerido}" style="padding:4px 8px;border:1px solid #ccc;border-radius:6px;font-size:13px;width:280px"></span>
+    </div>
+    ${html}
+    <script>
+      async function guardarEnRepo() {
+        const nombre = document.getElementById('repoNombre').value.trim();
+        if (!nombre) { alert('Escribí un nombre para la lista'); return; }
+        const btn = document.querySelector('.btn-guardar');
+        btn.textContent = 'Guardando...';
+        btn.disabled = true;
+        try {
+          const sbUrl = localStorage.getItem('sb_url');
+          const sbKey = localStorage.getItem('sb_key');
+          const token = localStorage.getItem('sb_token');
+          const res = await fetch(sbUrl + '/listas_precios_repo', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': sbKey,
+              'Authorization': 'Bearer ' + token,
+              'Prefer': 'return=representation'
+            },
+            body: JSON.stringify({ nombre, tipo: '${tipo}', html: document.querySelector('.comp-wrap').outerHTML })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            btn.textContent = '✓ Guardado';
+            btn.style.background = '#15803D';
+            alert('Lista guardada en el repositorio. Los vendedores ya pueden compartirla.');
+          } else {
+            throw new Error('Error al guardar');
+          }
+        } catch(e) {
+          btn.textContent = '💾 Guardar en repositorio';
+          btn.disabled = false;
+          alert('Error al guardar: ' + e.message);
+        }
+      }
+    <\/script>
+  </body></html>`);
   win.document.close();
   win.focus();
   closeModal('modalListaPrecios');
-  setTimeout(() => { win.print(); }, 500);
+}
+
+// ==================== REPOSITORIO LISTAS DE PRECIOS ====================
+async function loadListasRepo() {
+  const el = document.getElementById('listaRepo');
+  if (!el || !SUPABASE_URL) return;
+  try {
+    const listas = await api('listas_precios_repo', 'GET', null, '?select=id,nombre,tipo,created_at&order=created_at.desc');
+    if (!listas.length) {
+      el.innerHTML = '<p style="color:var(--muted);font-size:13px">No hay listas guardadas todavía. El admin puede guardar una desde Lista de precios → Guardar en repositorio.</p>';
+      return;
+    }
+    const tipoBadge = { distribuidor: 'badge-yellow', mayorista: 'badge-blue', cliente: 'badge-green' };
+    const tipoLabel = { distribuidor: 'Distribuidor', mayorista: 'Mayorista', cliente: 'Cliente' };
+    const baseUrl = window.location.origin + '/lista.html';
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px">` +
+      listas.map(l => {
+        const fecha = new Date(l.created_at).toLocaleDateString('es-AR');
+        const url = `${baseUrl}?id=${l.id}`;
+        const waMsg = encodeURIComponent(`Lista de Precios Hojuelas — ${l.nombre}\n${url}`);
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg);border-radius:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:14px">${l.nombre}</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">
+              <span class="badge ${tipoBadge[l.tipo]||'badge-gray'}">${tipoLabel[l.tipo]||l.tipo}</span>
+              · Guardada el ${fecha}
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0">
+            <a href="${url}" target="_blank" class="btn btn-sm btn-secondary">👁 Ver</a>
+            <a href="https://wa.me/?text=${waMsg}" target="_blank" class="btn btn-sm" style="background:#25D366;color:#fff">💬 WhatsApp</a>
+            <button class="btn btn-sm btn-danger admin-only" onclick="deleteListaRepo('${l.id}')">🗑</button>
+          </div>
+        </div>`;
+      }).join('') + '</div>';
+  } catch(e) { el.innerHTML = '<p style="color:#DC2626;font-size:13px">Error cargando listas</p>'; }
+}
+
+async function deleteListaRepo(id) {
+  if (!confirm('¿Eliminar esta lista del repositorio?')) return;
+  try {
+    await api('listas_precios_repo', 'DELETE', null, `?id=eq.${id}`);
+    toast('Lista eliminada');
+    loadListasRepo();
+  } catch(e) { toast('Error al eliminar', 'error'); }
 }
 
 // ==================== TOGGLE ESTADO CLIENTE ====================
