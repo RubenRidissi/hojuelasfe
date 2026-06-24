@@ -716,17 +716,6 @@ function showSection(name) {
           <div class="stat-card"><div class="stat-label">Clientes activos</div><div class="stat-value" id="vStatClientesActivos">—</div></div>
         </div>
 
-        <!-- Acciones rápidas -->
-        <div class="card" style="margin-bottom:16px">
-          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Acciones rápidas</h3>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <button class="btn btn-primary" onclick="showSection('pedidos');setTimeout(()=>openModal('modalPedido'),200)">📋 Nuevo pedido</button>
-            <button class="btn btn-primary" onclick="showSection('ventas');setTimeout(()=>openModal('modalVenta'),200)">🧾 Nueva venta</button>
-            <button class="btn btn-secondary" onclick="showSection('pagos');setTimeout(()=>openModal('modalPago'),200)">💰 Registrar cobro</button>
-            <button class="btn btn-secondary" onclick="showSection('clientes')">👥 Ver clientes</button>
-          </div>
-        </div>
-
         <!-- Mis últimos pedidos -->
         <div class="card" style="margin-bottom:16px">
           <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Mis últimos pedidos</h3>
@@ -2476,7 +2465,7 @@ function showSection(name) {
   <div class="more-drawer-item" onclick="mobileNav('productos');closeAllDrawers()"><span class="mn-icon">📦</span>Catálogo</div>
   <div class="more-drawer-item" onclick="mobileNav('stock');closeAllDrawers()"><span class="mn-icon">🏪</span>Stock</div>
   <div class="more-drawer-item admin-only" onclick="closeAllDrawers();showSection('productos');setTimeout(()=>openModal('modalListaPrecios'),300)"><span class="mn-icon">📄</span>Lista de precios</div>
-  <div class="more-drawer-item vendedor-only" onclick="mobileNav('productos');closeAllDrawers();setTimeout(()=>document.getElementById('listaRepo')?.scrollIntoView({behavior:'smooth'}),400)"><span class="mn-icon">📋</span>Listas guardadas</div>
+  <div class="more-drawer-item vendedor-only" onclick="mobileNav('productos');closeAllDrawers();setTimeout(()=>document.getElementById('listaRepo')?.scrollIntoView({behavior:'smooth'}),400)"><span class="mn-icon">📋</span>Listas de Precios Vigentes</div>
 </div>
 
 <!-- MORE DRAWER -->
@@ -2514,6 +2503,10 @@ function showSection(name) {
   <div class="fab-menu-item">
     <span class="fab-menu-label">Registrar cobro</span>
     <button class="fab-mini" onclick="closeFab();showSection('pagos');setTimeout(()=>openModal('modalPago'),200)">💰</button>
+  </div>
+  <div class="fab-menu-item">
+    <span class="fab-menu-label">Clientes</span>
+    <button class="fab-mini" onclick="closeFab();mobileNav('clientes')">👥</button>
   </div>
 </div>
 
