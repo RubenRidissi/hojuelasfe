@@ -8249,32 +8249,18 @@ function printComp() {
   const contenido = document.getElementById('compContenido').innerHTML;
   const titulo = document.getElementById('compModalTitle').textContent;
   const estilos = document.querySelector('style').textContent;
-  // Mobile: imprimir directamente en la página con un div temporal
-  if (window.innerWidth < 768) {
-    const printDiv = document.createElement('div');
-    printDiv.id = 'printTempDiv';
-    printDiv.innerHTML = contenido;
-    printDiv.style.cssText = 'position:fixed;inset:0;background:white;z-index:99999;overflow:auto;padding:20px';
-    document.body.appendChild(printDiv);
-    const style = document.createElement('style');
-    style.id = 'printTempStyle';
-    style.textContent = '@media print { body > *:not(#printTempDiv) { display:none !important; } #printTempDiv { position:static !important; } }';
-    document.head.appendChild(style);
-    setTimeout(function() {
-      window.print();
-      setTimeout(function() {
-        document.getElementById('printTempDiv')?.remove();
-        document.getElementById('printTempStyle')?.remove();
-      }, 500);
-    }, 300);
-    return;
-  }
-  // Desktop: abrir ventana nueva
+  const isMobile = window.innerWidth < 768;
   const win = window.open('', '_blank');
-  win.document.write('<!DOCTYPE html><html><head><title>' + titulo + '</title><style>body{font-family:Arial,sans-serif;margin:0;padding:0;color:#1C1917;}' + estilos + '</style></head><body>' + contenido + '</body></html>');
+  if (!win) { toast('Permitir ventanas emergentes para imprimir', 'error'); return; }
+  // Mobile: agregar botón manual de imprimir (no llamar print() automático)
+  const botonImprimir = isMobile
+    ? '<div style="text-align:center;padding:16px"><button onclick="window.print()" style="background:#D4860A;color:white;border:none;padding:12px 28px;border-radius:8px;font-size:16px;cursor:pointer">🖨 Imprimir / Guardar PDF</button></div>'
+    : '';
+  win.document.write('<!DOCTYPE html><html><head><title>' + titulo + '</title><style>body{font-family:Arial,sans-serif;margin:0;padding:0;color:#1C1917;}@media print{.no-print{display:none!important;}}' + estilos + '</style></head><body><div class="no-print">' + botonImprimir + '</div>' + contenido + '</body></html>');
   win.document.close();
   win.focus();
-  setTimeout(function() { win.print(); win.close(); }, 500);
+  // Desktop: imprimir automático
+  if (!isMobile) setTimeout(function() { win.print(); win.close(); }, 500);
 }
 
 
