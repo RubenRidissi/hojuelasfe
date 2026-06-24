@@ -1352,10 +1352,19 @@ function showSection(name) {
       </div>
       <!-- Filtros -->
       <div class="search-bar" style="margin-bottom:12px">
-        <select id="mapaFiltroVendedor" onchange="renderMapa()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
-          <option value="">Todos los vendedores</option>
-        </select>
-        <select id="mapaFiltroTipo" onchange="renderMapa()" style="padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+        <!-- Admin: filtro por vendedor -->
+        <div id="mapaFiltroVendedorWrap" style="display:none;flex:1">
+          <select id="mapaFiltroVendedor" onchange="renderMapa()" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+            <option value="">Todos los vendedores</option>
+          </select>
+        </div>
+        <!-- Vendedor: filtro por cliente -->
+        <div id="mapaFiltroClienteWrap" style="display:none;flex:1">
+          <select id="mapaFiltroCliente" onchange="renderMapa()" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
+            <option value="">Todos mis clientes</option>
+          </select>
+        </div>
+        <select id="mapaFiltroTipo" onchange="renderMapa()" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)">
           <option value="">Todos los tipos</option>
           <option value="Minorista">Minorista</option>
           <option value="Mayorista">Mayorista</option>
@@ -6079,37 +6088,37 @@ async function loadMapa() {
   if (!SUPABASE_URL) return;
   try {
     await loadVendedores();
-    // Filtro vendedor solo para admin
-    if (currentRol === 'admin') {
-      poblarSelectVendedor('mapaFiltroVendedor');
-      const filtroWrap = document.getElementById('mapaFiltroVendedorWrap');
-      if (filtroWrap) filtroWrap.style.display = '';
-    } else {
-      const filtroWrap = document.getElementById('mapaFiltroVendedorWrap');
-      if (filtroWrap) filtroWrap.style.display = 'none';
-    }
-    // Traer clientes
+    await ensureCache();
+
     const todos = cachedClientes.length ? cachedClientes : await api('clientes', 'GET', null, '?order=nombre.asc');
     if (!cachedClientes.length) cachedClientes = todos;
-    // Vendedor: solo sus clientes + sin asignar
-    mapaClientesData = currentRol === 'admin'
-      ? todos
-      : todos.filter(c => c.vendedor_id === currentUser || !c.vendedor_id);
 
-    // Destruir mapa anterior y reinicializar (fix móvil)
-    if (mapaInstance) {
-      mapaInstance.remove();
-      mapaInstance = null;
+    if (currentRol === 'admin') {
+      // Admin: mostrar filtro vendedor, ocultar filtro cliente
+      document.getElementById('mapaFiltroVendedorWrap').style.display = '';
+      document.getElementById('mapaFiltroClienteWrap').style.display = 'none';
+      poblarSelectVendedor('mapaFiltroVendedor');
+      mapaClientesData = todos;
+    } else {
+      // Vendedor: mostrar filtro cliente, ocultar filtro vendedor
+      document.getElementById('mapaFiltroVendedorWrap').style.display = 'none';
+      document.getElementById('mapaFiltroClienteWrap').style.display = '';
+      const misClientes = todos.filter(c => c.vendedor_id === currentUser || !c.vendedor_id);
+      mapaClientesData = misClientes;
+      const sel = document.getElementById('mapaFiltroCliente');
+      sel.innerHTML = '<option value="">Todos mis clientes</option>' +
+        misClientes.map(c => `<option value="${c.id}">${nombreCliente(c)}</option>`).join('');
     }
+
+    // Destruir y reinicializar mapa (fix móvil)
+    if (mapaInstance) { mapaInstance.remove(); mapaInstance = null; }
     mapaInstance = L.map('mapaContainer').setView([-31.63, -60.70], 11);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors',
-      maxZoom: 19
+      attribution: '© OpenStreetMap contributors', maxZoom: 19
     }).addTo(mapaInstance);
 
     renderMapa();
-    // Redibujado en móvil
-    setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 100);
+    setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 150);
     setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 500);
   } catch(e) { console.error(e); toast('Error cargando mapa', 'error'); }
 }
@@ -6117,6 +6126,7 @@ async function loadMapa() {
 function renderMapa() {
   if (!mapaInstance) return;
   const filtroVendedor = document.getElementById('mapaFiltroVendedor')?.value || '';
+  const filtroCliente = document.getElementById('mapaFiltroCliente')?.value || '';
   const filtroTipo = document.getElementById('mapaFiltroTipo')?.value || '';
 
   // Limpiar marcadores anteriores
@@ -6130,27 +6140,25 @@ function renderMapa() {
     Institucional: '#10B981'
   };
 
-  const conCoords = mapaClientesData.filter(c => c.latitud && c.longitud);
-  const sinCoords = mapaClientesData.filter(c => !c.latitud || !c.longitud);
+  let clientesFiltrados = mapaClientesData;
+  if (filtroVendedor) clientesFiltrados = clientesFiltrados.filter(c => c.vendedor_id === filtroVendedor);
+  if (filtroCliente) clientesFiltrados = clientesFiltrados.filter(c => c.id === filtroCliente);
+  if (filtroTipo) clientesFiltrados = clientesFiltrados.filter(c => c.tipo === filtroTipo);
+
+  const conCoords = clientesFiltrados.filter(c => c.latitud && c.longitud);
+  const sinCoords = clientesFiltrados.filter(c => !c.latitud || !c.longitud);
 
   // Actualizar contador sin coords
   const sinEl = document.getElementById('mapaSinCoords');
   if (sinEl) sinEl.textContent = sinCoords.length > 0 ? `${sinCoords.length} sin coordenadas` : '';
 
-  // Filtrar
-  const filtrados = conCoords.filter(c => {
-    const matchVendedor = !filtroVendedor || c.vendedor_id === filtroVendedor;
-    const matchTipo = !filtroTipo || c.tipo === filtroTipo;
-    return matchVendedor && matchTipo;
-  });
-
   const contador = document.getElementById('mapaContador');
-  if (contador) contador.textContent = `${filtrados.length} cliente${filtrados.length !== 1 ? 's' : ''} en el mapa`;
+  if (contador) contador.textContent = `${conCoords.length} cliente${conCoords.length !== 1 ? 's' : ''} en el mapa`;
 
-  if (!filtrados.length) return;
+  if (!conCoords.length) return;
 
   const bounds = [];
-  filtrados.forEach(c => {
+  conCoords.forEach(c => {
     const color = colores[c.tipo] || '#6B7280';
     const vendedorNombre = c.vendedor_id
       ? (cachedVendedores.find(v => v.user_id === c.vendedor_id)?.nombre || 'Asignado')
