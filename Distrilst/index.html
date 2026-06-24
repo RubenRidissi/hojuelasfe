@@ -8261,7 +8261,7 @@ function printComp() {
     document.head.appendChild(css);
     overlay.innerHTML = '<div id="printOverlayBar" style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:#f8f7f4;border-bottom:2px solid #D4860A;position:sticky;top:0;z-index:1;">' +
       '<button onclick="window.print()" style="background:#D4860A;color:white;border:none;padding:10px 24px;border-radius:8px;font-size:15px;cursor:pointer;font-weight:600;flex:1">🖨 Imprimir / Guardar PDF</button>' +
-      '<button onclick="document.getElementById('printOverlay').remove();document.getElementById('printOverlayCss').remove();" style="background:#78716C;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:15px;cursor:pointer">✕ Cerrar</button>' +
+      '<button onclick="document.getElementById(&quot;printOverlay&quot;).remove();document.getElementById(&quot;printOverlayCss&quot;).remove();" style="background:#78716C;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:15px;cursor:pointer">✕ Cerrar</button>' +
       '</div>' + contenido;
     document.body.appendChild(overlay);
     return;
