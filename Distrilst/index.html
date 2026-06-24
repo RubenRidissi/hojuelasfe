@@ -418,9 +418,10 @@ body.font-large input, body.font-large select, body.font-large textarea { font-s
 @media print {
   .sidebar, .page-header, .search-bar, .btn, .modal-backdrop, .toast { display: none !important; }
   .main { margin-left: 0 !important; padding: 0 !important; }
-  body { background: white !important; }
+  body { background: white !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
-.comp-wrap { font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto; padding: 32px; background: white; color: #1C1917; }
+.comp-wrap { font-family: Arial, sans-serif; width: 100%; box-sizing: border-box; padding: 28px 32px; background: white; color: #1C1917; }
 .comp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #D4860A; }
 .comp-logo { height: 64px; object-fit: contain; }
 .comp-empresa { text-align: right; }
@@ -429,14 +430,14 @@ body.font-large input, body.font-large select, body.font-large textarea { font-s
 .comp-tipo { text-align: center; margin: 16px 0; }
 .comp-tipo h3 { font-size: 20px; font-weight: 700; color: #1C1917; margin: 0; letter-spacing: 0.05em; text-transform: uppercase; }
 .comp-tipo .comp-num { font-size: 14px; color: #78716C; margin: 4px 0 0; }
-.comp-datos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; padding: 14px; background: #FAF8F4; border-radius: 8px; font-size: 13px; }
+.comp-datos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; padding: 14px; background: #FAF8F4 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; border-radius: 8px; font-size: 13px; }
 .comp-datos div span { color: #78716C; }
 .comp-datos div strong { display: block; margin-top: 2px; }
 .comp-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
-.comp-table th { background: #D4860A; color: white; padding: 8px 10px; text-align: left; font-size: 12px; }
+.comp-table th { background: #D4860A !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color: white !important; padding: 8px 10px; text-align: left; font-size: 12px; }
 .comp-table td { padding: 8px 10px; border-bottom: 1px solid #E8E2D8; }
 .comp-table tr:last-child td { border-bottom: none; }
-.comp-table tfoot td { font-weight: 700; background: #FEF3DC; border-top: 2px solid #D4860A; }
+.comp-table tfoot td { font-weight: 700; background: #FEF3DC !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; border-top: 2px solid #D4860A; }
 .comp-footer { margin-top: 24px; padding-top: 14px; border-top: 1px solid #E8E2D8; display: flex; justify-content: space-between; font-size: 11px; color: #78716C; }
 .comp-firma { margin-top: 48px; text-align: center; }
 .comp-firma .linea { border-top: 1px solid #1C1917; width: 200px; margin: 0 auto 6px; }
@@ -8256,7 +8257,7 @@ function printComp() {
   const botonImprimir = isMobile
     ? '<div style="text-align:center;padding:16px"><button onclick="window.print()" style="background:#D4860A;color:white;border:none;padding:12px 28px;border-radius:8px;font-size:16px;cursor:pointer">🖨 Imprimir / Guardar PDF</button></div>'
     : '';
-  win.document.write('<!DOCTYPE html><html><head><title>' + titulo + '</title><style>body{font-family:Arial,sans-serif;margin:0;padding:0;color:#1C1917;}@media print{.no-print{display:none!important;}}' + estilos + '</style></head><body><div class="no-print">' + botonImprimir + '</div>' + contenido + '</body></html>');
+  win.document.write('<!DOCTYPE html><html><head><title>' + titulo + '</title><style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}body{font-family:Arial,sans-serif;margin:0;padding:0;color:#1C1917;}@media print{.no-print{display:none!important;}}' + estilos + '</style></head><body><div class="no-print">' + botonImprimir + '</div>' + contenido + '</body></html>');
   win.document.close();
   win.focus();
   // Desktop: imprimir automático
