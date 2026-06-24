@@ -457,10 +457,9 @@ body.font-large input, body.font-large select, body.font-large textarea { font-s
 <script>
 // showSection - handles nav and data loading
 function toggleNavGroup(group) {
-  const grpId = 'navGrp' + group.charAt(0).toUpperCase() + group.slice(1);
-  const subId = 'navSub' + group.charAt(0).toUpperCase() + group.slice(1);
-  const header = document.getElementById(grpId);
-  const sub = document.getElementById(subId);
+  const cap = group.charAt(0).toUpperCase() + group.slice(1);
+  const header = document.getElementById('navGrp' + cap);
+  const sub = document.getElementById('navSub' + cap);
   if (!header || !sub) return;
   const isOpen = sub.classList.contains('open');
   header.classList.toggle('open', !isOpen);
@@ -468,7 +467,14 @@ function toggleNavGroup(group) {
 }
 
 function openNavGroup(section) {
-  const grupos = { pedidos: 'Operaciones', ventas: 'Operaciones', remitos: 'Operaciones', pagos: 'Cobros', ctacte: 'Cobros' };
+  const grupos = {
+    clientes: 'Clientes', mapa: 'Clientes',
+    pedidos: 'Clientes', ventas: 'Clientes', remitos: 'Clientes',
+    pagos: 'Clientes', ctacte: 'Clientes',
+    proveedor: 'Proveedores', recepciones: 'Proveedores',
+    productos: 'Productos', stock: 'Productos',
+    finanzas: 'Finanzas'
+  };
   const grupo = grupos[section];
   if (grupo) {
     document.getElementById('navGrp' + grupo)?.classList.add('open');
@@ -553,21 +559,18 @@ function showSection(name) {
       <div class="nav-item active" onclick="showSection('dashboard')">
         <span class="nav-icon">📊</span><span>Dashboard</span>
       </div>
-      <div class="nav-item" onclick="showSection('clientes')">
-        <span class="nav-icon">👥</span><span>Clientes</span>
-      </div>
-      <div class="nav-item" onclick="showSection('mapa')">
-        <span class="nav-icon">🗺️</span><span>Mapa</span>
-      </div>
-      <div class="nav-item" onclick="showSection('productos')">
-        <span class="nav-icon">📦</span><span>Productos</span>
-      </div>
 
-      <!-- GRUPO OPERACIONES -->
-      <div class="nav-group-header" id="navGrpOperaciones" onclick="toggleNavGroup('operaciones')">
-        <span class="nav-icon">📋</span><span>Operaciones</span><span class="nav-arrow">▼</span>
+      <!-- GRUPO CLIENTES -->
+      <div class="nav-group-header" id="navGrpClientes" onclick="toggleNavGroup('clientes')">
+        <span class="nav-icon">👥</span><span>Clientes</span><span class="nav-arrow">▼</span>
       </div>
-      <div class="nav-submenu" id="navSubOperaciones">
+      <div class="nav-submenu" id="navSubClientes">
+        <div class="nav-item" onclick="showSection('clientes')">
+          <span class="nav-icon">👥</span><span>Listado</span>
+        </div>
+        <div class="nav-item" onclick="showSection('mapa')">
+          <span class="nav-icon">🗺️</span><span>Mapa</span>
+        </div>
         <div class="nav-item" onclick="showSection('pedidos')">
           <span class="nav-icon">📋</span><span>Pedidos</span>
         </div>
@@ -577,13 +580,6 @@ function showSection(name) {
         <div class="nav-item" onclick="showSection('remitos')">
           <span class="nav-icon">🚚</span><span>Remitos</span>
         </div>
-      </div>
-
-      <!-- GRUPO COBROS -->
-      <div class="nav-group-header" id="navGrpCobros" onclick="toggleNavGroup('cobros')">
-        <span class="nav-icon">💰</span><span>Cobros</span><span class="nav-arrow">▼</span>
-      </div>
-      <div class="nav-submenu" id="navSubCobros">
         <div class="nav-item" onclick="showSection('pagos')">
           <span class="nav-icon">💰</span><span>Pagos</span>
         </div>
@@ -592,18 +588,51 @@ function showSection(name) {
         </div>
       </div>
 
-      <div class="nav-item admin-only" onclick="showSection('proveedor')">
-        <span class="nav-icon">🏭</span><span>Pedidos Proveedor</span>
+      <!-- GRUPO PROVEEDORES (admin) -->
+      <div class="nav-group-header admin-only" id="navGrpProveedores" onclick="toggleNavGroup('proveedores')">
+        <span class="nav-icon">🏭</span><span>Proveedores</span><span class="nav-arrow">▼</span>
       </div>
-      <div class="nav-item admin-only" onclick="showSection('recepciones')">
-        <span class="nav-icon">📥</span><span>Recepciones</span>
+      <div class="nav-submenu admin-only" id="navSubProveedores">
+        <div class="nav-item" onclick="showSection('proveedor')">
+          <span class="nav-icon">📋</span><span>Pedidos</span>
+        </div>
+        <div class="nav-item" onclick="showSection('recepciones')">
+          <span class="nav-icon">📥</span><span>Recepciones</span>
+        </div>
+        <div class="nav-item" style="color:var(--muted);cursor:default;opacity:0.5">
+          <span class="nav-icon">💳</span><span>Cta. Cte. *(próx.)*</span>
+        </div>
       </div>
-      <div class="nav-item" onclick="showSection('stock')">
-        <span class="nav-icon">📦</span><span>Stock</span>
+
+      <!-- GRUPO PRODUCTOS -->
+      <div class="nav-group-header" id="navGrpProductos" onclick="toggleNavGroup('productos')">
+        <span class="nav-icon">📦</span><span>Productos</span><span class="nav-arrow">▼</span>
       </div>
-      <div class="nav-item admin-only" onclick="showSection('finanzas')">
-        <span class="nav-icon">💵</span><span>Finanzas</span>
+      <div class="nav-submenu" id="navSubProductos">
+        <div class="nav-item" onclick="showSection('productos')">
+          <span class="nav-icon">📦</span><span>Catálogo</span>
+        </div>
+        <div class="nav-item" onclick="showSection('stock')">
+          <span class="nav-icon">🏪</span><span>Stock</span>
+        </div>
+        <div class="nav-item admin-only" onclick="showSection('productos');setTimeout(()=>openModal('modalListaPrecios'),300)">
+          <span class="nav-icon">📄</span><span>Lista de precios</span>
+        </div>
+        <div class="nav-item vendedor-only" onclick="showSection('productos');setTimeout(()=>document.getElementById('listaRepo')?.scrollIntoView({behavior:'smooth'}),400)">
+          <span class="nav-icon">📋</span><span>Listas guardadas</span>
+        </div>
       </div>
+
+      <!-- GRUPO FINANZAS (admin) -->
+      <div class="nav-group-header admin-only" id="navGrpFinanzas" onclick="toggleNavGroup('finanzas')">
+        <span class="nav-icon">💵</span><span>Finanzas</span><span class="nav-arrow">▼</span>
+      </div>
+      <div class="nav-submenu admin-only" id="navSubFinanzas">
+        <div class="nav-item" onclick="showSection('finanzas')">
+          <span class="nav-icon">💵</span><span>Finanzas</span>
+        </div>
+      </div>
+
       <div class="nav-item" onclick="showSection('reportes')">
         <span class="nav-icon">📊</span><span>Reportes</span>
       </div>
@@ -7957,7 +7986,6 @@ async function exportarTodoExcel() {
   btn.textContent = '⏳ Exportando...';
   status.textContent = '';
   try {
-    // Cargar SheetJS dinámicamente si no está disponible
     if (typeof XLSX === 'undefined') {
       await new Promise((res, rej) => {
         const s = document.createElement('script');
@@ -7966,7 +7994,6 @@ async function exportarTodoExcel() {
         document.head.appendChild(s);
       });
     }
-
     const tablas = [
       { nombre: 'Clientes', tabla: 'clientes', query: '?order=nombre.asc' },
       { nombre: 'Productos', tabla: 'productos', query: '?order=codigo.asc' },
@@ -7981,24 +8008,19 @@ async function exportarTodoExcel() {
       { nombre: 'Ajustes Clientes', tabla: 'ajuste_cliente', query: '?order=created_at.asc&select=fecha,tipo,monto,descripcion,clientes(nombre)' },
       { nombre: 'Objetivos Ventas', tabla: 'objetivos_ventas', query: '?order=anio.asc,mes.asc' },
     ];
-
     const wb = XLSX.utils.book_new();
     let exportadas = 0;
-
     for (const t of tablas) {
       status.textContent = `Exportando ${t.nombre}...`;
       try {
         const datos = await api(t.tabla, 'GET', null, t.query);
         if (!datos.length) continue;
-        // Aplanar objetos anidados
         const aplanados = datos.map(row => {
           const flat = {};
           Object.entries(row).forEach(([k, v]) => {
             if (v && typeof v === 'object' && !Array.isArray(v)) {
               Object.entries(v).forEach(([k2, v2]) => { flat[`${k}_${k2}`] = v2; });
-            } else if (!Array.isArray(v)) {
-              flat[k] = v ?? '';
-            }
+            } else if (!Array.isArray(v)) { flat[k] = v ?? ''; }
           });
           return flat;
         });
@@ -8007,16 +8029,13 @@ async function exportarTodoExcel() {
         exportadas++;
       } catch(e) { console.warn('Error exportando', t.nombre, e); }
     }
-
     const fecha = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'}).replace(/\//g,'-');
     XLSX.writeFile(wb, `HojuelasSFE_Backup_${fecha}.xlsx`);
-
     status.textContent = `✓ ${exportadas} tablas exportadas correctamente`;
     status.style.color = 'var(--success)';
   } catch(e) {
     status.textContent = 'Error: ' + e.message;
     status.style.color = '#DC2626';
-    console.error(e);
   } finally {
     btn.disabled = false;
     btn.textContent = '📊 Exportar todo a Excel';
