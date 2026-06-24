@@ -2476,6 +2476,7 @@ function showSection(name) {
   <div style="border-top:1px solid var(--border);margin:8px 0" class="admin-only"></div>
   <div class="more-drawer-item vendedor-only" id="morePerfil" onclick="mobileNav('perfil');closeAllDrawers()"><span class="mn-icon">👤</span>Mi Perfil</div>
   <div class="more-drawer-item admin-only" id="moreConfig" onclick="mobileNav('config');closeAllDrawers()"><span class="mn-icon">⚙️</span>Configuración</div>
+  <div class="more-drawer-item vendedor-only" onclick="closeAllDrawers();abrirAyuda()"><span class="mn-icon">❓</span>Ayuda</div>
   <div style="border-top:1px solid var(--border);margin:8px 0"></div>
   <div style="padding:10px 20px 4px;display:flex;align-items:center;gap:10px">
     <div style="width:34px;height:34px;border-radius:50%;background:var(--honey-light);display:flex;align-items:center;justify-content:center;font-size:16px">👤</div>
@@ -8250,12 +8251,13 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:12px;flex-shrink:0">
       <button class="ayuda-tab active" onclick="switchAyuda('dashboard',this)">🏠 Inicio</button>
+      <button class="ayuda-tab" onclick="switchAyuda('navegacion',this)">🧭 Navegación</button>
       <button class="ayuda-tab" onclick="switchAyuda('clientes',this)">👥 Clientes</button>
       <button class="ayuda-tab" onclick="switchAyuda('pedidos',this)">📋 Pedidos</button>
       <button class="ayuda-tab" onclick="switchAyuda('ventas',this)">🧾 Ventas</button>
       <button class="ayuda-tab" onclick="switchAyuda('pagos',this)">💰 Pagos</button>
+      <button class="ayuda-tab" onclick="switchAyuda('productos',this)">📦 Productos</button>
       <button class="ayuda-tab" onclick="switchAyuda('reportes',this)">📊 Reportes</button>
-      <button class="ayuda-tab" onclick="switchAyuda('excel',this)">📥 Excel</button>
     </div>
     <div style="overflow-y:auto;flex:1;padding-right:4px">
 
@@ -8269,10 +8271,27 @@ document.addEventListener('DOMContentLoaded', function() {
           <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Cobrado hoy</strong> — Total de cobros que registraste hoy.</div>
           <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Ventas esta semana</strong> — Monto total de tus ventas desde el lunes.</div>
           <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Clientes activos</strong> — Clientes asignados a vos con estado Activo.</div>
-          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Productos disponibles</strong> — Productos activos en el catálogo.</div>
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Productos disponibles</strong> — Productos activos en el catálogo con stock.</div>
         </div>
-        <div style="background:#FEF9C3;border-radius:8px;padding:10px 12px;font-size:13px;border-left:3px solid #EAB308">
-          <strong>⚠ Stock bajo</strong> — Si aparece una tabla al final del inicio, hay productos con stock en o por debajo del mínimo. Tenerlo en cuenta al tomar pedidos.
+      </div>
+
+      <!-- NAVEGACIÓN -->
+      <div id="ayuda-navegacion" class="ayuda-panel" style="display:none">
+        <h4 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--honey-dark)">🧭 Cómo navegar</h4>
+        <p style="font-size:13px;margin-bottom:10px">La app tiene una barra de navegación abajo con 5 botones:</p>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>📊 Inicio</strong> — Tu dashboard con resumen del día.</div>
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>👥 Clientes</strong> — Abre un menú con: Listado, Mapa, Pedidos, Ventas, Remitos, Pagos y Cta. Corriente.</div>
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>📦 Productos</strong> — Abre un menú con: Catálogo, Stock y Listas de Precios Vigentes.</div>
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>📊 Reportes</strong> — Tus reportes de ventas.</div>
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>☰ Más</strong> — Mi Perfil, Ayuda y Cerrar sesión.</div>
+        </div>
+        <p style="font-size:13px;margin-bottom:10px">El botón <strong>＋</strong> (naranja, abajo a la derecha) es el acceso rápido para las acciones más frecuentes:</p>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px">📋 Nuevo pedido</div>
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px">🧾 Nueva venta</div>
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px">💰 Registrar cobro</div>
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px">👥 Clientes</div>
         </div>
       </div>
 
@@ -8280,26 +8299,17 @@ document.addEventListener('DOMContentLoaded', function() {
       <div id="ayuda-clientes" class="ayuda-panel" style="display:none">
         <h4 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--honey-dark)">👥 Clientes</h4>
         <p style="font-size:13px;font-weight:600;margin-bottom:6px">Buscar y filtrar</p>
-        <p style="font-size:13px;margin-bottom:12px">Usá la barra de búsqueda para encontrar clientes por nombre, email o localidad. Los filtros de estado y cartera acotan la lista. El contador a la derecha muestra cuántos coinciden.</p>
-        <p style="font-size:13px;font-weight:600;margin-bottom:6px">Tipos de clientes</p>
-        <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px">
-          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><span style="background:#DCFCE7;color:#15803D;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">✓ Mío</span> — Asignado a vos. Podés editarlo y operarlo.</div>
-          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><span style="background:#F3F4F6;color:#374151;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">Sin asignar</span> — Sin vendedor. Podés solicitar que te lo asignen.</div>
-          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><span style="background:#DBEAFE;color:#1D4ED8;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">Nombre</span> — De otro vendedor. Podés solicitar que te lo asignen.</div>
-        </div>
-        <p style="font-size:13px;font-weight:600;margin-bottom:6px">Solicitar un cliente</p>
-        <p style="font-size:13px;margin-bottom:12px">En clientes sin asignar o de otro vendedor aparece el botón <strong>📬 Solicitar</strong>. Al presionarlo se envía una solicitud al administrador. Mientras esté pendiente, el botón muestra "Solicitud enviada".</p>
+        <p style="font-size:13px;margin-bottom:12px">Usá la barra de búsqueda para encontrar clientes por nombre, email o localidad. Los filtros de estado y cartera acotan la lista.</p>
+        <p style="font-size:13px;font-weight:600;margin-bottom:6px">Nuevo cliente</p>
+        <p style="font-size:13px;margin-bottom:12px">Tocá <strong>+ Nuevo cliente</strong>. El cliente queda Activo y asignado a tu cartera directamente.</p>
         <p style="font-size:13px;font-weight:600;margin-bottom:6px">Editar un cliente propio</p>
         <p style="font-size:13px;margin-bottom:6px">En tus clientes aparece el botón ✏. Podés modificar:</p>
         <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:10px">Teléfono · Email · Dirección · Localidad · Provincia · Notas · Coordenadas</div>
         <div style="background:#FEF9C3;border-radius:8px;padding:10px 12px;font-size:13px;border-left:3px solid #EAB308;margin-bottom:12px">
           Nombre, Tipo, Descuento, Estado y Facturación solo los puede modificar el administrador.
         </div>
-        <p style="font-size:13px;font-weight:600;margin-bottom:6px">Coordenadas y mapa</p>
-        <p style="font-size:13px;margin-bottom:8px">Si un cliente tiene coordenadas, aparece 📍 en la lista. Haciendo click abre Google Maps con la ubicación.</p>
-        <div style="background:#FEF9C3;border-radius:8px;padding:10px 12px;font-size:13px;border-left:3px solid #EAB308">
-          Usá <strong>punto</strong> como separador decimal: <code>-31.6333</code> y <code>-60.7000</code>. Las coordenadas las encontrás tocando el lugar en Google Maps.
-        </div>
+        <p style="font-size:13px;font-weight:600;margin-bottom:6px">Mapa</p>
+        <p style="font-size:13px">En Clientes → Mapa ves la ubicación de tus clientes. Si un cliente tiene coordenadas, aparece 📍 en la lista.</p>
       </div>
 
       <!-- PEDIDOS -->
@@ -8307,58 +8317,66 @@ document.addEventListener('DOMContentLoaded', function() {
         <h4 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--honey-dark)">📋 Pedidos</h4>
         <p style="font-size:13px;font-weight:600;margin-bottom:6px">Crear un pedido</p>
         <ol style="font-size:13px;margin-left:16px;margin-bottom:12px;line-height:2">
-          <li>Hacé click en <strong>+ Nuevo pedido</strong>.</li>
-          <li>Seleccioná el cliente (podés escribir para buscar).</li>
+          <li>Tocá el botón <strong>＋</strong> → Nuevo pedido, o entrá por Clientes → Pedidos.</li>
+          <li>Seleccioná el cliente.</li>
           <li>Elegí la fecha de entrega (opcional).</li>
-          <li>Seleccioná un producto, ingresá la cantidad y presioná <strong>Agregar</strong>.</li>
-          <li>Repetí para cada producto del pedido.</li>
-          <li>El descuento del cliente se aplica automáticamente.</li>
-          <li>Presioná <strong>Guardar pedido</strong>.</li>
+          <li>Seleccioná un producto, ingresá la cantidad y tocá <strong>+ Agregar</strong>.</li>
+          <li>Repetí para cada producto.</li>
+          <li>Tocá <strong>Guardar pedido</strong>.</li>
         </ol>
         <p style="font-size:13px;font-weight:600;margin-bottom:6px">Promociones</p>
-        <p style="font-size:13px;margin-bottom:12px">Si un producto tiene promo (ej: 6+1), al agregarlo aparece un aviso. Activá el checkbox para sumar las unidades bonificadas automáticamente.</p>
-        <p style="font-size:13px;font-weight:600;margin-bottom:6px">Cambiar el estado</p>
-        <p style="font-size:13px;margin-bottom:12px">En la lista, cada pedido tiene un selector: <strong>Pendiente → Confirmado → Entregado → Cancelado</strong>. El cambio se guarda al instante.</p>
+        <p style="font-size:13px;margin-bottom:12px">Si un producto tiene promo (ej: 10+1), al agregarlo aparece un aviso. Activá el checkbox para sumar las unidades bonificadas. Si dos productos de la misma familia suman el umbral, la app también te pregunta.</p>
+        <p style="font-size:13px;font-weight:600;margin-bottom:6px">Editar un pedido pendiente</p>
+        <p style="font-size:13px;margin-bottom:12px">Los pedidos en estado Pendiente tienen el botón ✏ Editar en la card.</p>
         <p style="font-size:13px;font-weight:600;margin-bottom:6px">Ver comprobante</p>
-        <p style="font-size:13px">El botón 📋 en cada fila abre el comprobante para compartir o imprimir.</p>
+        <p style="font-size:13px">El botón 📋 abre el comprobante. Desde ahí podés descargarlo y compartirlo por WhatsApp.</p>
       </div>
 
       <!-- VENTAS -->
       <div id="ayuda-ventas" class="ayuda-panel" style="display:none">
         <h4 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--honey-dark)">🧾 Ventas</h4>
         <div style="background:#DBEAFE;border-radius:8px;padding:10px 12px;font-size:13px;border-left:3px solid #3B82F6;margin-bottom:14px">
-          <strong>¿Diferencia entre Pedido y Venta?</strong><br>Un <strong>Pedido</strong> es una solicitud aún no facturada. Una <strong>Venta</strong> es una operación concretada, con cobro pendiente o realizado.
+          <strong>¿Diferencia entre Pedido y Venta?</strong><br>Un <strong>Pedido</strong> es una solicitud aún no facturada. Una <strong>Venta</strong> es una operación concretada.
         </div>
         <p style="font-size:13px;font-weight:600;margin-bottom:6px">Registrar una venta</p>
         <ol style="font-size:13px;margin-left:16px;margin-bottom:12px;line-height:2">
-          <li>Hacé click en <strong>+ Nueva venta</strong>.</li>
+          <li>Tocá el botón <strong>＋</strong> → Nueva venta.</li>
           <li>Seleccioná el cliente.</li>
           <li>Elegí la fecha (por defecto hoy).</li>
           <li>Agregá los productos con sus cantidades.</li>
-          <li>El descuento del cliente se aplica automáticamente.</li>
-          <li>Presioná <strong>Guardar venta</strong>.</li>
+          <li>Tocá <strong>Guardar venta</strong>.</li>
         </ol>
-        <p style="font-size:13px;font-weight:600;margin-bottom:6px">Marcar como cobrada</p>
-        <p style="font-size:13px;margin-bottom:12px">Las ventas con pago pendiente muestran el botón <strong>Cobrar</strong>. Al presionarlo se registra el cobro y cambia a "Pagado".</p>
         <p style="font-size:13px;font-weight:600;margin-bottom:6px">Ver comprobante</p>
-        <p style="font-size:13px">El botón 🧾 en cada fila abre el comprobante para compartir o imprimir.</p>
+        <p style="font-size:13px">El botón 🧾 abre el comprobante para descargar y compartir.</p>
       </div>
 
       <!-- PAGOS -->
       <div id="ayuda-pagos" class="ayuda-panel" style="display:none">
         <h4 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--honey-dark)">💰 Pagos y Cobros</h4>
-        <p style="font-size:13px;margin-bottom:12px">Registrá cobros a clientes, ya sea por una venta concreta o como pago a cuenta.</p>
+        <p style="font-size:13px;margin-bottom:12px">Registrá cobros a clientes por ventas concretas o como pago a cuenta.</p>
         <p style="font-size:13px;font-weight:600;margin-bottom:6px">Registrar un cobro</p>
         <ol style="font-size:13px;margin-left:16px;margin-bottom:12px;line-height:2">
-          <li>Hacé click en <strong>+ Registrar cobro</strong>.</li>
+          <li>Tocá el botón <strong>＋</strong> → Registrar cobro.</li>
           <li>Seleccioná el cliente.</li>
           <li>Ingresá la fecha y el monto.</li>
           <li>Elegí el medio: Efectivo, Transferencia, Cheque u Otro.</li>
-          <li>Podés agregar una nota opcional.</li>
-          <li>Presioná <strong>Guardar</strong>.</li>
+          <li>Tocá <strong>Guardar</strong>.</li>
         </ol>
+        <p style="font-size:13px;font-weight:600;margin-bottom:6px">Recibo de pago</p>
+        <p style="font-size:13px;margin-bottom:10px">Cada cobro tiene el botón 🧾 Recibo para generar, descargar y compartir el comprobante.</p>
         <div style="background:#FEF9C3;border-radius:8px;padding:10px 12px;font-size:13px;border-left:3px solid #EAB308">
           Los cobros quedan asociados a tu usuario. En la lista solo ves los tuyos.
+        </div>
+      </div>
+
+      <!-- PRODUCTOS -->
+      <div id="ayuda-productos" class="ayuda-panel" style="display:none">
+        <h4 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--honey-dark)">📦 Productos</h4>
+        <p style="font-size:13px;margin-bottom:12px">Accedé desde la barra inferior → Productos.</p>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Catálogo</strong> — Lista de productos con precio distribuidor, precio mayorista y stock. Podés filtrar por familia o buscar por nombre.</div>
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Stock</strong> — Stock actual por producto, agrupado por familia con colores: 🟢 OK · 🟡 Bajo · 🔴 Sin stock.</div>
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Listas de Precios Vigentes</strong> — Listas guardadas por el administrador. Podés verlas y compartirlas por WhatsApp directamente.</div>
         </div>
       </div>
 
@@ -8372,24 +8390,7 @@ document.addEventListener('DOMContentLoaded', function() {
           <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Mis ventas del período</strong> — Suma total de tus ventas en el rango seleccionado.</div>
           <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Cantidad de ventas</strong> — Número de operaciones realizadas.</div>
           <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Ventas por semana</strong> — Detalle semana a semana con cantidad y monto.</div>
-          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Ventas por tipo de cliente</strong> — Distribución entre Minorista, Mayorista, Distribuidor e Institucional con porcentaje.</div>
-        </div>
-      </div>
-
-      <!-- EXCEL -->
-      <div id="ayuda-excel" class="ayuda-panel" style="display:none">
-        <h4 style="font-size:14px;font-weight:600;margin-bottom:12px;color:var(--honey-dark)">📥 Exportar a Excel</h4>
-        <p style="font-size:13px;margin-bottom:12px">En cada sección hay un botón <strong>📥 Excel</strong> que descarga los datos en formato .xlsx.</p>
-        <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">
-          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Clientes</strong> — Solo tus clientes asignados.</div>
-          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Productos</strong> — Catálogo completo sin datos de costo.</div>
-          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Pedidos</strong> — Tus pedidos con cliente, fecha, estado y total.</div>
-          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Ventas</strong> — Tus ventas con cliente, fecha, total y estado de pago.</div>
-          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Pagos</strong> — Tus cobros registrados.</div>
-          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Stock</strong> — Estado de stock sin datos de costo.</div>
-        </div>
-        <div style="background:#FEF9C3;border-radius:8px;padding:10px 12px;font-size:13px;border-left:3px solid #EAB308">
-          El archivo se descarga con el nombre <code>hojuelas-{sección}-{fecha}.xlsx</code>.
+          <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px"><strong>Ventas por tipo de cliente</strong> — Distribución entre Minorista, Mayorista, Distribuidor e Institucional.</div>
         </div>
       </div>
 
