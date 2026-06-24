@@ -2456,16 +2456,37 @@ function showSection(name) {
 </div>
 
 <!-- MORE DRAWER OVERLAY -->
-<div class="more-overlay" id="moreOverlay" onclick="closeMoreDrawer();closeOperacionesDrawer();closeCobrosDrawer()"></div>
+<div class="more-overlay" id="moreOverlay" onclick="closeAllDrawers()"></div>
+
+<!-- CLIENTES DRAWER -->
+<div class="more-drawer" id="clientesDrawer" style="display:none">
+  <div style="padding:12px 20px 8px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Clientes</div>
+  <div class="more-drawer-item" onclick="mobileNav('clientes');closeAllDrawers()"><span class="mn-icon">👥</span>Listado</div>
+  <div class="more-drawer-item" onclick="mobileNav('mapa');closeAllDrawers()"><span class="mn-icon">🗺️</span>Mapa</div>
+  <div class="more-drawer-item" onclick="mobileNav('pedidos');closeAllDrawers()"><span class="mn-icon">📋</span>Pedidos</div>
+  <div class="more-drawer-item" onclick="mobileNav('ventas');closeAllDrawers()"><span class="mn-icon">🧾</span>Ventas</div>
+  <div class="more-drawer-item" onclick="mobileNav('remitos');closeAllDrawers()"><span class="mn-icon">🚚</span>Remitos</div>
+  <div class="more-drawer-item" onclick="mobileNav('pagos');closeAllDrawers()"><span class="mn-icon">💰</span>Pagos</div>
+  <div class="more-drawer-item" onclick="mobileNav('ctacte');closeAllDrawers()"><span class="mn-icon">💳</span>Cta. Corriente</div>
+</div>
+
+<!-- PRODUCTOS DRAWER -->
+<div class="more-drawer" id="productosDrawer" style="display:none">
+  <div style="padding:12px 20px 8px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Productos</div>
+  <div class="more-drawer-item" onclick="mobileNav('productos');closeAllDrawers()"><span class="mn-icon">📦</span>Catálogo</div>
+  <div class="more-drawer-item" onclick="mobileNav('stock');closeAllDrawers()"><span class="mn-icon">🏪</span>Stock</div>
+  <div class="more-drawer-item admin-only" onclick="closeAllDrawers();showSection('productos');setTimeout(()=>openModal('modalListaPrecios'),300)"><span class="mn-icon">📄</span>Lista de precios</div>
+  <div class="more-drawer-item vendedor-only" onclick="mobileNav('productos');closeAllDrawers();setTimeout(()=>document.getElementById('listaRepo')?.scrollIntoView({behavior:'smooth'}),400)"><span class="mn-icon">📋</span>Listas guardadas</div>
+</div>
 
 <!-- MORE DRAWER -->
 <div class="more-drawer" id="moreDrawer">
-  <div class="more-drawer-item" id="moreMapa" onclick="mobileNav('mapa')"><span class="mn-icon">🗺️</span>Mapa</div>
-  <div class="more-drawer-item" onclick="mobileNav('productos')"><span class="mn-icon">📦</span>Productos</div>
-  <div class="more-drawer-item" onclick="mobileNav('stock')"><span class="mn-icon">🏪</span>Stock</div>
-  <div class="more-drawer-item" id="moreReportes" onclick="mobileNav('reportes')"><span class="mn-icon">📊</span>Reportes</div>
-  <div class="more-drawer-item vendedor-only" id="morePerfil" onclick="mobileNav('perfil')"><span class="mn-icon">👤</span>Mi Perfil</div>
-  <div class="more-drawer-item admin-only" id="moreConfig" onclick="mobileNav('config')"><span class="mn-icon">⚙️</span>Configuración</div>
+  <div class="more-drawer-item admin-only" onclick="mobileNav('proveedor');closeAllDrawers()"><span class="mn-icon">📋</span>Pedidos Proveedor</div>
+  <div class="more-drawer-item admin-only" onclick="mobileNav('recepciones');closeAllDrawers()"><span class="mn-icon">📥</span>Recepciones</div>
+  <div class="more-drawer-item admin-only" onclick="mobileNav('finanzas');closeAllDrawers()"><span class="mn-icon">💵</span>Finanzas</div>
+  <div style="border-top:1px solid var(--border);margin:8px 0" class="admin-only"></div>
+  <div class="more-drawer-item vendedor-only" id="morePerfil" onclick="mobileNav('perfil');closeAllDrawers()"><span class="mn-icon">👤</span>Mi Perfil</div>
+  <div class="more-drawer-item admin-only" id="moreConfig" onclick="mobileNav('config');closeAllDrawers()"><span class="mn-icon">⚙️</span>Configuración</div>
   <div style="border-top:1px solid var(--border);margin:8px 0"></div>
   <div style="padding:10px 20px 4px;display:flex;align-items:center;gap:10px">
     <div style="width:34px;height:34px;border-radius:50%;background:var(--honey-light);display:flex;align-items:center;justify-content:center;font-size:16px">👤</div>
@@ -2474,22 +2495,7 @@ function showSection(name) {
       <div style="font-size:11px;color:var(--muted)" id="drawerUserRol">—</div>
     </div>
   </div>
-  <div class="more-drawer-item" onclick="closeMoreDrawer();doLogout()" style="color:var(--danger)"><span class="mn-icon">🚪</span>Cerrar sesión</div>
-</div>
-
-<!-- OPERACIONES DRAWER -->
-<div class="more-drawer" id="operacionesDrawer" style="display:none">
-  <div style="padding:12px 20px 8px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Operaciones</div>
-  <div class="more-drawer-item" onclick="mobileNav('pedidos');closeOperacionesDrawer()"><span class="mn-icon">📋</span>Pedidos</div>
-  <div class="more-drawer-item" onclick="mobileNav('ventas');closeOperacionesDrawer()"><span class="mn-icon">🧾</span>Ventas</div>
-  <div class="more-drawer-item" onclick="mobileNav('remitos');closeOperacionesDrawer()"><span class="mn-icon">🚚</span>Remitos</div>
-</div>
-
-<!-- COBROS DRAWER -->
-<div class="more-drawer" id="cobrosDrawer" style="display:none">
-  <div style="padding:12px 20px 8px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Cobros</div>
-  <div class="more-drawer-item" onclick="mobileNav('pagos');closeCobrosDrawer()"><span class="mn-icon">💰</span>Pagos</div>
-  <div class="more-drawer-item" onclick="mobileNav('ctacte');closeCobrosDrawer()"><span class="mn-icon">💳</span>Cta. Corriente</div>
+  <div class="more-drawer-item" onclick="closeAllDrawers();doLogout()" style="color:var(--danger)"><span class="mn-icon">🚪</span>Cerrar sesión</div>
 </div>
 
 <!-- FAB OVERLAY -->
@@ -2520,14 +2526,14 @@ function showSection(name) {
     <button class="mobile-nav-item active" id="mn-dashboard" onclick="mobileNav('dashboard')">
       <span class="mn-icon">📊</span><span class="mn-label">Inicio</span>
     </button>
-    <button class="mobile-nav-item" id="mn-clientes" onclick="mobileNav('clientes')">
+    <button class="mobile-nav-item" id="mn-clientes" onclick="toggleClientesDrawer()">
       <span class="mn-icon">👥</span><span class="mn-label">Clientes</span>
     </button>
-    <button class="mobile-nav-item" id="mn-operaciones" onclick="toggleOperacionesDrawer()">
-      <span class="mn-icon">📋</span><span class="mn-label">Operaciones</span>
+    <button class="mobile-nav-item" id="mn-productos" onclick="toggleProductosDrawer()">
+      <span class="mn-icon">📦</span><span class="mn-label">Productos</span>
     </button>
-    <button class="mobile-nav-item" id="mn-cobros" onclick="toggleCobrosDrawer()">
-      <span class="mn-icon">💰</span><span class="mn-label">Cobros</span>
+    <button class="mobile-nav-item" id="mn-reportes" onclick="mobileNav('reportes')">
+      <span class="mn-icon">📊</span><span class="mn-label">Reportes</span>
     </button>
     <button class="mobile-nav-item" id="mn-more" onclick="toggleMoreDrawer()">
       <span class="mn-icon">☰</span><span class="mn-label">Más</span>
@@ -5090,48 +5096,38 @@ function closeFab() {
   btn.style.transform = '';
 }
 
+function closeAllDrawers() {
+  ['clientesDrawer','productosDrawer','moreDrawer'].forEach(id => {
+    const d = document.getElementById(id);
+    if (d) { d.classList.remove('open'); d.style.display = id === 'moreDrawer' ? '' : 'none'; }
+  });
+  document.getElementById('moreOverlay')?.classList.remove('open');
+}
+
+function toggleClientesDrawer() {
+  closeAllDrawers();
+  const d = document.getElementById('clientesDrawer');
+  const isOpen = d.classList.contains('open');
+  if (!isOpen) { d.style.display = ''; d.classList.add('open'); document.getElementById('moreOverlay').classList.add('open'); }
+}
+
+function toggleProductosDrawer() {
+  closeAllDrawers();
+  const d = document.getElementById('productosDrawer');
+  const isOpen = d.classList.contains('open');
+  if (!isOpen) { d.style.display = ''; d.classList.add('open'); document.getElementById('moreOverlay').classList.add('open'); }
+}
+
 function toggleMoreDrawer() {
-  closeOperacionesDrawer(); closeCobrosDrawer();
-  document.getElementById('moreDrawer').classList.toggle('open');
-  document.getElementById('moreOverlay').classList.toggle('open');
-}
-
-function closeMoreDrawer() {
-  document.getElementById('moreDrawer').classList.remove('open');
-  document.getElementById('moreOverlay').classList.remove('open');
-}
-
-function toggleOperacionesDrawer() {
-  closeMoreDrawer(); closeCobrosDrawer();
-  const d = document.getElementById('operacionesDrawer');
+  const d = document.getElementById('moreDrawer');
   const isOpen = d.classList.contains('open');
-  d.classList.toggle('open', !isOpen);
-  d.style.display = isOpen ? 'none' : '';
-  document.getElementById('moreOverlay').classList.toggle('open', !isOpen);
+  closeAllDrawers();
+  if (!isOpen) { d.classList.add('open'); document.getElementById('moreOverlay').classList.add('open'); }
 }
 
-function closeOperacionesDrawer() {
-  const d = document.getElementById('operacionesDrawer');
-  d.classList.remove('open');
-  d.style.display = 'none';
-  document.getElementById('moreOverlay').classList.remove('open');
-}
-
-function toggleCobrosDrawer() {
-  closeMoreDrawer(); closeOperacionesDrawer();
-  const d = document.getElementById('cobrosDrawer');
-  const isOpen = d.classList.contains('open');
-  d.classList.toggle('open', !isOpen);
-  d.style.display = isOpen ? 'none' : '';
-  document.getElementById('moreOverlay').classList.toggle('open', !isOpen);
-}
-
-function closeCobrosDrawer() {
-  const d = document.getElementById('cobrosDrawer');
-  d.classList.remove('open');
-  d.style.display = 'none';
-  document.getElementById('moreOverlay').classList.remove('open');
-}
+function closeMoreDrawer() { closeAllDrawers(); }
+function closeOperacionesDrawer() { closeAllDrawers(); }
+function closeCobrosDrawer() { closeAllDrawers(); }
 
 // ==================== PERFIL USUARIO ====================
 function initPerfil() {
