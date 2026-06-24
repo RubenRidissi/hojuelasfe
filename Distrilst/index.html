@@ -918,7 +918,7 @@ function showSection(name) {
       <div class="card desktop-table">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>Cliente</th><th class="hide-mobile">Entrega</th><th>Estado</th><th>Total</th><th id="thPedidoVendedor" style="display:none">Vendedor</th><th></th></tr></thead>
+            <thead><tr><th>N°</th><th>Cliente</th><th class="hide-mobile">Entrega</th><th>Estado</th><th>Total</th><th></th></tr></thead>
             <tbody id="tablaPedidos"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
@@ -3866,15 +3866,13 @@ async function loadPedidos() {
     const origenesConRemito = new Set(remitosExistentes.map(r => r.origen_id));
     const isAdmin = currentRol === 'admin';
     // Mostrar/ocultar columna vendedor y filtro (solo admin)
-    const thVendedor = document.getElementById('thPedidoVendedor');
     const filtroVendedor = document.getElementById('pedidoFiltroVendedor');
-    if (thVendedor) thVendedor.style.display = isAdmin ? '' : 'none';
     if (filtroVendedor) {
       filtroVendedor.style.display = isAdmin ? '' : 'none';
       if (isAdmin && filtroVendedor.options.length <= 1) poblarSelectVendedor('pedidoFiltroVendedor');
     }
     const tbody = document.getElementById('tablaPedidos');
-    if (!pedidos.length) { tbody.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}"><div class="empty"><div class="empty-icon">📋</div><p>No hay pedidos todavía</p></div></td></tr>`; return; }
+    if (!pedidos.length) { tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><div class="empty-icon">📋</div><p>No hay pedidos todavía</p></div></td></tr>`; return; }
     tbody.innerHTML = pedidos.map((p, i) => {
       const nombreVendedor = cachedVendedores.find(v => v.user_id === p.vendedor_id)?.nombre || '—';
       const yaConvertido = !!p.convertido_venta_id;
@@ -3894,7 +3892,6 @@ async function loadPedidos() {
         </td>
         <td>${badgeEstado(p.estado)}</td>
         <td>$${parseFloat(p.total||0).toLocaleString('es-AR')}</td>
-        ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
         <td style="white-space:nowrap">
           <div style="display:flex;align-items:center;gap:3px">
           ${yaConvertido
@@ -3932,14 +3929,16 @@ async function loadPedidos() {
           <div class="op-card-cliente">${p.clientes ? nombreCliente(p.clientes) : '—'}</div>
           <div style="display:flex;justify-content:space-between;align-items:center">
             <div class="op-card-total">$${parseFloat(p.total||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
-            ${p.estado === 'pendiente' && !yaConvertido ? `<button class="btn btn-sm btn-secondary" onclick="editPedido('${p.id}')">✏ Editar</button>` : ''}
+            <div style="display:flex;gap:6px;align-items:center">
+              ${p.estado === 'pendiente' && !yaConvertido ? `<button class="btn btn-sm btn-secondary" onclick="editPedido('${p.id}')">✏ Editar</button>` : ''}
+              ${puedeConvertir ? `<button class="btn btn-sm btn-success" onclick="convertirPedidoEnVenta('${p.id}')">🧾 Convertir</button>` : ''}
+            </div>
           </div>
           <div class="op-card-actions">
             <button class="btn btn-secondary" onclick="verComprobante('pedido','${p.id}')">📋 Ver</button>
             ${!yaConvertido ? `<select style="flex:1;padding:8px 6px;border:1px solid var(--border);border-radius:10px;font-size:12px" onchange="updateEstadoPedido('${p.id}',this.value)">
               ${['pendiente','confirmado','entregado','cancelado'].filter(e => !(p.estado === 'pendiente' && e === 'entregado')).map(e => `<option value="${e}" ${p.estado===e?'selected':''}>${e.charAt(0).toUpperCase()+e.slice(1)}</option>`).join('')}
             </select>` : `<span class="badge badge-green" style="flex:1;text-align:center">✓ Facturado</span>`}
-            ${puedeConvertir ? `<button class="btn btn-success" onclick="convertirPedidoEnVenta('${p.id}')">🧾 Convertir</button>` : ''}
             ${tieneRemito ? `<button class="btn btn-secondary" onclick="verRemito('pedido','${p.id}')">👁 Remito</button>`
               : (puedeRemitir ? `<button class="btn btn-secondary" onclick="imprimirRemito('pedido','${p.id}')">🚚 Remito</button>` : '')}
           </div>
