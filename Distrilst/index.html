@@ -723,8 +723,8 @@ function showSection(name) {
         <h1 class="page-title">Clientes</h1>
         <!-- Admin: Excel + Imprimir + Nuevo (grilla 2x2 en móvil está ok) -->
         <div class="page-header-actions admin-only" style="display:flex;gap:8px">
-          <button class="btn btn-secondary" onclick="exportarExcel('clientes')">📥 Excel</button>
-          <button class="btn btn-secondary" onclick="imprimirClientes()">📄 Imprimir listado</button>
+          <button class="btn btn-secondary hide-on-mobile" onclick="exportarExcel('clientes')">📥 Excel</button>
+          <button class="btn btn-secondary hide-on-mobile" onclick="imprimirClientes()">📄 Imprimir listado</button>
           <button class="btn btn-primary" onclick="openModal('modalCliente')">+ Nuevo cliente</button>
         </div>
         <!-- Vendedor: solo Nuevo cliente, ancho completo en móvil -->
@@ -780,22 +780,48 @@ function showSection(name) {
 
     <!-- PRODUCTOS -->
     <div id="sec-productos" class="section">
-      <div class="page-header">
+      <!-- HEADER PC: todo en una línea -->
+      <div class="page-header hide-on-mobile">
         <h1 class="page-title">Productos</h1>
         <span id="btnNuevoProducto"></span>
         <button class="btn btn-secondary" onclick="exportarExcel('productos')">📥 Excel</button>
-        <button class="btn btn-secondary" onclick="openModal('modalListaPrecios')">📄 Lista de precios</button>
+        <button class="btn btn-secondary admin-only" onclick="openModal('modalListaPrecios')">📄 Lista de precios</button>
         <button class="btn btn-secondary admin-only" onclick="abrirActualizacionMasiva()">💲 Actualizar precios</button>
         <button class="btn btn-secondary admin-only" onclick="abrirGuardarVersion()">📸 Guardar versión</button>
         <button class="btn btn-secondary admin-only" onclick="abrirVersiones()">📋 Versiones</button>
       </div>
+
+      <!-- HEADER MÓVIL ADMIN -->
+      <div class="hide-on-desktop admin-only">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <h1 class="page-title" style="margin:0">Productos</h1>
+          <span id="btnNuevoProductoMobile"></span>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button class="btn btn-secondary" style="flex:1" onclick="openModal('modalListaPrecios')">📄 Lista precios</button>
+          <button class="btn btn-secondary" style="flex:1" onclick="abrirActualizacionMasiva()">💲 Actualizar</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="btn btn-secondary" style="flex:1" onclick="abrirGuardarVersion()">📸 Guardar versión</button>
+          <button class="btn btn-secondary" style="flex:1" onclick="abrirVersiones()">📋 Versiones</button>
+        </div>
+      </div>
+
+      <!-- HEADER MÓVIL VENDEDOR -->
+      <div class="hide-on-desktop vendedor-only">
+        <h1 class="page-title" style="margin-bottom:12px">Productos</h1>
+      </div>
+
+      <!-- BUSCAR + FAMILIA (todos) -->
       <div class="search-bar">
-        <input class="search-input" type="text" placeholder="Buscar producto..." oninput="filterTable('tablaProductos',this.value)" style="flex:2">
+        <input class="search-input" type="text" placeholder="Buscar producto..." oninput="filterTable('tablaProductos',this.value);filterProductosFamiliaCards()" style="flex:2">
         <select id="productoFiltroFamilia" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="filterProductosFamilia()">
           <option value="">Todas las familias</option>
         </select>
       </div>
-      <div class="card">
+
+      <!-- TABLA (desktop) -->
+      <div class="card desktop-table">
         <div class="table-wrap">
           <table>
             <thead><tr><th>Código</th><th>Nombre</th><th>Precio Dist. s/IVA</th><th>Precio Mayo. s/IVA</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
@@ -803,6 +829,9 @@ function showSection(name) {
           </table>
         </div>
       </div>
+
+      <!-- CARDS (móvil) -->
+      <div class="mobile-cards" id="cardsProductos"></div>
 
       <!-- REPOSITORIO LISTAS DE PRECIOS -->
       <div class="card" style="margin-top:16px">
@@ -824,12 +853,11 @@ function showSection(name) {
         </div>
       </div>
 
-      <!-- Línea 2 móvil: Selector cliente + Excel -->
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px" class="hide-on-desktop">
+      <!-- Línea 2 móvil: Selector cliente ancho completo -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px" class="hide-on-desktop">
         <select id="pedidoFiltroCliente" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadPedidos()">
           <option value="">Todos los clientes</option>
         </select>
-        <button class="btn btn-secondary" onclick="exportarExcel('pedidos')">📥 Excel</button>
       </div>
 
       <!-- Línea 3: Filtros estado + vendedor (solo admin) -->
@@ -3048,6 +3076,16 @@ function filterProductosFamilia() {
   renderProductos(filtered);
 }
 
+function filterProductosFamiliaCards() {
+  const q = document.querySelector('.search-bar .search-input')?.value?.toLowerCase() || '';
+  document.querySelectorAll('#cardsProductos .op-card').forEach(card => {
+    card.style.display = !q || card.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+  document.querySelectorAll('#tablaProductos tr').forEach(row => {
+    row.style.display = !q || row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
 function renderProductos(list) {
   const tbody = document.getElementById('tablaProductos');
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-icon">📦</div><p>No hay productos todavía</p></div></td></tr>'; return; }
@@ -3080,6 +3118,35 @@ function renderProductos(list) {
         ` : '<span style="font-size:11px;color:var(--muted)">—</span>'}
       </td>
     </tr>`}).join('');
+
+  // MOBILE CARDS productos
+  const cardsEl = document.getElementById('cardsProductos');
+  if (cardsEl) {
+    cardsEl.innerHTML = list.length ? list.map(p => {
+      const precio = parseFloat(p.precio || 0);
+      const precioMay = parseFloat(p.precio_mayorista || 0);
+      const stock = p.stock_real ?? parseFloat(p.stock || 0);
+      const stockColor = stock <= (p.stock_minimo || 0) && p.stock_minimo > 0 ? '#DC2626' : '#16A34A';
+      return `<div class="op-card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:15px">${p.nombre}</div>
+            ${p.familia ? `<div style="font-size:11px;color:var(--muted)">${p.familia}${p.variante ? ' · ' + p.variante : ''}</div>` : ''}
+            ${p.codigo ? `<code style="font-size:11px;background:var(--bg);padding:1px 5px;border-radius:4px">${p.codigo}</code>` : ''}
+          </div>
+          <div style="text-align:right;flex-shrink:0;margin-left:12px">
+            <div style="font-size:13px;font-weight:600">Dist: $${precio.toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+            ${precioMay > 0 ? `<div style="font-size:12px;color:#2563EB">May: $${precioMay.toLocaleString('es-AR',{maximumFractionDigits:0})}</div>` : ''}
+            <div style="font-size:12px;color:${stockColor};font-weight:600">Stock: ${stock} ${p.unidad||''}</div>
+          </div>
+        </div>
+        ${currentRol === 'admin' ? `
+        <div class="op-card-actions" style="margin-top:10px">
+          <button class="btn btn-secondary" style="flex:1" onclick="editProducto('${p.id}')">✏ Editar</button>
+        </div>` : ''}
+      </div>`;
+    }).join('') : '<div style="text-align:center;padding:32px;color:var(--muted)">No hay productos</div>';
+  }
 }
 
 function abrirCostoPromoDesdeModal() {
@@ -3561,7 +3628,7 @@ async function loadPedidos() {
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('pedidoFiltroVendedor')?.value || '')
       : currentUser;
-    let q = `?select=id,fecha,fecha_entrega,fecha_entrega_real,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    let q = `?select=id,numero,fecha,fecha_entrega,fecha_entrega_real,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,clientes(nombre,nombre_fantasia)&order=numero.asc`;
     if (estado) q += `&estado=eq.${estado}`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
     if (clienteFiltro) q += `&cliente_id=eq.${clienteFiltro}`;
@@ -4133,7 +4200,7 @@ async function loadVentas() {
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('ventaFiltroVendedor')?.value || '')
       : currentUser;
-    let q = `?select=id,fecha,fecha_entrega_real,total,estado_pago,vendedor_id,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
+    let q = `?select=id,numero,fecha,fecha_entrega_real,total,estado_pago,vendedor_id,clientes(nombre,nombre_fantasia)&order=numero.asc`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
     if (clienteFiltro) q += `&cliente_id=eq.${clienteFiltro}`;
     const ventas = await api('ventas', 'GET', null, q);
@@ -5192,8 +5259,7 @@ function applyRolRestrictions() {
       ? `<button class="btn btn-secondary" onclick="exportarExcel('stock')">📥 Excel</button>
          <button class="btn btn-secondary" onclick="openModal('modalMuestra')">🎁 Registrar muestra</button>
          <button class="btn btn-secondary" onclick="openModal('modalAjuste')">✏ Ajuste manual</button>`
-      : `<button class="btn btn-secondary" onclick="exportarExcel('stock')">📥 Excel</button>
-         <span style="font-size:13px;color:var(--muted);padding:8px 0">Solo lectura</span>`;
+      : `<button class="btn btn-secondary" onclick="exportarExcel('stock')">📥 Excel</button>`;
   }
 
   // Nuevo producto button - admin only
@@ -5209,6 +5275,15 @@ function applyRolRestrictions() {
     } else {
       btnProd.innerHTML = '';
     }
+  }
+  const btnProdMobile = document.getElementById('btnNuevoProductoMobile');
+  if (btnProdMobile && isAdmin) {
+    const btn2 = document.createElement('button');
+    btn2.className = 'btn btn-primary';
+    btn2.textContent = '+ Nuevo';
+    btn2.onclick = function() { openModal('modalProducto'); };
+    btnProdMobile.innerHTML = '';
+    btnProdMobile.appendChild(btn2);
   }
 
   // Hide admin-only buttons for vendedor, hide vendedor-only for admin
@@ -5510,18 +5585,16 @@ async function loadListasRepo() {
         const fecha = new Date(l.created_at).toLocaleDateString('es-AR');
         const url = `${baseUrl}?id=${l.id}`;
         const waMsg = encodeURIComponent(`Lista de Precios Hojuelas — ${l.nombre}\n${url}`);
-        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg);border-radius:10px;flex-wrap:wrap">
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:14px">${l.nombre}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">
-              <span class="badge ${tipoBadge[l.tipo]||'badge-gray'}">${tipoLabel[l.tipo]||l.tipo}</span>
-              · Guardada el ${fecha}
-            </div>
+        return `<div style="padding:12px;background:var(--bg);border-radius:10px;border:1px solid var(--border)">
+          <div style="font-weight:600;font-size:14px;margin-bottom:4px">${l.nombre}</div>
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+            <span class="badge ${tipoBadge[l.tipo]||'badge-gray'}">${tipoLabel[l.tipo]||l.tipo}</span>
+            · Guardada el ${fecha}
           </div>
-          <div style="display:flex;gap:8px;flex-shrink:0">
-            <a href="${url}" target="_blank" class="btn btn-sm btn-secondary">👁 Ver</a>
-            <a href="https://wa.me/?text=${waMsg}" target="_blank" class="btn btn-sm" style="background:#25D366;color:#fff">💬 WhatsApp</a>
-            <button class="btn btn-sm btn-danger admin-only" onclick="deleteListaRepo('${l.id}')">🗑</button>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <a href="${url}" target="_blank" class="btn btn-sm btn-secondary" style="flex:1;text-align:center;text-decoration:none">👁 Ver</a>
+            <a href="https://wa.me/?text=${waMsg}" target="_blank" class="btn btn-sm" style="flex:1;text-align:center;background:#25D366;color:#fff;text-decoration:none">💬 WhatsApp</a>
+            <button class="btn btn-sm btn-danger admin-only" style="flex:1" onclick="deleteListaRepo('${l.id}')">🗑 Borrar</button>
           </div>
         </div>`;
       }).join('') + '</div>';
@@ -6021,8 +6094,10 @@ async function loadMapa() {
       }).addTo(mapaInstance);
     }
     renderMapa();
-    // Forzar redibujado por si el contenedor no era visible al inicializar
+    // Forzar redibujado - en móvil necesita más tiempo
     setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 200);
+    setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 600);
+    setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 1200);
   } catch(e) { console.error(e); toast('Error cargando mapa', 'error'); }
 }
 
@@ -7450,9 +7525,24 @@ function buildReciboPago(p, num) {
   const fecha = p.fecha ? new Date(p.fecha+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '—';
   const monto = parseFloat(p.monto||0);
   const vendedor = cachedVendedores.find(v => v.user_id === p.vendedor_id)?.nombre || EMPRESA.rep;
+  const numStr = String(num).padStart(6,'0');
   return `<div class="comp-wrap">
-    ${buildHeader('RECIBO', num, p.fecha)}
-    ${buildClienteInfo(p.clientes, 'Fecha', fecha, 'Medio de pago', p.medio || '—')}
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+      <img src="${EMPRESA.logo}" style="height:56px;object-fit:contain" onerror="this.style.display='none'">
+      <div style="text-align:right">
+        <div style="font-size:18px;font-weight:700;color:var(--honey-dark)">${EMPRESA.nombre}</div>
+        <div style="font-size:12px;color:var(--muted)">${EMPRESA.razon}</div>
+        <div style="font-size:12px;color:var(--muted)">${EMPRESA.rep} · ${EMPRESA.tel}</div>
+        <div style="font-size:12px;color:var(--muted)">${EMPRESA.web}</div>
+      </div>
+    </div>
+    <div style="border-top:2px solid var(--honey);margin-bottom:16px"></div>
+    <div class="comp-tipo">
+      <div style="display:inline-block;background:var(--honey);color:#fff;font-size:11px;font-weight:700;padding:3px 12px;border-radius:20px;letter-spacing:1px;margin-bottom:8px">RECIBO DE PAGO</div>
+      <div style="font-size:22px;font-weight:700">N° ${numStr}</div>
+      <div class="comp-num">Fecha: ${fecha}</div>
+    </div>
+    ${buildClienteInfo(p.clientes, 'Medio de pago', p.medio || '—', 'Centro de costo', p.centro_costo || '—')}
     <table class="comp-table">
       <thead><tr><th>Concepto</th><th style="text-align:right">Importe</th></tr></thead>
       <tbody>
@@ -7462,18 +7552,13 @@ function buildReciboPago(p, num) {
             <td style="text-align:right;font-weight:700;font-size:18px;color:#9A5F00">$${monto.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr>
       </tbody>
     </table>
-    <div style="margin-top:32px;display:flex;justify-content:space-between;align-items:flex-end">
+    <div style="margin-top:40px;display:flex;justify-content:space-between;align-items:flex-end">
       <div style="font-size:12px;color:var(--muted)">Recibí conforme:<br><br>
         <div style="border-top:1px solid #1C1917;width:200px;margin-top:32px;padding-top:4px">Firma del cliente</div>
       </div>
-      <div style="font-size:12px;color:var(--muted);text-align:right">
-        ${vendedor}<br>${EMPRESA.nombre}
-      </div>
+      <div style="font-size:12px;color:var(--muted);text-align:right">${vendedor}<br>${EMPRESA.nombre}</div>
     </div>
-    <div class="comp-footer">
-      <div></div>
-      <div>Generado el ${new Date().toLocaleDateString('es-AR')} · ${EMPRESA.nombre}</div>
-    </div>
+    <div class="comp-footer"><div></div><div>Generado el ${new Date().toLocaleDateString('es-AR')} · ${EMPRESA.nombre}</div></div>
   </div>`;
 }
 
