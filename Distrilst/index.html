@@ -861,7 +861,7 @@ function showSection(name) {
         <div class="table-wrap">
           <table>
             <thead><tr><th>Código</th><th>Nombre</th><th>Precio Dist. s/IVA</th><th>Precio Mayo. s/IVA</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
-            <tbody id="tablaProductos"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+            <tbody id="tablaProductos"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -919,7 +919,7 @@ function showSection(name) {
         <div class="table-wrap">
           <table>
             <thead><tr><th>N°</th><th>Cliente</th><th class="hide-mobile">Entrega</th><th>Estado</th><th>Total</th><th></th></tr></thead>
-            <tbody id="tablaPedidos"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+            <tbody id="tablaPedidos"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -937,24 +937,20 @@ function showSection(name) {
         </div>
       </div>
 
-      <!-- Línea 2 móvil: Selector cliente + Excel -->
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px" class="hide-on-desktop">
+      <!-- Filtros: cliente + vendedor (admin) -->
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
         <select id="ventaFiltroCliente" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadVentas()">
           <option value="">Todos los clientes</option>
         </select>
-        <button class="btn btn-secondary" onclick="exportarExcel('ventas')">📥 Excel</button>
-      </div>
-
-      <!-- Línea 3: Filtro vendedor (solo admin) -->
-      <div class="admin-only" style="display:flex;gap:8px;margin-bottom:12px">
-        <select id="ventaFiltroVendedor" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadVentas()">
+        <select id="ventaFiltroVendedor" class="admin-only" style="flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:13px;background:var(--surface)" onchange="loadVentas()">
           <option value="">Todos los vendedores</option>
         </select>
+        <button class="btn btn-secondary hide-on-desktop" onclick="exportarExcel('ventas')">📥 Excel</button>
       </div>
       <div class="card desktop-table">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>N°</th><th>Cliente</th><th class="hide-mobile">Facturación / Entrega</th><th>Total</th><th>Pago</th><th id="thVentaVendedor" style="display:none">Vendedor</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>N°</th><th>Cliente</th><th class="hide-mobile">Facturación / Entrega</th><th>Total</th><th>Pago</th><th>Acciones</th></tr></thead>
             <tbody id="tablaVentas"><tr><td colspan="7" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
           </table>
         </div>
@@ -4440,15 +4436,13 @@ async function loadVentas() {
     const origenesConRemito = new Set(remitosExistentes.map(r => r.origen_id));
     const isAdmin = currentRol === 'admin';
     // Mostrar/ocultar columna vendedor y filtro (solo admin)
-    const thVendedor = document.getElementById('thVentaVendedor');
     const filtroVendedor = document.getElementById('ventaFiltroVendedor');
-    if (thVendedor) thVendedor.style.display = isAdmin ? '' : 'none';
     if (filtroVendedor) {
       filtroVendedor.style.display = isAdmin ? '' : 'none';
       if (isAdmin && filtroVendedor.options.length <= 1) poblarSelectVendedor('ventaFiltroVendedor');
     }
     const tbody = document.getElementById('tablaVentas');
-    if (!ventas.length) { tbody.innerHTML = `<tr><td colspan="${isAdmin ? 7 : 6}"><div class="empty"><div class="empty-icon">🧾</div><p>No hay ventas todavía</p></div></td></tr>`; return; }
+    if (!ventas.length) { tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><div class="empty-icon">🧾</div><p>No hay ventas todavía</p></div></td></tr>`; return; }
     tbody.innerHTML = ventas.map((v, i) => {
       const nombreVendedor = cachedVendedores.find(vv => vv.user_id === v.vendedor_id)?.nombre || '—';
       const pedidoRelacionado = pedidosRelacionados.find(p => p.convertido_venta_id === v.id);
@@ -4466,7 +4460,6 @@ async function loadVentas() {
         </td>
         <td>$${parseFloat(v.total||0).toLocaleString('es-AR')}</td>
         <td>${badgePago(v.estado_pago)}</td>
-        ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
         <td style="white-space:nowrap">
           ${v.estado_pago === 'pagado'
             ? '<span class="badge badge-green">Pagado</span>'
