@@ -362,6 +362,24 @@
     .mobile-nav-item { font-size:10px; padding:10px 4px 12px; }
   }
 
+/* MODALES OPTIMIZADOS PARA DEDO */
+@media (max-width: 768px) {
+  .modal select, .modal input[type="text"], .modal input[type="number"],
+  .modal input[type="date"], .modal textarea {
+    min-height: 48px !important;
+    font-size: 16px !important;
+    padding: 12px 14px !important;
+    border-radius: 10px !important;
+  }
+  .modal .btn { min-height: 48px !important; font-size: 15px !important; }
+  .modal .modal-footer .btn { flex: 1; }
+  .modal .modal-footer { gap: 10px; }
+  .modal label { font-size: 14px !important; margin-bottom: 6px !important; }
+  .items-list { max-height: 220px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  #pedidoProductoSel, #ventaProductoSel { width: 100% !important; min-width: 0 !important; }
+  #pedidoCantidad, #ventaCantidad { min-width: 70px !important; max-width: 80px !important; }
+}
+
 /* TAMAÑO DE FUENTE */
 body.font-small * { font-size: 11px; }
 body.font-small .stat-value { font-size: 16px !important; }
@@ -1060,7 +1078,7 @@ function showSection(name) {
       </div>
 
       <!-- Stock actual -->
-      <div class="card" style="margin-bottom:16px">
+      <div class="card desktop-table" style="margin-bottom:16px">
         <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Stock actual por producto</h3>
         <div class="table-wrap">
           <table>
@@ -1069,9 +1087,10 @@ function showSection(name) {
           </table>
         </div>
       </div>
+      <div class="mobile-cards" id="cardsStockActual" style="margin-bottom:16px"></div>
 
       <!-- Historial movimientos -->
-      <div class="card admin-only">
+      <div class="card admin-only desktop-table">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
           <h3 style="font-size:14px;font-weight:600">Historial de movimientos</h3>
           <div style="display:flex;gap:8px">
@@ -2000,9 +2019,9 @@ function showSection(name) {
       <label style="margin-bottom:8px">Productos</label>
       <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
         <select id="pedidoProductoSel" style="flex:2;min-width:180px" onchange="togglePrecioEditable('pedido')"><option value="">Elegí un producto</option></select>
-        <input id="pedidoCantidad" type="number" min="1" value="1" style="flex:1;max-width:80px" placeholder="Cant.">
+        <input id="pedidoCantidad" type="number" min="1" value="1" inputmode="numeric" style="flex:1;max-width:80px" placeholder="Cant.">
         <div id="pedidoPrecioEditableWrap" style="display:none;flex:1;max-width:120px">
-          <input id="pedidoPrecioEditable" type="number" min="0" step="0.01" value="0" style="width:100%" placeholder="Precio">
+          <input id="pedidoPrecioEditable" type="number" min="0" step="0.01" value="0" inputmode="decimal" style="width:100%" placeholder="Precio">
         </div>
         <button class="btn btn-secondary btn-sm" onclick="addItemPedido()">+ Agregar</button>
       </div>
@@ -2050,9 +2069,9 @@ function showSection(name) {
       <label style="margin-bottom:8px">Productos</label>
       <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
         <select id="ventaProductoSel" style="flex:2;min-width:180px" onchange="togglePrecioEditable('venta')"><option value="">Elegí un producto</option></select>
-        <input id="ventaCantidad" type="number" min="1" value="1" style="flex:1;max-width:80px" placeholder="Cant.">
+        <input id="ventaCantidad" type="number" min="1" value="1" inputmode="numeric" style="flex:1;max-width:80px" placeholder="Cant.">
         <div id="ventaPrecioEditableWrap" style="display:none;flex:1;max-width:120px">
-          <input id="ventaPrecioEditable" type="number" min="0" step="0.01" value="0" style="width:100%" placeholder="Precio">
+          <input id="ventaPrecioEditable" type="number" min="0" step="0.01" value="0" inputmode="decimal" style="width:100%" placeholder="Precio">
         </div>
         <button class="btn btn-secondary btn-sm" onclick="addItemVenta()">+ Agregar</button>
       </div>
@@ -3102,9 +3121,11 @@ function renderProductos(list) {
     const precio = parseFloat(p.precio || 0);
     const precioMay = parseFloat(p.precio_mayorista || 0);
     const stock = p.stock_real ?? parseFloat(p.stock || 0);
-    const stockBadge = stock <= (p.stock_minimo || 0) && p.stock_minimo > 0
+    const stockBadge = stock <= 0
       ? `<span class="badge badge-red">⚠ ${stock}</span>`
-      : `<span class="badge badge-green">${stock}</span>`;
+      : stock <= (p.stock_minimo || 0) && p.stock_minimo > 0
+        ? `<span class="badge badge-yellow">⚠ ${stock}</span>`
+        : `<span class="badge badge-green">${stock}</span>`;
     return `
     <tr>
       <td>
@@ -4721,6 +4742,41 @@ async function loadStockActual() {
         <td><span class="badge ${badge}">${label}</span></td>
       </tr>`;
     }).join('');
+
+    // MOBILE CARDS stock
+    const cardsEl = document.getElementById('cardsStockActual');
+    if (cardsEl) {
+      // Agrupar por familia
+      const familias = {};
+      productos.forEach(p => {
+        const fam = p.familia || 'Otros';
+        if (!familias[fam]) familias[fam] = [];
+        familias[fam].push(p);
+      });
+      cardsEl.innerHTML = Object.entries(familias).map(([fam, prods]) => `
+        <div style="margin-bottom:4px">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:8px 4px 4px">${fam}</div>
+          ${prods.map(p => {
+            const stock = parseFloat(p.stock);
+            const min = parseFloat(p.stock_minimo);
+            const color = stock <= 0 ? '#DC2626' : stock <= min ? '#D97706' : '#16A34A';
+            const label = stock <= 0 ? 'Sin stock' : stock <= min ? 'Stock bajo' : 'OK';
+            return `<div class="op-card" style="margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <div>
+                  <div style="font-weight:600;font-size:14px">${p.nombre}</div>
+                  ${p.codigo ? `<code style="font-size:11px;background:var(--bg);padding:1px 5px;border-radius:4px">${p.codigo}</code>` : ''}
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:22px;font-weight:700;color:${color}">${stock}</div>
+                  <div style="font-size:11px;color:var(--muted)">${p.unidad||''} · mín. ${min}</div>
+                  <div style="font-size:11px;font-weight:600;color:${color}">${label}</div>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>`).join('');
+    }
   } catch(e) { console.error(e); }
 }
 
