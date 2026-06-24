@@ -880,7 +880,10 @@ function showSection(name) {
     <div id="sec-listas" class="section">
       <div class="page-header">
         <h1 class="page-title">📋 Listas de Precios Vigentes</h1>
-        <button class="btn btn-secondary" onclick="loadListasRepo()">🔄 Actualizar</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-primary admin-only" onclick="openModal('modalListaPrecios')">✨ Generar nueva lista</button>
+          <button class="btn btn-secondary" onclick="loadListasRepo()">🔄 Actualizar</button>
+        </div>
       </div>
       <div class="card">
         <div id="listaRepo"><p style="color:var(--muted);font-size:13px">Cargando listas...</p></div>
@@ -1019,14 +1022,15 @@ function showSection(name) {
           <option value="cancelado">Cancelado</option>
         </select>
       </div>
-      <div class="card">
+      <div class="card desktop-table">
         <div class="table-wrap">
           <table>
             <thead><tr><th>N°</th><th>Proveedor</th><th>Fecha</th><th>Estado</th><th>Total estimado</th><th></th></tr></thead>
-            <tbody id="tablaPedidosProveedor"><tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+            <tbody id="tablaPedidosProveedor"></tbody>
           </table>
         </div>
       </div>
+      <div class="mobile-cards" id="cardsPedidosProveedor"></div>
     </div>
 
     <!-- RECEPCIONES -->
@@ -1038,27 +1042,29 @@ function showSection(name) {
           <button class="btn btn-primary" onclick="abrirNuevaRecepcion()">+ Nueva recepción</button>
         </div>
       </div>
-      <div class="card">
+      <div class="card desktop-table">
         <div class="table-wrap">
           <table>
             <thead><tr><th>N°</th><th>Fecha real recepción</th><th>Pedido asociado</th><th>Remito proveedor</th><th>Total</th><th>Estado</th><th>Pago proveedor</th><th></th></tr></thead>
-            <tbody id="tablaRecepciones"><tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Cargando...</td></tr></tbody>
+            <tbody id="tablaRecepciones"></tbody>
           </table>
         </div>
       </div>
+      <div class="mobile-cards" id="cardsRecepciones" style="margin-bottom:16px"></div>
 
       <!-- AJUSTES NC/ND -->
-      <div class="card" style="margin-top:16px">
+      <div class="card desktop-table" style="margin-top:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <h3 style="font-size:14px;font-weight:600">± Notas de Crédito / Débito del Proveedor</h3>
         </div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Tipo</th><th>Fecha</th><th>N° Comprobante</th><th>Recepción</th><th>Monto</th><th>Concepto</th><th></th></tr></thead>
-            <tbody id="tablaAjustesProveedor"><tr><td colspan="7" style="text-align:center;padding:16px;color:var(--muted)">Sin ajustes registrados</td></tr></tbody>
+            <tbody id="tablaAjustesProveedor"></tbody>
           </table>
         </div>
       </div>
+      <div class="mobile-cards" id="cardsAjustesProveedor" style="margin-top:16px"></div>
     </div>
 
     <!-- PAGOS -->
@@ -2500,7 +2506,7 @@ function showSection(name) {
   <div style="padding:12px 20px 8px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Productos</div>
   <div class="more-drawer-item" onclick="mobileNav('productos');closeAllDrawers()"><span class="mn-icon">📦</span>Catálogo</div>
   <div class="more-drawer-item" onclick="mobileNav('stock');closeAllDrawers()"><span class="mn-icon">🏪</span>Stock</div>
-  <div class="more-drawer-item admin-only" onclick="closeAllDrawers();showSection('productos');setTimeout(()=>openModal('modalListaPrecios'),300)"><span class="mn-icon">📄</span>Lista de precios</div>
+  <div class="more-drawer-item admin-only" onclick="closeAllDrawers();showSection('listas');setTimeout(()=>openModal('modalListaPrecios'),300)"><span class="mn-icon">✨</span>Generar nueva lista</div>
   <div class="more-drawer-item" onclick="mobileNav('listas');closeAllDrawers()"><span class="mn-icon">📋</span>Listas de Precios Vigentes</div>
 </div>
 
@@ -6480,31 +6486,38 @@ let recepFleteBruto = 0;
 
 async function loadRecepciones() {
   if (!SUPABASE_URL) return;
+  const tbody = document.getElementById('tablaRecepciones');
+  const cardsEl = document.getElementById('cardsRecepciones');
   try {
     const recepciones = await api('recepciones', 'GET', null, '?select=*,pedidos_proveedor(numero)&order=created_at.desc');
-    const tbody = document.getElementById('tablaRecepciones');
-    if (!recepciones.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><div class="empty-icon">📥</div><p>No hay recepciones registradas todavía</p></div></td></tr>'; return; }
-    tbody.innerHTML = recepciones.map(r => {
+
+    if (!recepciones.length) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="8"><div class="empty"><div class="empty-icon">📥</div><p>No hay recepciones registradas todavía</p></div></td></tr>';
+      if (cardsEl) cardsEl.innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted)"><div style="font-size:32px">📥</div><p>No hay recepciones registradas todavía</p></div>';
+      return;
+    }
+
+    const buildPago = r => {
       const esBorrador = r.estado === 'borrador';
-      const estadoBadge = esBorrador
-        ? '<span class="badge badge-yellow">Borrador</span>'
-        : '<span class="badge badge-green">Confirmada</span>';
-      // Pago al proveedor — solo aplica a confirmadas
+      if (esBorrador) return null;
+      const saldoProv = parseFloat(r.total||0) - parseFloat(r.monto_pagado_prov||0);
+      if (r.estado_pago_prov === 'pagado') return { label: 'Pagado', badge: 'badge-green', saldo: 0 };
+      if (r.estado_pago_prov === 'parcial') return { label: 'Parcial', badge: 'badge-yellow', saldo: saldoProv };
+      return { label: 'Pendiente', badge: 'badge-red', saldo: saldoProv };
+    };
+
+    // Tabla desktop
+    if (tbody) tbody.innerHTML = recepciones.map(r => {
+      const esBorrador = r.estado === 'borrador';
+      const estadoBadge = esBorrador ? '<span class="badge badge-yellow">Borrador</span>' : '<span class="badge badge-green">Confirmada</span>';
+      const pago = buildPago(r);
       let pagoProv = '—';
-      if (!esBorrador) {
-        const saldoProv = parseFloat(r.total||0) - parseFloat(r.monto_pagado_prov||0);
-        if (r.estado_pago_prov === 'pagado') {
-          pagoProv = '<span class="badge badge-green">Pagado</span>';
-        } else if (r.estado_pago_prov === 'parcial') {
-          pagoProv = `<span class="badge badge-yellow">Parcial</span> <span style="font-size:11px;color:var(--muted)">Saldo $${saldoProv.toLocaleString('es-AR',{maximumFractionDigits:0})}</span>
-            <button class="btn btn-sm" style="background:#FEF3C7;color:#92400E" onclick="abrirPagoProveedor('${r.id}',${r.total},${r.monto_pagado_prov||0},'${r.remito_proveedor||''}')">+ Pago</button>`;
-        } else {
-          pagoProv = `<span class="badge badge-red">Pendiente</span>
-            <button class="btn btn-sm btn-success" onclick="abrirPagoProveedor('${r.id}',${r.total},${r.monto_pagado_prov||0},'${r.remito_proveedor||''}')">💸 Pagar</button>`;
-        }
+      if (pago) {
+        const saldoStr = pago.saldo > 0 ? ` <span style="font-size:11px;color:var(--muted)">Saldo $${pago.saldo.toLocaleString('es-AR',{maximumFractionDigits:0})}</span>` : '';
+        const btnPago = pago.saldo > 0 ? `<button class="btn btn-sm ${pago.label==='Parcial'?'':'btn-success'}" style="${pago.label==='Parcial'?'background:#FEF3C7;color:#92400E':''}" onclick="abrirPagoProveedor('${r.id}',${r.total},${r.monto_pagado_prov||0},'${r.remito_proveedor||''}')">💸 Pagar</button>` : '';
+        pagoProv = `<span class="badge ${pago.badge}">${pago.label}</span>${saldoStr} ${btnPago}`;
       }
-      return `
-      <tr>
+      return `<tr>
         <td style="color:var(--muted);font-size:12px">#${String(r.numero).padStart(4,'0')}</td>
         <td style="font-size:12px">${r.fecha_recepcion_real ? new Date(r.fecha_recepcion_real+'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
         <td>${r.pedidos_proveedor ? `Pedido #${String(r.pedidos_proveedor.numero).padStart(4,'0')}` : '<span style="color:var(--muted)">Suelta</span>'}</td>
@@ -6514,17 +6527,51 @@ async function loadRecepciones() {
         <td>${pagoProv}</td>
         <td style="white-space:nowrap">
           ${esBorrador ? `
-            <button class="btn btn-sm btn-success" onclick="confirmarRecepcion('${r.id}')" title="Confirmar y mover stock">✓ Confirmar</button>
-            <button class="btn btn-sm btn-secondary" onclick="editarRecepcion('${r.id}')" title="Editar borrador">✏ Editar</button>
-            <button class="btn btn-sm btn-secondary" onclick="verRecepcion('${r.id}')" title="Ver detalle">👁 Ver</button>
-            <button class="btn btn-sm btn-danger" onclick="deleteRecepcion('${r.id}')" title="Borrar borrador">✕</button>
-          ` : `
-            <button class="btn btn-sm btn-secondary" onclick="verRecepcion('${r.id}')" title="Ver detalle">👁 Ver</button>
-          `}
+            <button class="btn btn-sm btn-success" onclick="confirmarRecepcion('${r.id}')">✓ Confirmar</button>
+            <button class="btn btn-sm btn-secondary" onclick="editarRecepcion('${r.id}')">✏ Editar</button>
+            <button class="btn btn-sm btn-secondary" onclick="verRecepcion('${r.id}')">👁 Ver</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteRecepcion('${r.id}')">✕</button>
+          ` : `<button class="btn btn-sm btn-secondary" onclick="verRecepcion('${r.id}')">👁 Ver</button>`}
         </td>
       </tr>`;
     }).join('');
-  } catch(e) { console.error(e); toast('Error cargando recepciones', 'error'); }
+
+    // Cards móvil
+    if (cardsEl) cardsEl.innerHTML = recepciones.map(r => {
+      const esBorrador = r.estado === 'borrador';
+      const fecha = r.fecha_recepcion_real ? new Date(r.fecha_recepcion_real+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '—';
+      const pago = buildPago(r);
+      const acciones = [];
+      if (esBorrador) {
+        acciones.push(`<button class="btn btn-success" style="flex:1" onclick="confirmarRecepcion('${r.id}')">✓ Confirmar</button>`);
+        acciones.push(`<button class="btn btn-secondary" style="flex:1" onclick="editarRecepcion('${r.id}')">✏ Editar</button>`);
+        acciones.push(`<button class="btn btn-danger" style="flex:1" onclick="deleteRecepcion('${r.id}')">✕</button>`);
+      } else {
+        if (pago?.saldo > 0) acciones.push(`<button class="btn btn-success" style="flex:1" onclick="abrirPagoProveedor('${r.id}',${r.total},${r.monto_pagado_prov||0},'${r.remito_proveedor||''}')">💸 Pagar</button>`);
+        acciones.push(`<button class="btn btn-secondary" style="flex:1" onclick="verRecepcion('${r.id}')">👁 Ver</button>`);
+      }
+      return `<div class="op-card" style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:14px">#${String(r.numero).padStart(4,'0')} · ${fecha}</div>
+            ${r.remito_proveedor ? `<div style="font-size:12px;color:var(--muted)">Remito: ${r.remito_proveedor}</div>` : ''}
+            ${r.pedidos_proveedor ? `<div style="font-size:12px;color:var(--muted)">Pedido #${String(r.pedidos_proveedor.numero).padStart(4,'0')}</div>` : '<div style="font-size:12px;color:var(--muted)">Recepción suelta</div>'}
+          </div>
+          <div style="text-align:right;flex-shrink:0;margin-left:12px">
+            <div style="font-weight:700;font-size:15px">$${parseFloat(r.total||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+            <span class="badge ${esBorrador?'badge-yellow':'badge-green'}" style="display:inline-block;margin-top:2px">${esBorrador?'Borrador':'Confirmada'}</span>
+            ${pago ? `<br><span class="badge ${pago.badge}" style="display:inline-block;margin-top:2px">${pago.label}</span>` : ''}
+          </div>
+        </div>
+        ${acciones.length ? `<div class="op-card-actions" style="margin-top:10px">${acciones.join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+  } catch(e) {
+    console.error(e);
+    if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Error al cargar</td></tr>';
+    if (cardsEl) cardsEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Error al cargar</div>';
+    toast('Error cargando recepciones', 'error');
+  }
 }
 
 async function abrirAjusteProveedor() {
@@ -6564,15 +6611,19 @@ async function saveAjusteProveedor() {
 }
 
 async function loadAjustesProveedor() {
+  const tbody = document.getElementById('tablaAjustesProveedor');
+  const cardsEl = document.getElementById('cardsAjustesProveedor');
   try {
     const ajustes = await api('ajustes_proveedor', 'GET', null,
       '?select=*,recepciones(numero)&order=fecha.desc');
-    const tbody = document.getElementById('tablaAjustesProveedor');
+
     if (!ajustes.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--muted)">Sin ajustes registrados</td></tr>';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:16px;color:var(--muted)">Sin ajustes registrados</td></tr>';
+      if (cardsEl) cardsEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted)">Sin ajustes registrados</div>';
       return;
     }
-    tbody.innerHTML = ajustes.map(a => `
+
+    if (tbody) tbody.innerHTML = ajustes.map(a => `
       <tr>
         <td><span class="badge ${a.tipo === 'NC' ? 'badge-green' : 'badge-red'}">${a.tipo}</span></td>
         <td style="font-size:12px">${new Date(a.fecha+'T00:00:00').toLocaleDateString('es-AR')}</td>
@@ -6584,6 +6635,32 @@ async function loadAjustesProveedor() {
         <td style="font-size:12px;color:var(--muted)">${a.concepto || '—'}</td>
         <td><button class="btn btn-sm btn-danger admin-only" onclick="deleteAjusteProveedor('${a.id}')">🗑</button></td>
       </tr>`).join('');
+
+    if (cardsEl) cardsEl.innerHTML = `
+      <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:4px 0 8px">± NC / ND Proveedor</div>
+      ${ajustes.map(a => {
+        const esNC = a.tipo === 'NC';
+        const color = esNC ? '#16A34A' : '#DC2626';
+        const signo = esNC ? '−' : '+';
+        const fecha = new Date(a.fecha+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'});
+        return `<div class="op-card" style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span class="badge ${esNC?'badge-green':'badge-red'}">${a.tipo}</span>
+                <span style="font-size:12px;color:var(--muted)">${fecha}</span>
+                ${a.numero_comprobante ? `<span style="font-size:11px;color:var(--muted)">N° ${a.numero_comprobante}</span>` : ''}
+              </div>
+              ${a.recepciones ? `<div style="font-size:12px;color:var(--muted)">Recepción #${String(a.recepciones.numero).padStart(4,'0')}</div>` : ''}
+              ${a.concepto ? `<div style="font-size:12px;color:var(--muted)">${a.concepto}</div>` : ''}
+            </div>
+            <div style="font-size:20px;font-weight:700;color:${color};flex-shrink:0;margin-left:12px">${signo}$${parseFloat(a.monto).toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+          </div>
+          <div class="op-card-actions" style="margin-top:8px">
+            <button class="btn btn-danger" style="flex:1" onclick="deleteAjusteProveedor('${a.id}')">🗑 Eliminar</button>
+          </div>
+        </div>`;
+      }).join('')}`;
   } catch(e) { console.error(e); }
 }
 
@@ -7122,21 +7199,30 @@ function buildPedidoProveedorDoc(pedido, items) {
 
 async function loadPedidosProveedor() {
   if (!SUPABASE_URL) return;
+  const tbody = document.getElementById('tablaPedidosProveedor');
+  const cardsEl = document.getElementById('cardsPedidosProveedor');
   try {
     const estado = document.getElementById('provFiltroEstado')?.value || '';
     let q = '?select=*&order=created_at.desc';
     if (estado) q += `&estado=eq.${estado}`;
     const pedidos = await api('pedidos_proveedor', 'GET', null, q);
-    const tbody = document.getElementById('tablaPedidosProveedor');
-    if (!pedidos.length) { tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">🏭</div><p>No hay pedidos a proveedor todavía</p></div></td></tr>'; return; }
     const estadoBadge = { borrador: 'badge-gray', pendiente: 'badge-yellow', confirmado: 'badge-green', enviado: 'badge-blue', recibido_incompleto: 'badge-yellow', recibido_completo: 'badge-green', cancelado: 'badge-red' };
     const estadoLabel = { recibido_completo: 'Recibido completo', recibido_incompleto: 'Recibido incompleto' };
-    tbody.innerHTML = pedidos.map(p => `
+    const getLabel = e => estadoLabel[e] || (e.charAt(0).toUpperCase()+e.slice(1));
+
+    if (!pedidos.length) {
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="empty-icon">🏭</div><p>No hay pedidos a proveedor todavía</p></div></td></tr>';
+      if (cardsEl) cardsEl.innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted)"><div style="font-size:32px">🏭</div><p>No hay pedidos a proveedor todavía</p></div>';
+      return;
+    }
+
+    // Tabla desktop
+    if (tbody) tbody.innerHTML = pedidos.map(p => `
       <tr>
         <td style="color:var(--muted);font-size:12px">#${String(p.numero).padStart(4,'0')}</td>
         <td>${p.proveedor}</td>
         <td style="font-size:12px">${new Date(p.fecha+'T00:00:00').toLocaleDateString('es-AR')}</td>
-        <td><span class="badge ${estadoBadge[p.estado]||'badge-gray'}">${estadoLabel[p.estado] || (p.estado.charAt(0).toUpperCase()+p.estado.slice(1))}</span></td>
+        <td><span class="badge ${estadoBadge[p.estado]||'badge-gray'}">${getLabel(p.estado)}</span></td>
         <td>$${parseFloat(p.total_estimado||0).toLocaleString('es-AR')}</td>
         <td style="white-space:nowrap">
           ${p.estado === 'borrador' || p.estado === 'pendiente' ? `<button class="btn btn-sm btn-secondary" onclick="editarPedidoProveedor('${p.id}')" title="Editar">✏</button>` : ''}
@@ -7147,7 +7233,45 @@ async function loadPedidosProveedor() {
           ${!['cancelado','recibido_completo','recibido_incompleto'].includes(p.estado) ? `<button class="btn btn-sm btn-danger" onclick="deletePedidoProveedor('${p.id}')">Borrar</button>` : ''}
         </td>
       </tr>`).join('');
-  } catch(e) { console.error(e); toast('Error cargando pedidos a proveedor', 'error'); }
+
+    // Cards móvil
+    if (cardsEl) cardsEl.innerHTML = pedidos.map(p => {
+      const label = getLabel(p.estado);
+      const badge = estadoBadge[p.estado] || 'badge-gray';
+      const fecha = new Date(p.fecha+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'});
+      const acciones = [];
+      if (p.estado === 'borrador' || p.estado === 'pendiente') {
+        acciones.push(`<button class="btn btn-secondary" style="flex:1" onclick="editarPedidoProveedor('${p.id}')">✏ Editar</button>`);
+        acciones.push(`<button class="btn btn-success" style="flex:1" onclick="updateEstadoPedidoProveedor('${p.id}','confirmado')">✓ Confirmar</button>`);
+      }
+      if (p.estado === 'confirmado')
+        acciones.push(`<button class="btn" style="flex:1;background:#DBEAFE;color:#1D4ED8" onclick="updateEstadoPedidoProveedor('${p.id}','enviado')">📤 Enviar</button>`);
+      if (['confirmado','enviado','recibido_incompleto'].includes(p.estado))
+        acciones.push(`<button class="btn btn-success" style="flex:1" onclick="abrirNuevaRecepcion('${p.id}')">📥 Recibir</button>`);
+      if (['confirmado','enviado','recibido_completo','recibido_incompleto','cancelado'].includes(p.estado))
+        acciones.push(`<button class="btn btn-secondary" style="flex:1" onclick="verPedidoProveedor('${p.id}')">👁 Ver</button>`);
+      if (!['cancelado','recibido_completo','recibido_incompleto'].includes(p.estado))
+        acciones.push(`<button class="btn btn-danger" style="flex:1" onclick="deletePedidoProveedor('${p.id}')">✕</button>`);
+      return `<div class="op-card" style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:15px">${p.proveedor}</div>
+            <div style="font-size:12px;color:var(--muted)">#${String(p.numero).padStart(4,'0')} · ${fecha}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;margin-left:12px">
+            <div style="font-weight:700;font-size:15px">$${parseFloat(p.total_estimado||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+            <span class="badge ${badge}" style="margin-top:4px;display:inline-block">${label}</span>
+          </div>
+        </div>
+        ${acciones.length ? `<div class="op-card-actions" style="margin-top:10px;flex-wrap:wrap">${acciones.join('')}</div>` : ''}
+      </div>`;
+    }).join('');
+  } catch(e) {
+    console.error(e);
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted)">Error al cargar</td></tr>';
+    if (cardsEl) cardsEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Error al cargar</div>';
+    toast('Error cargando pedidos a proveedor', 'error');
+  }
 }
 
 function abrirGenerarBorrador() {
