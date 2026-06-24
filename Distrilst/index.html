@@ -5244,6 +5244,8 @@ function doLogout() {
   document.getElementById('loginBtn').disabled = false;
   document.getElementById('loginLoading').style.display = 'none';
   document.querySelectorAll('.nav-item').forEach(el => el.style.display = '');
+  document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('loginSetup').style.display = 'none';
   document.getElementById('loginForm').style.display = 'block';
   document.getElementById('loginScreen').classList.add('show');
@@ -5544,7 +5546,7 @@ async function showApp() {
   // Siempre cargar clientes y productos al inicio (todos los roles los necesitan)
   await loadUserRole(); // ensure role is set before rendering
   await Promise.all([loadClientes(), loadProductos()]);
-  loadDashboard();
+  showSection('dashboard');
   setTimeout(applyTableRolRestrictions, 500);
 }
 
