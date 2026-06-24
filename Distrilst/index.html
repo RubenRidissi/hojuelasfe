@@ -538,7 +538,7 @@ function showSection(name) {
       <div class="nav-item" onclick="showSection('clientes')">
         <span class="nav-icon">👥</span><span>Clientes</span>
       </div>
-      <div class="nav-item admin-only" onclick="showSection('mapa')">
+      <div class="nav-item" onclick="showSection('mapa')">
         <span class="nav-icon">🗺️</span><span>Mapa</span>
       </div>
       <div class="nav-item" onclick="showSection('productos')">
@@ -2399,7 +2399,7 @@ function showSection(name) {
 
 <!-- MORE DRAWER -->
 <div class="more-drawer" id="moreDrawer">
-  <div class="more-drawer-item admin-only" id="moreMapa" onclick="mobileNav('mapa')"><span class="mn-icon">🗺️</span>Mapa</div>
+  <div class="more-drawer-item" id="moreMapa" onclick="mobileNav('mapa')"><span class="mn-icon">🗺️</span>Mapa</div>
   <div class="more-drawer-item" onclick="mobileNav('productos')"><span class="mn-icon">📦</span>Productos</div>
   <div class="more-drawer-item" onclick="mobileNav('stock')"><span class="mn-icon">🏪</span>Stock</div>
   <div class="more-drawer-item" id="moreReportes" onclick="mobileNav('reportes')"><span class="mn-icon">📊</span>Reportes</div>
@@ -6079,25 +6079,38 @@ async function loadMapa() {
   if (!SUPABASE_URL) return;
   try {
     await loadVendedores();
-    // Poblar filtro vendedor
-    poblarSelectVendedor('mapaFiltroVendedor');
-    // Traer clientes con coordenadas
+    // Filtro vendedor solo para admin
+    if (currentRol === 'admin') {
+      poblarSelectVendedor('mapaFiltroVendedor');
+      const filtroWrap = document.getElementById('mapaFiltroVendedorWrap');
+      if (filtroWrap) filtroWrap.style.display = '';
+    } else {
+      const filtroWrap = document.getElementById('mapaFiltroVendedorWrap');
+      if (filtroWrap) filtroWrap.style.display = 'none';
+    }
+    // Traer clientes
     const todos = cachedClientes.length ? cachedClientes : await api('clientes', 'GET', null, '?order=nombre.asc');
     if (!cachedClientes.length) cachedClientes = todos;
-    mapaClientesData = todos;
-    // Inicializar mapa si no existe
-    if (!mapaInstance) {
-      mapaInstance = L.map('mapaContainer').setView([-31.63, -60.70], 11);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19
-      }).addTo(mapaInstance);
+    // Vendedor: solo sus clientes + sin asignar
+    mapaClientesData = currentRol === 'admin'
+      ? todos
+      : todos.filter(c => c.vendedor_id === currentUser || !c.vendedor_id);
+
+    // Destruir mapa anterior y reinicializar (fix móvil)
+    if (mapaInstance) {
+      mapaInstance.remove();
+      mapaInstance = null;
     }
+    mapaInstance = L.map('mapaContainer').setView([-31.63, -60.70], 11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(mapaInstance);
+
     renderMapa();
-    // Forzar redibujado - en móvil necesita más tiempo
-    setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 200);
-    setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 600);
-    setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 1200);
+    // Redibujado en móvil
+    setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 100);
+    setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 500);
   } catch(e) { console.error(e); toast('Error cargando mapa', 'error'); }
 }
 
