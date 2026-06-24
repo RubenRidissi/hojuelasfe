@@ -7957,31 +7957,36 @@ async function exportarTodoExcel() {
   btn.textContent = '⏳ Exportando...';
   status.textContent = '';
   try {
+    // Cargar SheetJS dinámicamente si no está disponible
+    if (typeof XLSX === 'undefined') {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+
     const tablas = [
-      { nombre: 'Clientes', query: '?order=nombre.asc', tabla: 'clientes' },
-      { nombre: 'Productos', query: '?order=codigo.asc', tabla: 'productos' },
-      { nombre: 'Pedidos', query: '?order=numero.asc&select=*,clientes(nombre,nombre_fantasia)', tabla: 'pedidos' },
-      { nombre: 'Pedido Items', query: '?order=pedido_id.asc&select=*,productos(nombre,codigo)', tabla: 'pedido_items' },
-      { nombre: 'Ventas', query: '?order=numero.asc&select=*,clientes(nombre,nombre_fantasia)', tabla: 'ventas' },
-      { nombre: 'Venta Items', query: '?order=venta_id.asc&select=*,productos(nombre,codigo)', tabla: 'venta_items' },
-      { nombre: 'Remitos', query: '?order=numero.asc&select=*,clientes(nombre,nombre_fantasia)', tabla: 'remitos' },
-      { nombre: 'Pagos', query: '?order=numero.asc&select=*,clientes(nombre,nombre_fantasia)', tabla: 'pagos' },
-      { nombre: 'Pago Ventas', query: '?order=pago_id.asc', tabla: 'pago_ventas' },
-      { nombre: 'Recepciones', query: '?order=numero.asc', tabla: 'recepciones' },
-      { nombre: 'Stock Movimientos', query: '?order=created_at.asc&select=*,productos(nombre,codigo),clientes(nombre)', tabla: 'stock_movimientos' },
-      { nombre: 'Ajustes Clientes', query: '?order=created_at.asc&select=*,clientes(nombre)', tabla: 'ajustes_cliente' },
-      { nombre: 'Ajustes Proveedor', query: '?order=created_at.asc', tabla: 'ajustes_proveedor' },
-      { nombre: 'Objetivos Ventas', query: '?order=anio.asc,mes.asc', tabla: 'objetivos_ventas' },
+      { nombre: 'Clientes', tabla: 'clientes', query: '?order=nombre.asc' },
+      { nombre: 'Productos', tabla: 'productos', query: '?order=codigo.asc' },
+      { nombre: 'Pedidos', tabla: 'pedidos', query: '?order=numero.asc&select=id,numero,fecha,fecha_entrega,estado,total,notas,clientes(nombre,nombre_fantasia)' },
+      { nombre: 'Pedido Items', tabla: 'pedido_items', query: '?order=pedido_id.asc&select=pedido_id,cantidad,bonificado,precio_unitario,productos(nombre,codigo)' },
+      { nombre: 'Ventas', tabla: 'ventas', query: '?order=numero.asc&select=id,numero,fecha,total,estado_pago,monto_pagado,notas,clientes(nombre,nombre_fantasia)' },
+      { nombre: 'Venta Items', tabla: 'venta_items', query: '?order=venta_id.asc&select=venta_id,cantidad,bonificado,precio_unitario,productos(nombre,codigo)' },
+      { nombre: 'Remitos', tabla: 'remitos', query: '?order=numero.asc&select=id,numero,fecha_generado,fecha_entrega_real,total,origen_tipo,clientes(nombre,nombre_fantasia)' },
+      { nombre: 'Pagos', tabla: 'pagos', query: '?order=numero.asc&select=id,numero,fecha,monto,medio,centro_costo,notas,clientes(nombre,nombre_fantasia)' },
+      { nombre: 'Recepciones', tabla: 'recepciones', query: '?order=numero.asc&select=id,numero,fecha_recepcion_real,total,estado,estado_pago_prov,monto_pagado_prov' },
+      { nombre: 'Stock Movimientos', tabla: 'stock_movimientos', query: '?order=created_at.asc&select=fecha,tipo,origen,cantidad,notas,productos(nombre,codigo),clientes(nombre)' },
+      { nombre: 'Ajustes Clientes', tabla: 'ajuste_cliente', query: '?order=created_at.asc&select=fecha,tipo,monto,descripcion,clientes(nombre)' },
+      { nombre: 'Objetivos Ventas', tabla: 'objetivos_ventas', query: '?order=anio.asc,mes.asc' },
     ];
 
-    // Construir Excel con múltiples hojas usando tabla HTML
-    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
-    <head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>`;
+    const wb = XLSX.utils.book_new();
+    let exportadas = 0;
 
-    const hojas = [];
-    let i = 0;
     for (const t of tablas) {
-      status.textContent = `Exportando ${t.nombre}... (${++i}/${tablas.length})`;
+      status.textContent = `Exportando ${t.nombre}...`;
       try {
         const datos = await api(t.tabla, 'GET', null, t.query);
         if (!datos.length) continue;
@@ -7992,40 +7997,26 @@ async function exportarTodoExcel() {
             if (v && typeof v === 'object' && !Array.isArray(v)) {
               Object.entries(v).forEach(([k2, v2]) => { flat[`${k}_${k2}`] = v2; });
             } else if (!Array.isArray(v)) {
-              flat[k] = v;
+              flat[k] = v ?? '';
             }
           });
           return flat;
         });
-        hojas.push({ nombre: t.nombre, datos: aplanados });
-        html += `<x:ExcelWorksheet><x:Name>${t.nombre}</x:Name><x:WorksheetSource HRef="${t.nombre}"/></x:ExcelWorksheet>`;
+        const ws = XLSX.utils.json_to_sheet(aplanados);
+        XLSX.utils.book_append_sheet(wb, ws, t.nombre);
+        exportadas++;
       } catch(e) { console.warn('Error exportando', t.nombre, e); }
     }
 
-    html += `</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>`;
-
-    for (const h of hojas) {
-      const cols = Object.keys(h.datos[0]);
-      html += `<table id="${h.nombre}"><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
-      html += h.datos.map(row => `<tr>${cols.map(c => `<td>${row[c] ?? ''}</td>`).join('')}</tr>`).join('');
-      html += `</tbody></table>`;
-    }
-    html += `</body></html>`;
-
     const fecha = new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'}).replace(/\//g,'-');
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `HojuelasSFE_Backup_${fecha}.xls`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    XLSX.writeFile(wb, `HojuelasSFE_Backup_${fecha}.xlsx`);
 
-    status.textContent = `✓ Exportado ${hojas.length} tablas correctamente`;
+    status.textContent = `✓ ${exportadas} tablas exportadas correctamente`;
     status.style.color = 'var(--success)';
   } catch(e) {
     status.textContent = 'Error: ' + e.message;
     status.style.color = '#DC2626';
+    console.error(e);
   } finally {
     btn.disabled = false;
     btn.textContent = '📊 Exportar todo a Excel';
