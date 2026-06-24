@@ -619,7 +619,7 @@ function showSection(name) {
           <span class="nav-icon">📄</span><span>Lista de precios</span>
         </div>
         <div class="nav-item vendedor-only" onclick="showSection('productos');setTimeout(()=>document.getElementById('listaRepo')?.scrollIntoView({behavior:'smooth'}),400)">
-          <span class="nav-icon">📋</span><span>Listas guardadas</span>
+          <span class="nav-icon">📋</span><span>Listas de Precios Vigentes</span>
         </div>
       </div>
 
@@ -708,6 +708,8 @@ function showSection(name) {
 
       <!-- VENDEDOR DASHBOARD -->
       <div id="dashVendedor" style="display:none">
+        <!-- Novedades de solicitudes -->
+        <div id="vDashNovedades" style="display:none;margin-bottom:16px"></div>
         <!-- Stats del vendedor -->
         <div class="stats-grid" style="margin-bottom:20px">
           <div class="stat-card"><div class="stat-label">Pedidos pendientes</div><div class="stat-value" id="vStatPedidosPend">—</div></div>
@@ -872,7 +874,7 @@ function showSection(name) {
       <!-- REPOSITORIO LISTAS DE PRECIOS -->
       <div class="card" style="margin-top:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-          <h3 style="font-size:14px;font-weight:600">📋 Listas de precios guardadas</h3>
+          <h3 style="font-size:14px;font-weight:600">📋 Listas de Precios Vigentes</h3>
           <button class="btn btn-secondary btn-sm" onclick="loadListasRepo()">🔄 Actualizar</button>
         </div>
         <div id="listaRepo"><p style="color:var(--muted);font-size:13px">Cargando listas...</p></div>
@@ -1132,6 +1134,27 @@ function showSection(name) {
           </table>
         </div>
       </div>
+
+      <!-- Historial movimientos MÓVIL (admin-only) -->
+      <div class="admin-only mobile-cards" style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <h3 style="font-size:14px;font-weight:600">Historial de movimientos</h3>
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <select id="filtroOrigenMovMobile" style="flex:1;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface)" onchange="loadMovimientos()">
+            <option value="">Todos los orígenes</option>
+            <option value="reposicion">Reposición</option>
+            <option value="venta">Venta</option>
+            <option value="muestra">Muestra</option>
+            <option value="devolucion">Devolución</option>
+            <option value="ajuste_manual">Ajuste manual</option>
+          </select>
+          <select id="filtroProductoMovMobile" style="flex:1;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface)" onchange="loadMovimientos()">
+            <option value="">Todos los productos</option>
+          </select>
+        </div>
+        <div id="cardsMovimientos"></div>
+      </div>
     </div>
 
     <!-- REPORTES -->
@@ -1139,7 +1162,14 @@ function showSection(name) {
     <div id="sec-finanzas" class="section">
       <div class="page-header">
         <h1 class="page-title">💵 Finanzas</h1>
-        <button class="btn btn-secondary" onclick="loadFinanzas()">🔄 Actualizar</button>
+        <div style="display:flex;gap:8px;align-items:center">
+          <select id="finFiltroCC" style="font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface)" onchange="loadFinanzas()">
+            <option value="">CC1 + CC2</option>
+            <option value="CC1">CC1 — Con factura</option>
+            <option value="CC2">CC2 — Sin factura</option>
+          </select>
+          <button class="btn btn-secondary" onclick="loadFinanzas()">🔄 Actualizar</button>
+        </div>
       </div>
 
       <!-- POSICIÓN DEL DÍA -->
@@ -2810,7 +2840,7 @@ async function loadDashboardVendedor() {
   // Productos disponibles y stock bajo
   try {
     const stockData = await api('stock_actual', 'GET', null, '?select=nombre,codigo,stock,stock_minimo&order=nombre.asc');
-    const disponibles = stockData.filter(p => parseFloat(p.stock) > parseFloat(p.stock_minimo || 0));
+    const disponibles = stockData.filter(p => parseFloat(p.stock) > 0 && parseFloat(p.stock) > parseFloat(p.stock_minimo || 0));
     const bajos = stockData.filter(p => parseFloat(p.stock) > 0 && parseFloat(p.stock) <= parseFloat(p.stock_minimo || 0) && parseFloat(p.stock_minimo || 0) > 0);
 
     document.getElementById('vDashStockOk').innerHTML = disponibles.length
@@ -2830,7 +2860,49 @@ async function loadDashboardVendedor() {
         </tr>`).join('')
       : '<tr><td colspan="4" style="text-align:center;padding:12px;color:var(--muted)">Sin alertas de stock</td></tr>';
   } catch(e) { console.error('vDash stock:', e); }
+
+  // NOVEDADES: solicitudes aprobadas/rechazadas no vistas
+  try {
+    const misolicitudes = await api('solicitudes_clientes', 'GET', null,
+      `?vendedor_id=eq.${currentUser}&estado=in.(aprobada,rechazada)&order=updated_at.desc&limit=20&select=id,estado,updated_at,clientes(nombre,nombre_fantasia)`);
+    const vistas = JSON.parse(localStorage.getItem('solicitudes_vistas_' + currentUser) || '[]');
+    const nuevas = misolicitudes.filter(s => !vistas.includes(s.id));
+    const novedadesEl = document.getElementById('vDashNovedades');
+    if (nuevas.length && novedadesEl) {
+      novedadesEl.style.display = '';
+      novedadesEl.innerHTML = `<div class="card" style="border-color:#F6C456;background:#FFFBEB">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <h3 style="font-size:14px;font-weight:600;color:#92400E">📬 Novedades de solicitudes</h3>
+          <button class="btn btn-sm btn-secondary" onclick="marcarSolicitudesVistas()">Marcar como vistas</button>
+        </div>
+        ${nuevas.map(s => {
+          const nombreCli = s.clientes?.nombre_fantasia || s.clientes?.nombre || 'Cliente';
+          const isOk = s.estado === 'aprobada';
+          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #FDE68A">
+            <span style="font-size:18px">${isOk ? '✅' : '❌'}</span>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:600">${nombreCli}</div>
+              <div style="font-size:12px;color:var(--muted)">Solicitud ${isOk ? 'aprobada' : 'rechazada'}</div>
+            </div>
+            <span class="badge ${isOk ? 'badge-green' : 'badge-red'}">${s.estado}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+      // guardar IDs para marcar al hacer click
+      window._solicitudesNuevasIds = nuevas.map(s => s.id);
+    } else if (novedadesEl) {
+      novedadesEl.style.display = 'none';
+    }
+  } catch(e) { console.error('vDash novedades:', e); }
+
   // Objetivo del mes → ahora en Reportes
+}
+
+function marcarSolicitudesVistas() {
+  const vistas = JSON.parse(localStorage.getItem('solicitudes_vistas_' + currentUser) || '[]');
+  const todas = [...new Set([...vistas, ...(window._solicitudesNuevasIds || [])])];
+  localStorage.setItem('solicitudes_vistas_' + currentUser, JSON.stringify(todas));
+  document.getElementById('vDashNovedades').style.display = 'none';
 }
 
 // ==================== CLIENTES ====================
@@ -3189,7 +3261,7 @@ function renderProductos(list) {
       const precio = parseFloat(p.precio || 0);
       const precioMay = parseFloat(p.precio_mayorista || 0);
       const stock = p.stock_real ?? parseFloat(p.stock || 0);
-      const stockColor = stock <= (p.stock_minimo || 0) && p.stock_minimo > 0 ? '#DC2626' : '#16A34A';
+      const stockColor = stock <= 0 ? '#DC2626' : stock <= (p.stock_minimo || 0) && p.stock_minimo > 0 ? '#D97706' : '#16A34A';
       return `<div class="op-card">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
           <div style="flex:1;min-width:0">
@@ -4815,37 +4887,91 @@ async function loadStockActual() {
 
 async function loadMovimientos() {
   try {
-    const origen = document.getElementById('filtroOrigenMov').value;
-    const prodId = document.getElementById('filtroProductoMov').value;
+    // Leer filtros: desktop o mobile (el que esté visible)
+    const origenDesk = document.getElementById('filtroOrigenMov')?.value || '';
+    const origenMob  = document.getElementById('filtroOrigenMovMobile')?.value || '';
+    const prodDesk   = document.getElementById('filtroProductoMov')?.value || '';
+    const prodMob    = document.getElementById('filtroProductoMovMobile')?.value || '';
+    const isMobile   = window.innerWidth < 768;
+    const origen = isMobile ? origenMob : origenDesk;
+    const prodId = isMobile ? prodMob  : prodDesk;
+
     let q = '?select=id,fecha,tipo,origen,cantidad,notas,productos(nombre,codigo),clientes(nombre,nombre_fantasia)&order=created_at.desc&limit=100';
     if (origen) q += `&origen=eq.${origen}`;
     if (prodId) q += `&producto_id=eq.${prodId}`;
     const movs = await api('stock_movimientos', 'GET', null, q);
+
+    // --- DESKTOP tabla ---
     const tbody = document.getElementById('tablaMovimientos');
-    if (!movs.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Sin movimientos</td></tr>'; return; }
-    tbody.innerHTML = movs.map(m => {
-      const cant = parseFloat(m.cantidad);
-      const cantColor = cant > 0 ? 'var(--success)' : 'var(--danger)';
-      const cantStr = (cant > 0 ? '+' : '') + cant;
-      const origenBadge = { reposicion:'badge-green', venta:'badge-blue', muestra:'badge-yellow', devolucion:'badge-green', ajuste_manual:'badge-gray', pedido:'badge-blue' }[m.origen] || 'badge-gray';
-      return `<tr>
-        <td>${m.fecha}</td>
-        <td>${m.productos?.codigo ? `<code style="font-size:11px">${m.productos.codigo}</code> ` : ''}${m.productos?.nombre||'—'}</td>
-        <td>${m.tipo === 'entrada' ? '⬆ Entrada' : m.tipo === 'salida' ? '⬇ Salida' : '↔ Ajuste'}</td>
-        <td><span class="badge ${origenBadge}">${m.origen.replace('_',' ')}</span></td>
-        <td style="font-weight:600;color:${cantColor}">${cantStr}</td>
-        <td>${m.clientes ? nombreCliente(m.clientes) : '—'}</td>
-        <td class="hide-mobile" style="color:var(--muted);font-size:12px">${m.notas||'—'}</td>
-        <td>${currentRol === 'admin' ? `<button class="btn btn-sm btn-danger" onclick="deleteMov('${m.id}')">✕</button>` : ''}</td>
-      </tr>`;
-    }).join('');
+    if (tbody) {
+      if (!movs.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">Sin movimientos</td></tr>'; }
+      else {
+        tbody.innerHTML = movs.map(m => {
+          const cant = parseFloat(m.cantidad);
+          const cantColor = cant > 0 ? 'var(--success)' : 'var(--danger)';
+          const cantStr = (cant > 0 ? '+' : '') + cant;
+          const origenBadge = { reposicion:'badge-green', venta:'badge-blue', muestra:'badge-yellow', devolucion:'badge-green', ajuste_manual:'badge-gray', pedido:'badge-blue' }[m.origen] || 'badge-gray';
+          return `<tr>
+            <td>${m.fecha}</td>
+            <td>${m.productos?.codigo ? `<code style="font-size:11px">${m.productos.codigo}</code> ` : ''}${m.productos?.nombre||'—'}</td>
+            <td>${m.tipo === 'entrada' ? '⬆ Entrada' : m.tipo === 'salida' ? '⬇ Salida' : '↔ Ajuste'}</td>
+            <td><span class="badge ${origenBadge}">${m.origen.replace('_',' ')}</span></td>
+            <td style="font-weight:600;color:${cantColor}">${cantStr}</td>
+            <td>${m.clientes ? nombreCliente(m.clientes) : '—'}</td>
+            <td class="hide-mobile" style="color:var(--muted);font-size:12px">${m.notas||'—'}</td>
+            <td>${currentRol === 'admin' ? `<button class="btn btn-sm btn-danger" onclick="deleteMov('${m.id}')">✕</button>` : ''}</td>
+          </tr>`;
+        }).join('');
+      }
+    }
+
+    // --- MÓVIL cards ---
+    const cardsEl = document.getElementById('cardsMovimientos');
+    if (cardsEl) {
+      if (!movs.length) { cardsEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Sin movimientos</div>'; }
+      else {
+        const origenColors = { reposicion:'#16A34A', venta:'#2563EB', muestra:'#D97706', devolucion:'#16A34A', ajuste_manual:'#6B7280', pedido:'#2563EB' };
+        const tipoIcon = { entrada:'⬆', salida:'⬇', ajuste:'↔' };
+        cardsEl.innerHTML = movs.map(m => {
+          const cant = parseFloat(m.cantidad);
+          const cantColor = cant > 0 ? '#16A34A' : '#DC2626';
+          const cantStr = (cant > 0 ? '+' : '') + cant;
+          const origenColor = origenColors[m.origen] || '#6B7280';
+          const origenLabel = m.origen.replace('_',' ');
+          const tipoLabel = m.tipo === 'entrada' ? 'Entrada' : m.tipo === 'salida' ? 'Salida' : 'Ajuste';
+          return `<div class="op-card" style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div style="flex:1">
+                <div style="font-weight:600;font-size:14px">${m.productos?.nombre || '—'}</div>
+                ${m.productos?.codigo ? `<code style="font-size:11px;background:var(--bg);padding:1px 5px;border-radius:4px">${m.productos.codigo}</code>` : ''}
+                ${m.clientes ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">👤 ${nombreCliente(m.clientes)}</div>` : ''}
+              </div>
+              <div style="text-align:right;flex-shrink:0;margin-left:12px">
+                <div style="font-size:20px;font-weight:700;color:${cantColor}">${cantStr}</div>
+                <div style="font-size:11px;color:var(--muted)">${m.fecha}</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center">
+              <span style="background:${origenColor}22;color:${origenColor};padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">${tipoIcon[m.tipo]||'↔'} ${tipoLabel}</span>
+              <span style="background:var(--bg);color:var(--muted);padding:2px 8px;border-radius:12px;font-size:11px">${origenLabel}</span>
+              ${m.notas ? `<span style="font-size:11px;color:var(--muted)">📝 ${m.notas}</span>` : ''}
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn btn-sm btn-danger" style="flex:1" onclick="deleteMov('${m.id}')">✕ Eliminar</button>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }
   } catch(e) { console.error(e); }
 }
 
 async function poblarFiltroProductoMov() {
+  const opts = '<option value="">Todos los productos</option>' + cachedProductos.map(p => `<option value="${p.id}">${p.codigo ? p.codigo+' — ' : ''}${p.nombre}</option>`).join('');
   const sel = document.getElementById('filtroProductoMov');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">Todos los productos</option>' + cachedProductos.map(p => `<option value="${p.id}">${p.codigo ? p.codigo+' — ' : ''}${p.nombre}</option>`).join('');
+  if (sel) sel.innerHTML = opts;
+  const selMob = document.getElementById('filtroProductoMovMobile');
+  if (selMob) selMob.innerHTML = opts;
 }
 
 function openStockModal(modalId) {
@@ -7251,14 +7377,19 @@ async function loadFinanzas() {
   const now = new Date();
   const mesDesde = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
   const mesHasta = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${new Date(now.getFullYear(),now.getMonth()+1,0).getDate()}`;
+  const filtroCC = document.getElementById('finFiltroCC')?.value || '';
+  const ccSuffix = filtroCC ? `&centro_costo=eq.${filtroCC}` : '';
+
+  // Etiqueta del filtro activo para mostrar en títulos
+  const ccLabel = filtroCC ? ` <span style="font-size:11px;background:${filtroCC==='CC1'?'#DBEAFE':'#F3F4F6'};color:${filtroCC==='CC1'?'#1D4ED8':'#374151'};padding:1px 7px;border-radius:10px;font-weight:600">${filtroCC}</span>` : '';
 
   try {
     await loadVendedores();
 
     // 1. POSICIÓN DEL PERÍODO
     const [cobrosHoy, cobrosMes, pagProvHoy, pagProvMes] = await Promise.all([
-      api('pagos', 'GET', null, `?fecha=eq.${hoy}&select=monto,centro_costo`),
-      api('pagos', 'GET', null, `?fecha=gte.${mesDesde}&fecha=lte.${mesHasta}&select=monto,centro_costo`),
+      api('pagos', 'GET', null, `?fecha=eq.${hoy}&select=monto,centro_costo${ccSuffix}`),
+      api('pagos', 'GET', null, `?fecha=gte.${mesDesde}&fecha=lte.${mesHasta}&select=monto,centro_costo${ccSuffix}`),
       api('pagos_proveedor', 'GET', null, `?fecha=eq.${hoy}&select=monto`),
       api('pagos_proveedor', 'GET', null, `?fecha=gte.${mesDesde}&fecha=lte.${mesHasta}&select=monto`)
     ]);
@@ -7266,10 +7397,11 @@ async function loadFinanzas() {
     const sum = arr => arr.reduce((s,x) => s + parseFloat(x.monto||0), 0);
     const sumCC = (arr, cc) => arr.filter(x => x.centro_costo === cc).reduce((s,x) => s + parseFloat(x.monto||0), 0);
 
-    document.getElementById('finCobradoHoy').innerHTML =
-      `${fmt(sum(cobrosHoy))}<br><span style="font-size:11px;color:var(--muted)">CC1: ${fmt(sumCC(cobrosHoy,'CC1'))} · CC2: ${fmt(sumCC(cobrosHoy,'CC2'))}</span>`;
-    document.getElementById('finCobradoMes').innerHTML =
-      `${fmt(sum(cobrosMes))}<br><span style="font-size:11px;color:var(--muted)">CC1: ${fmt(sumCC(cobrosMes,'CC1'))} · CC2: ${fmt(sumCC(cobrosMes,'CC2'))}</span>`;
+    // Subtítulos CC solo cuando no hay filtro activo
+    const cobrosHoyCC = filtroCC ? '' : `<br><span style="font-size:11px;color:var(--muted)">CC1: ${fmt(sumCC(cobrosHoy,'CC1'))} · CC2: ${fmt(sumCC(cobrosHoy,'CC2'))}</span>`;
+    const cobrosMesCC = filtroCC ? '' : `<br><span style="font-size:11px;color:var(--muted)">CC1: ${fmt(sumCC(cobrosMes,'CC1'))} · CC2: ${fmt(sumCC(cobrosMes,'CC2'))}</span>`;
+    document.getElementById('finCobradoHoy').innerHTML = fmt(sum(cobrosHoy)) + cobrosHoyCC;
+    document.getElementById('finCobradoMes').innerHTML = fmt(sum(cobrosMes)) + cobrosMesCC;
     document.getElementById('finPagadoProvHoy').textContent = fmt(sum(pagProvHoy));
     document.getElementById('finPagadoProvMes').textContent = fmt(sum(pagProvMes));
 
