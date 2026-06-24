@@ -3818,7 +3818,10 @@ function populateSelects() {
 
 function populateClienteSelect(selId) {
   const sel = document.getElementById(selId);
-  sel.innerHTML = '<option value="">Seleccioná un cliente</option>' + cachedClientes.map(c => `<option value="${c.id}">${nombreCliente(c)}</option>`).join('');
+  const lista = currentRol === 'admin'
+    ? cachedClientes
+    : cachedClientes.filter(c => c.vendedor_id === currentUser && c.estado_cliente === 'Activo');
+  sel.innerHTML = '<option value="">Seleccioná un cliente</option>' + lista.map(c => `<option value="${c.id}">${nombreCliente(c)}</option>`).join('');
   
   // Add search input if not already present
   const searchId = selId + 'Search';
@@ -7644,6 +7647,9 @@ function descargarComp() {
   const titulo = document.getElementById('compModalTitle')?.textContent || 'Comprobante';
   const contenido = document.getElementById('compContenido')?.innerHTML || '';
   const estilos = document.querySelector('style')?.textContent || '';
+  const now = new Date();
+  const fecha = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+  const nombreArchivo = `${titulo.replace(/[^a-zA-Z0-9\sáéíóúÁÉÍÓÚñÑ#]/g, '').trim().replace(/\s+/g,'_')}_${fecha}.html`;
   const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>${titulo}</title>
     <style>* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; } body { font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #1C1917; } ${estilos}</style>
     </head><body>${contenido}</body></html>`;
@@ -7651,7 +7657,7 @@ function descargarComp() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${titulo.replace(/[^a-zA-Z0-9\s]/g, '').trim()}.html`;
+  a.download = nombreArchivo;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
