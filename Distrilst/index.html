@@ -8249,18 +8249,16 @@ function descargarComp() {
 function printComp() {
   const contenido = document.getElementById('compContenido').innerHTML;
   const titulo = document.getElementById('compModalTitle').textContent;
-  const estilos = document.querySelector('style').textContent;
   const isMobile = window.innerWidth < 768;
   const win = window.open('', '_blank');
   if (!win) { toast('Permitir ventanas emergentes para imprimir', 'error'); return; }
-  // Mobile: agregar botón manual de imprimir (no llamar print() automático)
   const botonImprimir = isMobile
-    ? '<div style="text-align:center;padding:16px"><button onclick="window.print()" style="background:#D4860A;color:white;border:none;padding:12px 28px;border-radius:8px;font-size:16px;cursor:pointer">🖨 Imprimir / Guardar PDF</button></div>'
+    ? '<div class="no-print" style="text-align:center;padding:14px;background:#f8f7f4;border-bottom:1px solid #e0d9d0"><button onclick="window.print()" style="background:#D4860A;color:white;border:none;padding:12px 28px;border-radius:8px;font-size:16px;cursor:pointer;font-weight:600">🖨 Imprimir / Guardar PDF</button></div>'
     : '';
-  win.document.write('<!DOCTYPE html><html><head><title>' + titulo + '</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;box-sizing:border-box;}html,body{margin:0;padding:0;background:white;min-height:unset!important;height:auto!important;}body{font-family:Arial,sans-serif;color:#1C1917;font-size:14px;}.comp-wrap{width:100%!important;max-width:100%!important;padding:16px!important;}.no-print-bar{display:flex;justify-content:center;padding:12px;background:#f8f7f4;border-bottom:1px solid #e0d9d0;}@media print{.no-print,.no-print-bar{display:none!important;}body{font-size:11px;}}' + estilos + '</style></head><body><div class="no-print-bar">' + botonImprimir + '</div>' + contenido + '</body></html>');
+  const css = ;
+  win.document.write('<!DOCTYPE html><html><head><title>' + titulo + '</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>' + css + '</style></head><body>' + botonImprimir + contenido + '</body></html>');
   win.document.close();
   win.focus();
-  // Desktop: imprimir automático
   if (!isMobile) setTimeout(function() { win.print(); win.close(); }, 500);
 }
 
