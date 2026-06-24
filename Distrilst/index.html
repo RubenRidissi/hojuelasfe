@@ -472,7 +472,7 @@ function openNavGroup(section) {
     pedidos: 'Clientes', ventas: 'Clientes', remitos: 'Clientes',
     pagos: 'Clientes', ctacte: 'Clientes',
     proveedor: 'Proveedores', recepciones: 'Proveedores',
-    productos: 'Productos', stock: 'Productos',
+    productos: 'Productos', stock: 'Productos', listas: 'Productos',
     finanzas: 'Finanzas'
   };
   const grupo = grupos[section];
@@ -495,7 +495,8 @@ function showSection(name) {
   try {
     if (typeof loadDashboard === 'function' && name === 'dashboard') loadDashboard();
     if (typeof loadClientes === 'function' && name === 'clientes') loadClientes();
-    if (name === 'productos') { loadProductos(); loadListasRepo(); }
+    if (name === 'productos') { loadProductos(); }
+    if (name === 'listas') loadListasRepo();
     if (typeof loadPedidos === 'function' && name === 'pedidos') loadPedidos();
     if (typeof loadVentas === 'function' && name === 'ventas') loadVentas();
     if (name === 'remitos') loadRemitos();
@@ -615,10 +616,10 @@ function showSection(name) {
         <div class="nav-item" onclick="showSection('stock')">
           <span class="nav-icon">🏪</span><span>Stock</span>
         </div>
-        <div class="nav-item admin-only" onclick="showSection('productos');setTimeout(()=>openModal('modalListaPrecios'),300)">
-          <span class="nav-icon">📄</span><span>Lista de precios</span>
+        <div class="nav-item admin-only" onclick="showSection('listas')">
+          <span class="nav-icon">📋</span><span>Listas de Precios Vigentes</span>
         </div>
-        <div class="nav-item vendedor-only" onclick="showSection('productos');setTimeout(()=>document.getElementById('listaRepo')?.scrollIntoView({behavior:'smooth'}),400)">
+        <div class="nav-item vendedor-only" onclick="showSection('listas')">
           <span class="nav-icon">📋</span><span>Listas de Precios Vigentes</span>
         </div>
       </div>
@@ -696,13 +697,14 @@ function showSection(name) {
           <div id="dashObjetivosContenido"></div>
         </div>
         <div class="card">
-          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Últimos pedidos</h3>
-          <div class="table-wrap">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Pedidos pendientes</h3>
+          <div class="table-wrap desktop-table">
             <table>
               <thead><tr><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Total</th></tr></thead>
               <tbody id="dashPedidos"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Cargando...</td></tr></tbody>
             </table>
           </div>
+          <div class="mobile-cards" id="dashPedidosCards"></div>
         </div>
       </div>
 
@@ -720,13 +722,14 @@ function showSection(name) {
 
         <!-- Mis últimos pedidos -->
         <div class="card" style="margin-bottom:16px">
-          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Mis últimos pedidos</h3>
-          <div class="table-wrap">
+          <h3 style="font-size:14px;font-weight:600;margin-bottom:14px">Mis pedidos — últimos 7 días</h3>
+          <div class="table-wrap desktop-table">
             <table>
               <thead><tr><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Total</th></tr></thead>
               <tbody id="vDashPedidos"><tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Cargando...</td></tr></tbody>
             </table>
           </div>
+          <div class="mobile-cards" id="vDashPedidosCards"></div>
         </div>
 
         <!-- Productos disponibles -->
@@ -823,7 +826,7 @@ function showSection(name) {
         <h1 class="page-title">Productos</h1>
         <span id="btnNuevoProducto"></span>
         <button class="btn btn-secondary" onclick="exportarExcel('productos')">📥 Excel</button>
-        <button class="btn btn-secondary admin-only" onclick="openModal('modalListaPrecios')">📄 Lista de precios</button>
+        <button class="btn btn-secondary admin-only" onclick="showSection('listas')">📋 Listas de Precios Vigentes</button>
         <button class="btn btn-secondary admin-only" onclick="abrirActualizacionMasiva()">💲 Actualizar precios</button>
         <button class="btn btn-secondary admin-only" onclick="abrirGuardarVersion()">📸 Guardar versión</button>
         <button class="btn btn-secondary admin-only" onclick="abrirVersiones()">📋 Versiones</button>
@@ -836,7 +839,7 @@ function showSection(name) {
           <span id="btnNuevoProductoMobile"></span>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px">
-          <button class="btn btn-secondary" style="flex:1" onclick="openModal('modalListaPrecios')">📄 Lista precios</button>
+          <button class="btn btn-secondary" style="flex:1" onclick="showSection('listas')">📋 Listas</button>
           <button class="btn btn-secondary" style="flex:1" onclick="abrirActualizacionMasiva()">💲 Actualizar</button>
         </div>
         <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -871,12 +874,15 @@ function showSection(name) {
       <!-- CARDS (móvil) -->
       <div class="mobile-cards" id="cardsProductos"></div>
 
-      <!-- REPOSITORIO LISTAS DE PRECIOS -->
-      <div class="card" style="margin-top:16px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-          <h3 style="font-size:14px;font-weight:600">📋 Listas de Precios Vigentes</h3>
-          <button class="btn btn-secondary btn-sm" onclick="loadListasRepo()">🔄 Actualizar</button>
-        </div>
+    </div>
+
+    <!-- LISTAS DE PRECIOS VIGENTES -->
+    <div id="sec-listas" class="section">
+      <div class="page-header">
+        <h1 class="page-title">📋 Listas de Precios Vigentes</h1>
+        <button class="btn btn-secondary" onclick="loadListasRepo()">🔄 Actualizar</button>
+      </div>
+      <div class="card">
         <div id="listaRepo"><p style="color:var(--muted);font-size:13px">Cargando listas...</p></div>
       </div>
     </div>
@@ -2495,7 +2501,7 @@ function showSection(name) {
   <div class="more-drawer-item" onclick="mobileNav('productos');closeAllDrawers()"><span class="mn-icon">📦</span>Catálogo</div>
   <div class="more-drawer-item" onclick="mobileNav('stock');closeAllDrawers()"><span class="mn-icon">🏪</span>Stock</div>
   <div class="more-drawer-item admin-only" onclick="closeAllDrawers();showSection('productos');setTimeout(()=>openModal('modalListaPrecios'),300)"><span class="mn-icon">📄</span>Lista de precios</div>
-  <div class="more-drawer-item vendedor-only" onclick="mobileNav('productos');closeAllDrawers();setTimeout(()=>document.getElementById('listaRepo')?.scrollIntoView({behavior:'smooth'}),400)"><span class="mn-icon">📋</span>Listas de Precios Vigentes</div>
+  <div class="more-drawer-item" onclick="mobileNav('listas');closeAllDrawers()"><span class="mn-icon">📋</span>Listas de Precios Vigentes</div>
 </div>
 
 <!-- MORE DRAWER -->
@@ -2767,18 +2773,36 @@ async function loadDashboardAdmin() {
     document.getElementById('statEntregasManana').textContent = entregasManana.length;
 
     const ultPedidos = await api('pedidos', 'GET', null,
-      `?select=id,total,estado,fecha,clientes(nombre,nombre_fantasia)&order=created_at.desc&limit=5${vFiltro}`);
+      `?select=id,total,estado,fecha,fecha_entrega,clientes(nombre,nombre_fantasia)&estado=eq.pendiente&order=created_at.desc&limit=8${vFiltro}`);
     const tbody = document.getElementById('dashPedidos');
+    const cardsEl = document.getElementById('dashPedidosCards');
     if (!ultPedidos.length) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Sin pedidos aún</td></tr>';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Sin pedidos pendientes</td></tr>';
+      if (cardsEl) cardsEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Sin pedidos pendientes</div>';
     } else {
-      tbody.innerHTML = ultPedidos.map(p => `
+      if (tbody) tbody.innerHTML = ultPedidos.map(p => `
         <tr>
           <td>${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
           <td>${p.fecha}</td>
           <td>${badgeEstado(p.estado)}</td>
           <td>$${parseFloat(p.total||0).toLocaleString('es-AR')}</td>
         </tr>`).join('');
+      if (cardsEl) cardsEl.innerHTML = ultPedidos.map(p => {
+        const fechaCorta = p.fecha ? new Date(p.fecha+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '—';
+        const entregaCorta = p.fecha_entrega ? new Date(p.fecha_entrega+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : null;
+        return `<div class="op-card" style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:14px">${p.clientes ? nombreCliente(p.clientes) : '—'}</div>
+              <div style="font-size:12px;color:var(--muted)">Pedido: ${fechaCorta}${entregaCorta ? ' · Entrega: '+entregaCorta : ''}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;margin-left:12px">
+              <div style="font-weight:700;font-size:15px">$${parseFloat(p.total||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+              <div style="margin-top:4px">${badgeEstado(p.estado)}</div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
     }
   } catch(e) { console.error(e); }
   // Objetivos del mes
@@ -2817,15 +2841,19 @@ async function loadDashboardVendedor() {
     document.getElementById('vStatClientesActivos').textContent = clientesActivos.length;
   } catch(e) { console.error('vDash stats:', e); }
 
-  // Mis últimos pedidos
+  // Mis últimos pedidos (últimos 7 días, cualquier estado)
   try {
+    const _7d = new Date(); _7d.setDate(_7d.getDate()-7);
+    const desde7 = `${_7d.getFullYear()}-${String(_7d.getMonth()+1).padStart(2,'0')}-${String(_7d.getDate()).padStart(2,'0')}`;
     const ultPedidos = await api('pedidos', 'GET', null,
-      `?select=id,total,estado,fecha,clientes(nombre,nombre_fantasia)&vendedor_id=eq.${currentUser}&order=created_at.desc&limit=6`);
+      `?select=id,total,estado,fecha,fecha_entrega,clientes(nombre,nombre_fantasia)&vendedor_id=eq.${currentUser}&fecha=gte.${desde7}&order=created_at.desc&limit=20`);
     const tbody = document.getElementById('vDashPedidos');
+    const cardsEl = document.getElementById('vDashPedidosCards');
     if (!ultPedidos.length) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Sin pedidos registrados todavía</td></tr>';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Sin pedidos en los últimos 7 días</td></tr>';
+      if (cardsEl) cardsEl.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted)">Sin pedidos en los últimos 7 días</div>';
     } else {
-      tbody.innerHTML = ultPedidos.map(p => {
+      if (tbody) tbody.innerHTML = ultPedidos.map(p => {
         const fechaCorta = p.fecha ? new Date(p.fecha+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '—';
         return `<tr>
           <td style="font-size:12px">${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
@@ -2833,6 +2861,22 @@ async function loadDashboardVendedor() {
           <td>${badgeEstado(p.estado)}</td>
           <td style="font-size:12px">$${parseFloat(p.total||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</td>
         </tr>`;
+      }).join('');
+      if (cardsEl) cardsEl.innerHTML = ultPedidos.map(p => {
+        const fechaCorta = p.fecha ? new Date(p.fecha+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '—';
+        const entregaCorta = p.fecha_entrega ? new Date(p.fecha_entrega+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : null;
+        return `<div class="op-card" style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="flex:1">
+              <div style="font-weight:600;font-size:14px">${p.clientes ? nombreCliente(p.clientes) : '—'}</div>
+              <div style="font-size:12px;color:var(--muted)">Pedido: ${fechaCorta}${entregaCorta ? ' · Entrega: '+entregaCorta : ''}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;margin-left:12px">
+              <div style="font-weight:700;font-size:15px">$${parseFloat(p.total||0).toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+              <div style="margin-top:4px">${badgeEstado(p.estado)}</div>
+            </div>
+          </div>
+        </div>`;
       }).join('');
     }
   } catch(e) { console.error('vDash pedidos:', e); }
@@ -3222,7 +3266,16 @@ function filterProductosFamiliaCards() {
 function renderProductos(list) {
   const tbody = document.getElementById('tablaProductos');
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty"><div class="empty-icon">📦</div><p>No hay productos todavía</p></div></td></tr>'; return; }
-  tbody.innerHTML = list.map(p => {
+
+  // Agrupar por familia para tabla desktop
+  const rowsHtml = [];
+  let familiaActual = null;
+  list.forEach(p => {
+    const fam = p.familia || 'Sin familia';
+    if (fam !== familiaActual) {
+      familiaActual = fam;
+      rowsHtml.push(`<tr style="background:var(--honey-light)"><td colspan="7" style="padding:6px 12px;font-size:11px;font-weight:700;color:var(--honey-dark);text-transform:uppercase;letter-spacing:.06em">${fam}</td></tr>`);
+    }
     const precio = parseFloat(p.precio || 0);
     const precioMay = parseFloat(p.precio_mayorista || 0);
     const stock = p.stock_real ?? parseFloat(p.stock || 0);
@@ -3231,7 +3284,7 @@ function renderProductos(list) {
       : stock <= (p.stock_minimo || 0) && p.stock_minimo > 0
         ? `<span class="badge badge-yellow">⚠ ${stock}</span>`
         : `<span class="badge badge-green">${stock}</span>`;
-    return `
+    rowsHtml.push(`
     <tr>
       <td>
         <code style="font-size:12px;background:var(--bg);padding:2px 6px;border-radius:4px;font-weight:600">${p.codigo||'—'}</code>
@@ -3241,7 +3294,7 @@ function renderProductos(list) {
         <strong>${p.nombre}</strong>
         ${p.promo_costo_activa ? ' <span style="background:#FEF3C7;color:#92400E;font-size:10px;padding:2px 6px;border-radius:10px">📉 Costo promo</span>' : ''}
         ${p.descripcion ? `<br><span style="color:var(--muted);font-size:12px">${p.descripcion}</span>` : ''}
-        ${p.familia ? `<br><span style="font-size:11px;color:var(--muted)">${p.familia}${p.variante ? ' · ' + p.variante : ''}</span>` : ''}
+        ${p.variante ? `<br><span style="font-size:11px;color:var(--muted)">${p.variante}</span>` : ''}
       </td>
       <td style="font-weight:600">$${precio.toLocaleString('es-AR',{maximumFractionDigits:2})}</td>
       <td style="color:#2563EB;font-weight:600">${precioMay > 0 ? '$' + precioMay.toLocaleString('es-AR',{maximumFractionDigits:2}) : '<span style="color:var(--muted)">—</span>'}</td>
@@ -3252,35 +3305,48 @@ function renderProductos(list) {
           <button class="btn btn-sm btn-secondary" onclick="editProducto('${p.id}')">Editar</button>
         ` : '<span style="font-size:11px;color:var(--muted)">—</span>'}
       </td>
-    </tr>`}).join('');
+    </tr>`);
+  });
+  tbody.innerHTML = rowsHtml.join('');
 
-  // MOBILE CARDS productos
+  // MOBILE CARDS productos — agrupados por familia (igual que Stock)
   const cardsEl = document.getElementById('cardsProductos');
   if (cardsEl) {
-    cardsEl.innerHTML = list.length ? list.map(p => {
-      const precio = parseFloat(p.precio || 0);
-      const precioMay = parseFloat(p.precio_mayorista || 0);
-      const stock = p.stock_real ?? parseFloat(p.stock || 0);
-      const stockColor = stock <= 0 ? '#DC2626' : stock <= (p.stock_minimo || 0) && p.stock_minimo > 0 ? '#D97706' : '#16A34A';
-      return `<div class="op-card">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:15px">${p.nombre}</div>
-            ${p.familia ? `<div style="font-size:11px;color:var(--muted)">${p.familia}${p.variante ? ' · ' + p.variante : ''}</div>` : ''}
-            ${p.codigo ? `<code style="font-size:11px;background:var(--bg);padding:1px 5px;border-radius:4px">${p.codigo}</code>` : ''}
-          </div>
-          <div style="text-align:right;flex-shrink:0;margin-left:12px">
-            <div style="font-size:13px;font-weight:600">Dist: $${precio.toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
-            ${precioMay > 0 ? `<div style="font-size:12px;color:#2563EB">May: $${precioMay.toLocaleString('es-AR',{maximumFractionDigits:0})}</div>` : ''}
-            <div style="font-size:12px;color:${stockColor};font-weight:600">Stock: ${stock} ${p.unidad||''}</div>
-          </div>
-        </div>
-        ${currentRol === 'admin' ? `
-        <div class="op-card-actions" style="margin-top:10px">
-          <button class="btn btn-secondary" style="flex:1" onclick="editProducto('${p.id}')">✏ Editar</button>
-        </div>` : ''}
-      </div>`;
-    }).join('') : '<div style="text-align:center;padding:32px;color:var(--muted)">No hay productos</div>';
+    if (!list.length) { cardsEl.innerHTML = '<div style="text-align:center;padding:32px;color:var(--muted)">No hay productos</div>'; return; }
+    const familias = {};
+    list.forEach(p => {
+      const fam = p.familia || 'Sin familia';
+      if (!familias[fam]) familias[fam] = [];
+      familias[fam].push(p);
+    });
+    cardsEl.innerHTML = Object.entries(familias).map(([fam, prods]) => `
+      <div style="margin-bottom:4px">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:8px 4px 4px">${fam}</div>
+        ${prods.map(p => {
+          const precio = parseFloat(p.precio || 0);
+          const precioMay = parseFloat(p.precio_mayorista || 0);
+          const stock = p.stock_real ?? parseFloat(p.stock || 0);
+          const stockColor = stock <= 0 ? '#DC2626' : stock <= (p.stock_minimo || 0) && p.stock_minimo > 0 ? '#D97706' : '#16A34A';
+          return `<div class="op-card" style="margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:15px">${p.nombre}</div>
+                ${p.variante ? `<div style="font-size:11px;color:var(--muted)">${p.variante}</div>` : ''}
+                ${p.codigo ? `<code style="font-size:11px;background:var(--bg);padding:1px 5px;border-radius:4px">${p.codigo}</code>` : ''}
+              </div>
+              <div style="text-align:right;flex-shrink:0;margin-left:12px">
+                <div style="font-size:13px;font-weight:600">Dist: $${precio.toLocaleString('es-AR',{maximumFractionDigits:0})}</div>
+                ${precioMay > 0 ? `<div style="font-size:12px;color:#2563EB">May: $${precioMay.toLocaleString('es-AR',{maximumFractionDigits:0})}</div>` : ''}
+                <div style="font-size:12px;color:${stockColor};font-weight:600">Stock: ${stock} ${p.unidad||''}</div>
+              </div>
+            </div>
+            ${currentRol === 'admin' ? `
+            <div class="op-card-actions" style="margin-top:10px">
+              <button class="btn btn-secondary" style="flex:1" onclick="editProducto('${p.id}')">✏ Editar</button>
+            </div>` : ''}
+          </div>`;
+        }).join('')}
+      </div>`).join('');
   }
 }
 
@@ -3763,7 +3829,7 @@ async function loadPedidos() {
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('pedidoFiltroVendedor')?.value || '')
       : currentUser;
-    let q = `?select=id,numero,fecha,fecha_entrega,fecha_entrega_real,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,clientes(nombre,nombre_fantasia)&order=numero.asc`;
+    let q = `?select=id,numero,fecha,fecha_entrega,fecha_entrega_real,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
     if (estado) q += `&estado=eq.${estado}`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
     if (clienteFiltro) q += `&cliente_id=eq.${clienteFiltro}`;
@@ -4335,7 +4401,7 @@ async function loadVentas() {
     const vendedorId = currentRol === 'admin'
       ? (document.getElementById('ventaFiltroVendedor')?.value || '')
       : currentUser;
-    let q = `?select=id,numero,fecha,fecha_entrega_real,total,estado_pago,vendedor_id,clientes(nombre,nombre_fantasia)&order=numero.asc`;
+    let q = `?select=id,numero,fecha,fecha_entrega_real,total,estado_pago,vendedor_id,clientes(nombre,nombre_fantasia)&order=created_at.desc`;
     if (vendedorId) q += `&vendedor_id=eq.${vendedorId}`;
     if (clienteFiltro) q += `&cliente_id=eq.${clienteFiltro}`;
     const ventas = await api('ventas', 'GET', null, q);
