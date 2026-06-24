@@ -1660,6 +1660,24 @@ function showSection(name) {
     </div>
     <div class="form-row">
       <div class="form-group">
+        <label>CUIT</label>
+        <input id="clienteCuit" placeholder="Ej: 20-12345678-9" maxlength="15">
+      </div>
+      <div class="form-group">
+        <label>Condición IVA</label>
+        <select id="clienteCondicionIva">
+          <option value="">— Sin especificar —</option>
+          <option value="Responsable Inscripto">Responsable Inscripto</option>
+          <option value="Monotributo">Monotributo</option>
+          <option value="Exento">Exento</option>
+          <option value="Consumidor Final">Consumidor Final</option>
+          <option value="No Responsable">No Responsable</option>
+          <option value="No Categorizado">No Categorizado</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
         <label>Estado</label>
         <select id="clienteEstado">
           <option value="Pendiente">⏳ Pendiente</option>
@@ -2477,7 +2495,7 @@ function showSection(name) {
     <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #E8E2D8;flex-shrink:0">
       <span style="font-weight:600;font-size:14px" id="compModalTitle">Comprobante</span>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-primary btn-sm hide-mobile" onclick="printComp()">🖨 Imprimir</button>
+        <button class="btn btn-primary btn-sm" onclick="printComp()">🖨 Imprimir</button>
         <button class="btn btn-secondary btn-sm" onclick="descargarComp()">⬇ Descargar</button>
         <button class="btn btn-secondary btn-sm" onclick="closeModal('modalComprobante')">Cerrar</button>
       </div>
@@ -3146,6 +3164,8 @@ async function saveCliente() {
     tipo: document.getElementById('clienteTipo').value,
     descuento_pct: parseFloat(document.getElementById('clienteDescuento').value) || 0,
     modalidad_factura: document.getElementById('clienteModalidadFactura').value || 'sin_iva',
+    cuit: document.getElementById('clienteCuit').value.trim() || null,
+    condicion_iva: document.getElementById('clienteCondicionIva').value || null,
     estado_cliente: document.getElementById('clienteEstado').value,
     notas: document.getElementById('clienteNotas').value.trim(),
     latitud: document.getElementById('clienteLatitud').value ? parseFloat(document.getElementById('clienteLatitud').value) : null,
@@ -3164,7 +3184,8 @@ async function saveCliente() {
           telefono: data.telefono, email: data.email,
           direccion: data.direccion, localidad: data.localidad,
           provincia: data.provincia, notas: data.notas,
-          latitud: data.latitud, longitud: data.longitud
+          latitud: data.latitud, longitud: data.longitud,
+          cuit: data.cuit, condicion_iva: data.condicion_iva
         };
         await api('clientes', 'PATCH', dataSanitizada, `?id=eq.${id}`);
       } else {
@@ -3206,6 +3227,8 @@ function editCliente(id) {
   document.getElementById('clienteModalidadFactura').value = c.modalidad_factura || 'sin_iva';
   document.getElementById('clienteEstado').value = c.estado_cliente || 'Pendiente';
   document.getElementById('clienteNotas').value = c.notas || '';
+  document.getElementById('clienteCuit').value = c.cuit || '';
+  document.getElementById('clienteCondicionIva').value = c.condicion_iva || '';
   document.getElementById('clienteLatitud').value = c.latitud || '';
   document.getElementById('clienteLongitud').value = c.longitud || '';
   openModal('modalCliente');
@@ -3222,7 +3245,8 @@ async function deleteCliente(id) {
 }
 
 function clearClienteForm() {
-  ['clienteId','clienteNombre','clienteFantasia','clienteTel','clienteEmail','clienteLocalidad','clienteDir','clienteNotas','clienteDescuento','clienteLatitud','clienteLongitud'].forEach(id => document.getElementById(id).value = '');
+  ['clienteId','clienteNombre','clienteFantasia','clienteTel','clienteEmail','clienteLocalidad','clienteDir','clienteNotas','clienteDescuento','clienteCuit','clienteLatitud','clienteLongitud'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('clienteCondicionIva').value = '';
   document.getElementById('clienteModalidadFactura').value = 'sin_iva';
   document.getElementById('clienteTipo').value = 'Minorista';
   document.getElementById('clienteEstado').value = 'Pendiente';
