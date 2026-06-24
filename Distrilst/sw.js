@@ -1,4 +1,4 @@
-const CACHE_NAME = "hojuelas-41";
+const CACHE_NAME = "hojuelas-v41";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
