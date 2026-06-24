@@ -6094,32 +6094,38 @@ async function loadMapa() {
     if (!cachedClientes.length) cachedClientes = todos;
 
     if (currentRol === 'admin') {
-      // Admin: mostrar filtro vendedor, ocultar filtro cliente
-      document.getElementById('mapaFiltroVendedorWrap').style.display = '';
+      document.getElementById('mapaFiltroVendedorWrap').style.display = 'flex';
       document.getElementById('mapaFiltroClienteWrap').style.display = 'none';
       poblarSelectVendedor('mapaFiltroVendedor');
       mapaClientesData = todos;
     } else {
-      // Vendedor: mostrar filtro cliente, ocultar filtro vendedor
       document.getElementById('mapaFiltroVendedorWrap').style.display = 'none';
-      document.getElementById('mapaFiltroClienteWrap').style.display = '';
+      document.getElementById('mapaFiltroClienteWrap').style.display = 'flex';
       const misClientes = todos.filter(c => c.vendedor_id === currentUser || !c.vendedor_id);
       mapaClientesData = misClientes;
       const sel = document.getElementById('mapaFiltroCliente');
-      sel.innerHTML = '<option value="">Todos mis clientes</option>' +
+      sel.innerHTML = '<option value="">Todos mis clientes + sin asignar</option>' +
         misClientes.map(c => `<option value="${c.id}">${nombreCliente(c)}</option>`).join('');
     }
 
-    // Destruir y reinicializar mapa (fix móvil)
+    // Destruir mapa anterior
     if (mapaInstance) { mapaInstance.remove(); mapaInstance = null; }
-    mapaInstance = L.map('mapaContainer').setView([-31.63, -60.70], 11);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors', maxZoom: 19
-    }).addTo(mapaInstance);
 
-    renderMapa();
-    setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 150);
-    setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 500);
+    // Esperar a que el contenedor sea visible antes de inicializar
+    const tryInit = (intentos) => {
+      const container = document.getElementById('mapaContainer');
+      if (container && container.offsetHeight > 0) {
+        mapaInstance = L.map('mapaContainer').setView([-31.63, -60.70], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors', maxZoom: 19
+        }).addTo(mapaInstance);
+        renderMapa();
+        setTimeout(() => { if (mapaInstance) mapaInstance.invalidateSize(); }, 300);
+      } else if (intentos > 0) {
+        setTimeout(() => tryInit(intentos - 1), 150);
+      }
+    };
+    tryInit(10);
   } catch(e) { console.error(e); toast('Error cargando mapa', 'error'); }
 }
 
