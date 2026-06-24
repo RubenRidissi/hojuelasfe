@@ -473,7 +473,6 @@ function openNavGroup(section) {
     pagos: 'Clientes', ctacte: 'Clientes',
     proveedor: 'Proveedores', recepciones: 'Proveedores',
     productos: 'Productos', stock: 'Productos', listas: 'Productos',
-    finanzas: 'Finanzas'
   };
   const grupo = grupos[section];
   if (grupo) {
@@ -625,13 +624,8 @@ function showSection(name) {
       </div>
 
       <!-- GRUPO FINANZAS (admin) -->
-      <div class="nav-group-header admin-only" id="navGrpFinanzas" onclick="toggleNavGroup('finanzas')">
-        <span class="nav-icon">💵</span><span>Finanzas</span><span class="nav-arrow">▼</span>
-      </div>
-      <div class="nav-submenu admin-only" id="navSubFinanzas">
-        <div class="nav-item" onclick="showSection('finanzas')">
-          <span class="nav-icon">💵</span><span>Finanzas</span>
-        </div>
+      <div class="nav-item admin-only" onclick="showSection('finanzas')">
+        <span class="nav-icon">💵</span><span>Finanzas</span>
       </div>
 
       <div class="nav-item" onclick="showSection('reportes')">
@@ -8254,8 +8248,30 @@ function descargarComp() {
 function printComp() {
   const contenido = document.getElementById('compContenido').innerHTML;
   const titulo = document.getElementById('compModalTitle').textContent;
+  const estilos = document.querySelector('style').textContent;
+  // Mobile: imprimir directamente en la página con un div temporal
+  if (window.innerWidth < 768) {
+    const printDiv = document.createElement('div');
+    printDiv.id = 'printTempDiv';
+    printDiv.innerHTML = contenido;
+    printDiv.style.cssText = 'position:fixed;inset:0;background:white;z-index:99999;overflow:auto;padding:20px';
+    document.body.appendChild(printDiv);
+    const style = document.createElement('style');
+    style.id = 'printTempStyle';
+    style.textContent = '@media print { body > *:not(#printTempDiv) { display:none !important; } #printTempDiv { position:static !important; } }';
+    document.head.appendChild(style);
+    setTimeout(function() {
+      window.print();
+      setTimeout(function() {
+        document.getElementById('printTempDiv')?.remove();
+        document.getElementById('printTempStyle')?.remove();
+      }, 500);
+    }, 300);
+    return;
+  }
+  // Desktop: abrir ventana nueva
   const win = window.open('', '_blank');
-  win.document.write('<!DOCTYPE html><html><head><title>' + titulo + '</title><style>body{font-family:Arial,sans-serif;margin:0;padding:0;color:#1C1917;}' + document.querySelector('style').textContent + '</style></head><body>' + contenido + '</body></html>');
+  win.document.write('<!DOCTYPE html><html><head><title>' + titulo + '</title><style>body{font-family:Arial,sans-serif;margin:0;padding:0;color:#1C1917;}' + estilos + '</style></head><body>' + contenido + '</body></html>');
   win.document.close();
   win.focus();
   setTimeout(function() { win.print(); win.close(); }, 500);
