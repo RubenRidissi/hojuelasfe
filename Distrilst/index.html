@@ -3883,7 +3883,7 @@ async function loadPedidos() {
       const tieneRemito = origenesConRemito.has(p.id) || (yaConvertido && origenesConRemito.has(p.convertido_venta_id));
       return `
       <tr>
-        <td style="color:var(--muted);font-size:12px">#${String(i+1).padStart(3,'0')}</td>
+        <td style="color:var(--muted);font-size:12px">#${String(p.numero||0).padStart(6,'0')}</td>
         <td>${p.clientes ? nombreCliente(p.clientes) : '—'}</td>
         <td class="hide-mobile" style="font-size:12px">
           <div>📅 ${p.fecha_entrega || 'Sin programar'}</div>
@@ -3896,19 +3896,21 @@ async function loadPedidos() {
         <td>$${parseFloat(p.total||0).toLocaleString('es-AR')}</td>
         ${isAdmin ? `<td style="font-size:12px;color:var(--muted)">${nombreVendedor}</td>` : ''}
         <td style="white-space:nowrap">
+          <div style="display:flex;align-items:center;gap:3px">
           ${yaConvertido
-            ? `<span class="badge badge-green" title="Ya facturado">✓ Facturado</span>`
-            : `<select style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:6px" onchange="updateEstadoPedido('${p.id}',this.value)">
-                ${['pendiente','confirmado','entregado','cancelado'].filter(e => !(p.estado === 'pendiente' && e === 'entregado')).map(e => `<option value="${e}" ${p.estado===e?'selected':''}>${e.charAt(0).toUpperCase()+e.slice(1)}</option>`).join('')}
+            ? `<span class="badge badge-green">✓ Facturado</span>`
+            : `<select style="font-size:11px;padding:3px 4px;border:1px solid var(--border);border-radius:6px;max-width:108px" onchange="updateEstadoPedido('${p.id}',this.value)">
+                ${['pendiente','confirmado','entregado','cancelado'].filter(e => !(p.estado === 'pendiente' && e === 'entregado')).map(e => `<option value="${e}" ${p.estado===e?'selected':''}>` + e.charAt(0).toUpperCase()+e.slice(1)+`</option>`).join('')}
               </select>`}
-          ${puedeConvertir ? `<button class="btn btn-sm btn-success" style="margin-left:4px" onclick="convertirPedidoEnVenta('${p.id}')" title="Convertir en venta">🧾 Convertir</button>` : ''}
-          ${p.estado === 'pendiente' && !yaConvertido ? `<button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="editPedido('${p.id}')" title="Editar pedido">✏</button>` : ''}
-          <button class="btn btn-sm btn-secondary" style="margin-left:4px" onclick="verComprobante('pedido','${p.id}')" title="Ver comprobante">📋</button>
+          ${puedeConvertir ? `<button class="btn btn-sm btn-success" style="padding:3px 6px;font-size:11px" onclick="convertirPedidoEnVenta('${p.id}')" title="Convertir en venta">🧾 Conv.</button>` : ''}
+          ${p.estado === 'pendiente' && !yaConvertido ? `<button class="btn btn-sm btn-secondary" style="padding:3px 6px" onclick="editPedido('${p.id}')" title="Editar pedido">✏</button>` : ''}
+          <button class="btn btn-sm btn-secondary" style="padding:3px 6px" onclick="verComprobante('pedido','${p.id}')" title="Ver comprobante">📋</button>
           ${tieneRemito
-            ? `<button class="btn btn-sm" style="margin-left:4px;background:#F3F4F6;color:#374151" onclick="verRemito('pedido','${p.id}')" title="Ver remito generado">👁 Remito</button>`
-            : (puedeRemitir ? `<button class="btn btn-sm" style="margin-left:4px;background:#FEF3C7;color:#92400E" onclick="imprimirRemito('pedido','${p.id}')" title="Imprimir remito de entrega">🚚</button>` : '')
+            ? `<button class="btn btn-sm" style="padding:3px 6px;background:#F3F4F6;color:#374151" onclick="verRemito('pedido','${p.id}')" title="Ver remito">👁</button>`
+            : (puedeRemitir ? `<button class="btn btn-sm" style="padding:3px 6px;background:#FEF3C7;color:#92400E" onclick="imprimirRemito('pedido','${p.id}')" title="Imprimir remito">🚚</button>` : '')
           }
-          ${isAdmin && !yaConvertido ? `<button class="btn btn-sm btn-danger" style="margin-left:4px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')">Borrar</button>` : ''}
+          ${isAdmin && !yaConvertido ? `<button class="btn btn-sm btn-danger" style="padding:3px 6px;font-size:11px" onclick="deletePedido('${p.id}','${(p.clientes?.nombre||'Cliente').replace(/'/g,'')}')" title="Borrar">✕</button>` : ''}
+          </div>
         </td>
       </tr>`;
     }).join('');
@@ -3923,7 +3925,7 @@ async function loadPedidos() {
         const tieneRemito = origenesConRemito.has(p.id) || (yaConvertido && origenesConRemito.has(p.convertido_venta_id));
         return `<div class="op-card">
           <div class="op-card-header">
-            <span class="op-card-num">#${String(i+1).padStart(3,'0')}</span>
+            <span class="op-card-num">#${String(p.numero||0).padStart(6,'0')}</span>
             <span>${badgeEstado(p.estado)}</span>
             <span class="op-card-fecha">${p.fecha_entrega ? new Date(p.fecha_entrega+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : 'Sin fecha'}</span>
           </div>
@@ -4454,7 +4456,7 @@ async function loadVentas() {
       const tieneRemito = origenesConRemito.has(v.id) || (pedidoRelacionado && origenesConRemito.has(pedidoRelacionado.id));
       return `
       <tr>
-        <td style="color:var(--muted);font-size:12px">#${String(i+1).padStart(3,'0')}</td>
+        <td style="color:var(--muted);font-size:12px">#${String(v.numero||0).padStart(6,'0')}</td>
         <td>${v.clientes ? nombreCliente(v.clientes) : '—'}</td>
         <td class="hide-mobile" style="font-size:12px">
           <div>🧾 ${v.fecha}</div>
@@ -4491,7 +4493,7 @@ async function loadVentas() {
         const fechaCorta = v.fecha ? new Date(v.fecha+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '—';
         return `<div class="op-card">
           <div class="op-card-header">
-            <span class="op-card-num">#${String(i+1).padStart(3,'0')} · ${fechaCorta}</span>
+            <span class="op-card-num">#${String(v.numero||0).padStart(6,'0')} · ${fechaCorta}</span>
             <span>${badgePago(v.estado_pago)}</span>
             ${!v.fecha_entrega_real ? '<span style="font-size:11px;color:#D97706">Sin entregar</span>' : '<span style="font-size:11px;color:var(--success)">✓ Entregado</span>'}
           </div>
@@ -8077,7 +8079,6 @@ function buildHeader(tipo, num, fecha) {
 function buildClienteInfo(cliente, l1, v1, l2, v2) {
   return '<div class="comp-datos">' +
     '<div><span>Cliente</span><strong>' + (cliente ? nombreCliente(cliente) : '—') + '</strong></div>' +
-    '<div><span>Tipo</span><strong>' + (cliente ? (cliente.tipo || 'Minorista') : '—') + '</strong></div>' +
     '<div><span>Dirección</span><strong>' + (cliente ? (cliente.direccion || '—') : '—') + '</strong></div>' +
     '<div><span>Teléfono</span><strong>' + (cliente ? (cliente.telefono || '—') : '—') + '</strong></div>' +
     '<div><span>' + l1 + '</span><strong>' + v1 + '</strong></div>' +
